@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circuit Lab — Component Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #07071a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #0f0f25;
+      border-bottom: 1px solid #1a1a3e;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 18px; font-weight: 600; color: #00d2ff; }
+    header span { font-size: 13px; color: #555588; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      flex: 1;
+      gap: 0;
+      min-height: 0;
+    }
+
+    .form-col {
+      padding: 24px;
+      overflow-y: auto;
+      border-right: 1px solid #1a1a3e;
+    }
+
+    .output-col {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .section {
+      background: #0f0f25;
+      border: 1px solid #1a1a3e;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #00d2ff;
+      margin-bottom: 14px;
+    }
+
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: #8888bb;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      background: #1a1a3e;
+      border: 1px solid #2a2a5e;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+      border-color: #00d2ff;
+    }
+    select option { background: #1a1a3e; }
+
+    .row { display: grid; gap: 10px; }
+    .row-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .row-2 { grid-template-columns: 1fr 1fr; }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .btn-primary { background: #00d2ff; color: #07071a; }
+    .btn-primary:hover { background: #33ddff; }
+    .btn-danger { background: transparent; border: 1px solid #ff4466; color: #ff4466; }
+    .btn-danger:hover { background: #ff446622; }
+    .btn-secondary { background: #1a1a3e; border: 1px solid #2a2a5e; color: #aaaacc; }
+    .btn-secondary:hover { background: #222244; }
+    .btn-copy { background: #1a1a3e; border: 1px solid #00d2ff44; color: #00d2ff; }
+    .btn-copy:hover { background: #00d2ff22; }
+
+    .btn-add {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #00d2ff, #0088cc);
+      color: #07071a;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      transition: all 0.2s;
+    }
+    .btn-add:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-add:active { transform: translateY(0); }
+    .btn-add:disabled { filter: brightness(0.5); cursor: not-allowed; transform: none; }
+
+    .status-box {
+      border-radius: 8px;
+      padding: 14px 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: none;
+    }
+    .status-box.success {
+      display: block;
+      background: #0a2a1a;
+      border: 1px solid #00aa55;
+      color: #44ffaa;
+    }
+    .status-box.error {
+      display: block;
+      background: #2a0a14;
+      border: 1px solid #aa2244;
+      color: #ff6688;
+    }
+    .status-box.loading {
+      display: block;
+      background: #0f0f25;
+      border: 1px solid #2a2a5e;
+      color: #8888bb;
+    }
+
+    .port-row {
+      background: #12122a;
+      border: 1px solid #1e1e42;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .prop-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 80px 32px;
+      gap: 8px;
+      align-items: end;
+      margin-bottom: 8px;
+    }
+
+    .add-btn-row { display: flex; gap: 8px; margin-top: 6px; }
+
+    .output-block {
+      background: #0f0f25;
+      border: 1px solid #1a1a3e;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid #1a1a3e;
+    }
+    .output-title { font-size: 12px; font-weight: 600; color: #8888bb; text-transform: uppercase; letter-spacing: 0.06em; }
+    .output-code {
+      padding: 14px;
+      font-family: 'Consolas', 'Fira Code', monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      color: #c0c0e0;
+      white-space: pre;
+      overflow-x: auto;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+
+    .copied-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #00d2ff;
+      color: #07071a;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s;
+      pointer-events: none;
+    }
+    .copied-toast.show { opacity: 1; transform: translateY(0); }
+
+    .required { color: #ff4466; }
+    .hint { font-size: 11px; color: #555588; margin-top: 3px; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #1a1a3e;
+      margin: 8px 0 16px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Circuit Lab Admin</h1>
+  <span>— Component Creator</span>
+</header>
+
+<div class="layout">
+  <!-- LEFT: Form -->
+  <div class="form-col">
+
+    <!-- Basic Info -->
+    <div class="section">
+      <div class="section-title">Basic Info</div>
+
+      <div class="field">
+        <label>Type ID <span class="required">*</span></label>
+        <input type="text" id="type" placeholder="e.g. rgb_led" oninput="update()">
+        <p class="hint">小寫英文、底線，需唯一。Lowercase, underscores only, must be unique.</p>
+      </div>
+
+      <div class="field">
+        <label>Display Name <span class="required">*</span></label>
+        <input type="text" id="name" placeholder="e.g. RGB LED" oninput="update()">
+      </div>
+
+      <div class="field">
+        <label>Category <span class="required">*</span></label>
+        <select id="category" onchange="update()">
+          <option value="passive">Passive 被動元件</option>
+          <option value="active">Active 主動元件</option>
+          <option value="power">Power 電源</option>
+          <option value="logic">Logic 邏輯閘</option>
+          <option value="microcontroller">Microcontroller 微控制器</option>
+          <option value="display">Display 顯示器</option>
+          <option value="electromechanical">Electromechanical 機電</option>
+          <option value="measurement">Measurement 量測</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Description <span class="required">*</span></label>
+        <input type="text" id="description" placeholder="Short description of the component" oninput="update()">
+      </div>
+    </div>
+
+    <!-- Size -->
+    <div class="section">
+      <div class="section-title">3D Size</div>
+      <div class="row row-3">
+        <div class="field">
+          <label>Width</label>
+          <input type="number" id="sizeW" value="1" step="0.1" min="0.1" oninput="update()">
+        </div>
+        <div class="field">
+          <label>Height</label>
+          <input type="number" id="sizeH" value="0.5" step="0.1" min="0.1" oninput="update()">
+        </div>
+        <div class="field">
+          <label>Depth</label>
+          <input type="number" id="sizeD" value="0.3" step="0.1" min="0.1" oninput="update()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Ports -->
+    <div class="section">
+      <div class="section-title">Ports / Pins 腳位</div>
+      <div id="ports-container"></div>
+      <div class="add-btn-row">
+        <button class="btn btn-secondary" onclick="addPort()">+ 新增腳位 Add Port</button>
+      </div>
+    </div>
+
+    <!-- Default Properties -->
+    <div class="section">
+      <div class="section-title">Default Properties 預設屬性</div>
+      <div id="props-container"></div>
+      <div class="add-btn-row">
+        <button class="btn btn-secondary" onclick="addProp()">+ 新增屬性 Add Property</button>
+      </div>
+    </div>
+
+    <!-- SPICE Model -->
+    <div class="section">
+      <div class="section-title">SPICE Model <span style="font-weight:400;color:#555588;text-transform:none;font-size:11px;">(選填 optional)</span></div>
+      <div class="field">
+        <textarea id="spiceModel" rows="3" placeholder="e.g. R {name} {p1} {p2} {resistance}" oninput="update()" style="resize:vertical;font-family:monospace;font-size:12px;"></textarea>
+        <p class="hint">Use {portId} and {propertyKey} as placeholders.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Output -->
+  <div class="output-col">
+
+    <!-- ★ Direct Add Button -->
+    <button class="btn-add" id="addBtn" onclick="addToLibrary()">
+      ＋ 直接新增到 Library
+    </button>
+
+    <!-- Status -->
+    <div class="status-box" id="statusBox"></div>
+
+    <hr class="divider">
+
+    <!-- Code previews -->
+    <div class="output-block">
+      <div class="output-header">
+        <span class="output-title">1. ComponentType union — shared/src/types/index.ts</span>
+        <button class="btn btn-copy" onclick="copyType()">Copy</button>
+      </div>
+      <div class="output-code" id="out-type">// 填寫左側表單後自動生成</div>
+    </div>
+
+    <div class="output-block">
+      <div class="output-header">
+        <span class="output-title">2. COMPONENT_LIBRARY — simulator-core/src/components/library.ts</span>
+        <button class="btn btn-copy" onclick="copyLib()">Copy</button>
+      </div>
+      <div class="output-code" id="out-lib">// 填寫左側表單後自動生成</div>
+    </div>
+
+    <div style="background:#1a1a3e22;border:1px solid #1a1a3e;border-radius:8px;padding:14px;">
+      <p style="font-size:12px;color:#6666aa;line-height:1.8;">
+        <strong style="color:#8888cc;">按下「直接新增」後：</strong><br>
+        程式會自動寫入 <code style="color:#aaaaff">types/index.ts</code> 與 <code style="color:#aaaaff">library.ts</code><br>
+        完成後執行：<code style="color:#88ffaa;background:#0a1a0a;padding:2px 6px;border-radius:4px;">npx tsc -b</code> 重新編譯即可
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<div class="copied-toast" id="toast">Copied!</div>
+
+<script>
+let portCount = 0;
+let propCount = 0;
+
+function addPort(data = {}) {
+  portCount++;
+  const id = `port_${portCount}`;
+  const div = document.createElement('div');
+  div.className = 'port-row';
+  div.id = id;
+  div.innerHTML = `
+    <div class="row row-2" style="margin-bottom:8px;">
+      <div class="field" style="margin:0">
+        <label>Port ID</label>
+        <input type="text" placeholder="e.g. anode" value="${data.id||''}" oninput="update()">
+      </div>
+      <div class="field" style="margin:0">
+        <label>Port Name</label>
+        <input type="text" placeholder="e.g. Anode (+)" value="${data.name||''}" oninput="update()">
+      </div>
+    </div>
+    <div class="row row-3" style="margin-bottom:8px;align-items:end;">
+      <div class="field" style="margin:0">
+        <label>Pos X</label>
+        <input type="number" value="${data.x??0}" step="0.1" oninput="update()">
+      </div>
+      <div class="field" style="margin:0">
+        <label>Pos Y</label>
+        <input type="number" value="${data.y??0}" step="0.1" oninput="update()">
+      </div>
+      <div class="field" style="margin:0">
+        <label>Pos Z</label>
+        <input type="number" value="${data.z??0}" step="0.1" oninput="update()">
+      </div>
+    </div>
+    <div class="row row-2" style="align-items:end;">
+      <div class="field" style="margin:0">
+        <label>Type</label>
+        <select onchange="update()">
+          <option value="bidirectional" ${(data.type||'bidirectional')==='bidirectional'?'selected':''}>bidirectional</option>
+          <option value="input" ${data.type==='input'?'selected':''}>input</option>
+          <option value="output" ${data.type==='output'?'selected':''}>output</option>
+          <option value="power" ${data.type==='power'?'selected':''}>power</option>
+        </select>
+      </div>
+      <div class="field" style="margin:0;display:flex;align-items:flex-end;">
+        <button class="btn btn-danger" style="width:100%" onclick="removePort('${id}')">Remove</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('ports-container').appendChild(div);
+  update();
+}
+
+function removePort(id) {
+  document.getElementById(id)?.remove();
+  update();
+}
+
+function addProp(data = {}) {
+  propCount++;
+  const id = `prop_${propCount}`;
+  const div = document.createElement('div');
+  div.className = 'prop-row';
+  div.id = id;
+  div.innerHTML = `
+    <div class="field" style="margin:0">
+      <label>Key</label>
+      <input type="text" placeholder="e.g. resistance" value="${data.key||''}" oninput="update()">
+    </div>
+    <div class="field" style="margin:0">
+      <label>Default Value</label>
+      <input type="text" placeholder="e.g. 1000" value="${data.value||''}" oninput="update()">
+    </div>
+    <div class="field" style="margin:0">
+      <label>Type</label>
+      <select onchange="update()">
+        <option value="number" ${(data.vtype||'number')==='number'?'selected':''}>number</option>
+        <option value="string" ${data.vtype==='string'?'selected':''}>string</option>
+        <option value="boolean" ${data.vtype==='boolean'?'selected':''}>boolean</option>
+      </select>
+    </div>
+    <div style="padding-top:18px;">
+      <button class="btn btn-danger" style="padding:7px 8px" onclick="removeProp('${id}')">✕</button>
+    </div>
+  `;
+  document.getElementById('props-container').appendChild(div);
+  update();
+}
+
+function removeProp(id) {
+  document.getElementById(id)?.remove();
+  update();
+}
+
+function getPorts() {
+  return Array.from(document.getElementById('ports-container').querySelectorAll('.port-row')).map(row => {
+    const inputs = row.querySelectorAll('input');
+    const select = row.querySelector('select');
+    return {
+      id: inputs[0].value.trim(),
+      name: inputs[1].value.trim(),
+      x: parseFloat(inputs[2].value) || 0,
+      y: parseFloat(inputs[3].value) || 0,
+      z: parseFloat(inputs[4].value) || 0,
+      type: select.value,
+    };
+  });
+}
+
+function getProps() {
+  return Array.from(document.getElementById('props-container').querySelectorAll('.prop-row')).map(row => {
+    const inputs = row.querySelectorAll('input');
+    const select = row.querySelector('select');
+    return { key: inputs[0].value.trim(), value: inputs[1].value.trim(), vtype: select.value };
+  });
+}
+
+function formatValue(v, vtype) {
+  if (vtype === 'boolean') return v === 'true' ? 'true' : 'false';
+  if (vtype === 'string') return `'${v}'`;
+  const n = parseFloat(v);
+  return !isNaN(n) ? String(n) : (v || '0');
+}
+
+function getFormData() {
+  return {
+    type:        document.getElementById('type').value.trim(),
+    name:        document.getElementById('name').value.trim(),
+    category:    document.getElementById('category').value,
+    description: document.getElementById('description').value.trim(),
+    size: {
+      width:  parseFloat(document.getElementById('sizeW').value) || 1,
+      height: parseFloat(document.getElementById('sizeH').value) || 0.5,
+      depth:  parseFloat(document.getElementById('sizeD').value) || 0.3,
+    },
+    ports:             getPorts(),
+    defaultProperties: getProps(),
+    spiceModel:        document.getElementById('spiceModel').value.trim(),
+  };
+}
+
+function update() {
+  const d = getFormData();
+  if (!d.type) {
+    document.getElementById('out-type').textContent = '// 輸入 Type ID 後自動生成';
+    document.getElementById('out-lib').textContent  = '// 輸入 Type ID 後自動生成';
+    return;
+  }
+
+  document.getElementById('out-type').textContent = `  | '${d.type}'`;
+
+  const ports = d.ports;
+  let portsStr;
+  if (ports.length === 0) {
+    portsStr = '    ports: [],';
+  } else {
+    const lines = ports.map(p =>
+      `      { id: '${p.id}', name: '${p.name}', position: { x: ${p.x}, y: ${p.y}, z: ${p.z} }, type: '${p.type}' },`
+    ).join('\n');
+    portsStr = `    ports: [\n${lines}\n    ],`;
+  }
+
+  const validProps = d.defaultProperties.filter(p => p.key);
+  const propsStr = validProps.length === 0
+    ? '    defaultProperties: {},'
+    : `    defaultProperties: { ${validProps.map(p => `${p.key}: ${formatValue(p.value, p.vtype)}`).join(', ')} },`;
+
+  const spiceLine = d.spiceModel ? `\n    spiceModel: '${d.spiceModel.replace(/'/g, "\\'")}',` : '';
+
+  document.getElementById('out-lib').textContent =
+`  ${d.type}: {
+    type: '${d.type}',
+    name: '${d.name || d.type}',
+    category: '${d.category}',
+    description: '${(d.description || '').replace(/'/g, "\\'")}',
+${portsStr}
+${propsStr}
+    size: { width: ${d.size.width}, height: ${d.size.height}, depth: ${d.size.depth} },${spiceLine}
+  },`;
+}
+
+function setStatus(type, msg) {
+  const box = document.getElementById('statusBox');
+  box.className = `status-box ${type}`;
+  box.innerHTML = msg;
+}
+
+async function addToLibrary() {
+  const d = getFormData();
+
+  if (!d.type)  { setStatus('error', '請填寫 Type ID'); return; }
+  if (!d.name)  { setStatus('error', '請填寫 Display Name'); return; }
+  if (!/^[a-z][a-z0-9_]*$/.test(d.type)) {
+    setStatus('error', 'Type ID 格式錯誤：只能包含小寫英文、數字、底線，且不能以數字開頭');
+    return;
+  }
+
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true;
+  setStatus('loading', '正在寫入檔案...');
+
+  try {
+    const res = await fetch('/api/add-component', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(d),
+    });
+
+    const text = await res.text();
+    if (!text) throw new Error('Server 回傳空回應，請確認 vite.config.js 已載入（重新執行 npm run dev）');
+    let json;
+    try { json = JSON.parse(text); }
+    catch { throw new Error(`Server 回傳非 JSON 內容：${text.slice(0, 120)}`); }
+
+    if (res.ok) {
+      setStatus('success',
+        `✓ ${json.message}<br><br>` +
+        `下一步：在專案根目錄執行 <code style="background:#0a1a0a;padding:2px 6px;border-radius:4px;">npx tsc -b</code> 重新編譯`
+      );
+      // Reset form
+      document.getElementById('type').value = '';
+      document.getElementById('name').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('spiceModel').value = '';
+      document.getElementById('ports-container').innerHTML = '';
+      document.getElementById('props-container').innerHTML = '';
+      portCount = 0; propCount = 0;
+      update();
+    } else {
+      setStatus('error', `✗ ${json.error}`);
+    }
+  } catch (err) {
+    setStatus('error', `✗ 連線失敗：${err.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  });
+}
+function copyType() { copyText(document.getElementById('out-type').textContent); }
+function copyLib()  { copyText(document.getElementById('out-lib').textContent); }
+
+// Initial sample values
+addPort({ id: 'p1', name: 'Pin 1', x: -0.5, y: 0, z: 0, type: 'bidirectional' });
+addPort({ id: 'p2', name: 'Pin 2', x:  0.5, y: 0, z: 0, type: 'bidirectional' });
+addProp({ key: 'resistance', value: '1000', vtype: 'number' });
+</script>
+</body>
+</html>

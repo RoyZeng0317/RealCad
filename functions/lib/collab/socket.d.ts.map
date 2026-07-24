@@ -1,0 +1,1 @@
+{"version":3,"file":"socket.d.ts","sourceRoot":"","sources":["../../src/collab/socket.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,IAAI,cAAc,EAAU,MAAM,WAAW,CAAC;AAC7D,OAAO,EAAE,MAAM,IAAI,UAAU,EAAE,MAAM,MAAM,CAAC;AAU5C,wBAAgB,kBAAkB,CAAC,UAAU,EAAE,UAAU,GAAG,cAAc,CA2GzE"}
