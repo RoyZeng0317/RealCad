@@ -3,7 +3,7 @@ import tkinter as tk
 window = tk.Tk()
 window.title("RealCad")
 
-function = ["File(F)", "Edit(E)", "View(V)", "Tool(T)", "Setting(S)", "Help(H)"]
+function = ["File(F)", "Edit(E)", "View(V)", "Tool(V)", "Setting(S)", "Help(H)"]
 file_function = ["New Project", "Open Project", "Open Recently Project", "Exit"]
 edit_function = ["Cut", "Copy", "Past"]
 view_function = ["Restart"]
