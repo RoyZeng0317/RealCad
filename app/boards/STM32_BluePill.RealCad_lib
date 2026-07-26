@@ -1,0 +1,452 @@
+{
+  "name": "STM32 Blue Pill (STM32F103C8T6)",
+  "format": "RealCad-Symbol-Library",
+  "version": 1,
+  "source": "manual",
+  "symbols": [
+    {
+      "name": "STM32 Blue Pill (STM32F103C8T6)",
+      "properties": {
+        "Reference": "U",
+        "Value": "STM32 Blue Pill (STM32F103C8T6)",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "VBAT",
+          "name": "VBAT",
+          "x": -7.62,
+          "y": 25.4,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PC13",
+          "name": "PC13",
+          "x": -7.62,
+          "y": 22.86,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PC14",
+          "name": "PC14",
+          "x": -7.62,
+          "y": 20.32,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PC15",
+          "name": "PC15",
+          "x": -7.62,
+          "y": 17.779999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA0",
+          "name": "PA0",
+          "x": -7.62,
+          "y": 15.239999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA1",
+          "name": "PA1",
+          "x": -7.62,
+          "y": 12.7,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA2",
+          "name": "PA2",
+          "x": -7.62,
+          "y": 10.159999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA3",
+          "name": "PA3",
+          "x": -7.62,
+          "y": 7.619999999999997,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA4",
+          "name": "PA4",
+          "x": -7.62,
+          "y": 5.079999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA5",
+          "name": "PA5",
+          "x": -7.62,
+          "y": 2.539999999999999,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA6",
+          "name": "PA6",
+          "x": -7.62,
+          "y": 0.0,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA7",
+          "name": "PA7",
+          "x": -7.62,
+          "y": -2.5400000000000027,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB0",
+          "name": "PB0",
+          "x": -7.62,
+          "y": -5.080000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB1",
+          "name": "PB1",
+          "x": -7.62,
+          "y": -7.6200000000000045,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB2",
+          "name": "PB2_BOOT1",
+          "x": -7.62,
+          "y": -10.160000000000004,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB10",
+          "name": "PB10",
+          "x": -7.62,
+          "y": -12.700000000000003,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB11",
+          "name": "PB11",
+          "x": -7.62,
+          "y": -15.240000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB12",
+          "name": "PB12",
+          "x": -7.62,
+          "y": -17.78,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB13",
+          "name": "PB13",
+          "x": -7.62,
+          "y": -20.32,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB14",
+          "name": "PB14",
+          "x": -7.62,
+          "y": -22.86,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB15",
+          "name": "PB15",
+          "x": -7.62,
+          "y": -25.4,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "RESET",
+          "name": "RESET",
+          "x": 7.62,
+          "y": 25.4,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "BOOT0",
+          "name": "BOOT0",
+          "x": 7.62,
+          "y": 22.86,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "3V3",
+          "name": "3V3",
+          "x": 7.62,
+          "y": 20.32,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "5V",
+          "name": "5V",
+          "x": 7.62,
+          "y": 17.779999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GND1",
+          "name": "GND",
+          "x": 7.62,
+          "y": 15.239999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GND2",
+          "name": "GND",
+          "x": 7.62,
+          "y": 12.7,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA8",
+          "name": "PA8",
+          "x": 7.62,
+          "y": 10.159999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA9",
+          "name": "PA9",
+          "x": 7.62,
+          "y": 7.619999999999997,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA10",
+          "name": "PA10",
+          "x": 7.62,
+          "y": 5.079999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA11",
+          "name": "PA11",
+          "x": 7.62,
+          "y": 2.539999999999999,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA12",
+          "name": "PA12",
+          "x": 7.62,
+          "y": 0.0,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA13",
+          "name": "PA13_SWDIO",
+          "x": 7.62,
+          "y": -2.5400000000000027,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA14",
+          "name": "PA14_SWCLK",
+          "x": 7.62,
+          "y": -5.080000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PA15",
+          "name": "PA15",
+          "x": 7.62,
+          "y": -7.6200000000000045,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB3",
+          "name": "PB3",
+          "x": 7.62,
+          "y": -10.160000000000004,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB4",
+          "name": "PB4",
+          "x": 7.62,
+          "y": -12.700000000000003,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB5",
+          "name": "PB5",
+          "x": 7.62,
+          "y": -15.240000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB6",
+          "name": "PB6",
+          "x": 7.62,
+          "y": -17.78,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB7",
+          "name": "PB7",
+          "x": 7.62,
+          "y": -20.32,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB8",
+          "name": "PB8",
+          "x": 7.62,
+          "y": -22.86,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "PB9",
+          "name": "PB9",
+          "x": 7.62,
+          "y": -25.4,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "rectangle",
+          "start": [
+            -5.08,
+            -26.669999999999998
+          ],
+          "end": [
+            5.08,
+            26.669999999999998
+          ]
+        }
+      ]
+    }
+  ]
+}

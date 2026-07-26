@@ -1,0 +1,332 @@
+{
+  "name": "ESP32 DevKitC (30-pin, generic)",
+  "format": "RealCad-Symbol-Library",
+  "version": 1,
+  "source": "manual",
+  "symbols": [
+    {
+      "name": "ESP32 DevKitC (30-pin, generic)",
+      "properties": {
+        "Reference": "U",
+        "Value": "ESP32 DevKitC (30-pin, generic)",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "EN",
+          "name": "EN",
+          "x": -7.62,
+          "y": 17.78,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO36",
+          "name": "VP_GPIO36",
+          "x": -7.62,
+          "y": 15.240000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO39",
+          "name": "VN_GPIO39",
+          "x": -7.62,
+          "y": 12.700000000000001,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO34",
+          "name": "GPIO34",
+          "x": -7.62,
+          "y": 10.16,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO35",
+          "name": "GPIO35",
+          "x": -7.62,
+          "y": 7.620000000000001,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO32",
+          "name": "GPIO32",
+          "x": -7.62,
+          "y": 5.080000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO33",
+          "name": "GPIO33",
+          "x": -7.62,
+          "y": 2.540000000000001,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO25",
+          "name": "GPIO25",
+          "x": -7.62,
+          "y": 0.0,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO26",
+          "name": "GPIO26",
+          "x": -7.62,
+          "y": -2.539999999999999,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO27",
+          "name": "GPIO27",
+          "x": -7.62,
+          "y": -5.079999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO14",
+          "name": "GPIO14",
+          "x": -7.62,
+          "y": -7.619999999999997,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO12",
+          "name": "GPIO12",
+          "x": -7.62,
+          "y": -10.16,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GND1",
+          "name": "GND",
+          "x": -7.62,
+          "y": -12.7,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO13",
+          "name": "GPIO13",
+          "x": -7.62,
+          "y": -15.240000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "VIN",
+          "name": "VIN_5V",
+          "x": -7.62,
+          "y": -17.78,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "3V3",
+          "name": "3V3",
+          "x": 7.62,
+          "y": 17.78,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO23",
+          "name": "GPIO23",
+          "x": 7.62,
+          "y": 15.240000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO22",
+          "name": "GPIO22",
+          "x": 7.62,
+          "y": 12.700000000000001,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO1",
+          "name": "TX0_GPIO1",
+          "x": 7.62,
+          "y": 10.16,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO3",
+          "name": "RX0_GPIO3",
+          "x": 7.62,
+          "y": 7.620000000000001,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO21",
+          "name": "GPIO21",
+          "x": 7.62,
+          "y": 5.080000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO19",
+          "name": "GPIO19",
+          "x": 7.62,
+          "y": 2.540000000000001,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO18",
+          "name": "GPIO18",
+          "x": 7.62,
+          "y": 0.0,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO5",
+          "name": "GPIO5",
+          "x": 7.62,
+          "y": -2.539999999999999,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO17",
+          "name": "GPIO17",
+          "x": 7.62,
+          "y": -5.079999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO16",
+          "name": "GPIO16",
+          "x": 7.62,
+          "y": -7.619999999999997,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO4",
+          "name": "GPIO4",
+          "x": 7.62,
+          "y": -10.16,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO0",
+          "name": "GPIO0_BOOT",
+          "x": 7.62,
+          "y": -12.7,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO2",
+          "name": "GPIO2",
+          "x": 7.62,
+          "y": -15.240000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GPIO15",
+          "name": "GPIO15",
+          "x": 7.62,
+          "y": -17.78,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "rectangle",
+          "start": [
+            -5.08,
+            -19.05
+          ],
+          "end": [
+            5.08,
+            19.05
+          ]
+        }
+      ]
+    }
+  ]
+}

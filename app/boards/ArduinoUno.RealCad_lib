@@ -1,0 +1,312 @@
+{
+  "name": "Arduino Uno R3",
+  "format": "RealCad-Symbol-Library",
+  "version": 1,
+  "source": "manual",
+  "symbols": [
+    {
+      "name": "Arduino Uno R3",
+      "properties": {
+        "Reference": "J",
+        "Value": "Arduino Uno R3",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "D0",
+          "name": "D0_RXD",
+          "x": -7.62,
+          "y": 16.51,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D1",
+          "name": "D1_TXD",
+          "x": -7.62,
+          "y": 13.970000000000002,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D2",
+          "name": "D2",
+          "x": -7.62,
+          "y": 11.430000000000001,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D3",
+          "name": "D3_PWM",
+          "x": -7.62,
+          "y": 8.89,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D4",
+          "name": "D4",
+          "x": -7.62,
+          "y": 6.350000000000001,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D5",
+          "name": "D5_PWM",
+          "x": -7.62,
+          "y": 3.8100000000000023,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D6",
+          "name": "D6_PWM",
+          "x": -7.62,
+          "y": 1.2700000000000014,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D7",
+          "name": "D7",
+          "x": -7.62,
+          "y": -1.2699999999999996,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D8",
+          "name": "D8",
+          "x": -7.62,
+          "y": -3.8099999999999987,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D9",
+          "name": "D9_PWM",
+          "x": -7.62,
+          "y": -6.349999999999998,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D10",
+          "name": "D10_PWM",
+          "x": -7.62,
+          "y": -8.889999999999997,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D11",
+          "name": "D11_PWM",
+          "x": -7.62,
+          "y": -11.43,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D12",
+          "name": "D12",
+          "x": -7.62,
+          "y": -13.969999999999999,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "D13",
+          "name": "D13_LED",
+          "x": -7.62,
+          "y": -16.51,
+          "rotation": 180.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A0",
+          "name": "A0",
+          "x": 7.62,
+          "y": 16.51,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A1",
+          "name": "A1",
+          "x": 7.62,
+          "y": 13.970000000000002,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A2",
+          "name": "A2",
+          "x": 7.62,
+          "y": 11.430000000000001,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A3",
+          "name": "A3",
+          "x": 7.62,
+          "y": 8.89,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A4",
+          "name": "A4_SDA",
+          "x": 7.62,
+          "y": 6.350000000000001,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "A5",
+          "name": "A5_SCL",
+          "x": 7.62,
+          "y": 3.8100000000000023,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "5V",
+          "name": "5V",
+          "x": 7.62,
+          "y": 1.2700000000000014,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "3V3",
+          "name": "3V3",
+          "x": 7.62,
+          "y": -1.2699999999999996,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "VIN",
+          "name": "VIN",
+          "x": 7.62,
+          "y": -3.8099999999999987,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GND1",
+          "name": "GND",
+          "x": 7.62,
+          "y": -6.349999999999998,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "GND2",
+          "name": "GND",
+          "x": 7.62,
+          "y": -8.889999999999997,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "RESET",
+          "name": "RESET",
+          "x": 7.62,
+          "y": -11.43,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "AREF",
+          "name": "AREF",
+          "x": 7.62,
+          "y": -13.969999999999999,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "IOREF",
+          "name": "IOREF",
+          "x": 7.62,
+          "y": -16.51,
+          "rotation": 0.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "rectangle",
+          "start": [
+            -5.08,
+            -17.78
+          ],
+          "end": [
+            5.08,
+            17.78
+          ]
+        }
+      ]
+    }
+  ]
+}
