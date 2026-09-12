@@ -1,0 +1,190 @@
+{
+  "name": "Basic Components",
+  "format": "RealCad-Symbol-Library",
+  "version": 1,
+  "source": "manual",
+  "symbols": [
+    {
+      "name": "Resistor",
+      "properties": {
+        "Reference": "R",
+        "Value": "1k",
+        "Rating_Power": "1/4W",
+        "Quality": "standard",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "1",
+          "name": "~",
+          "x": 0.0,
+          "y": 5.08,
+          "rotation": 90.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        },
+        {
+          "number": "2",
+          "name": "~",
+          "x": 0.0,
+          "y": -5.08,
+          "rotation": 270.0,
+          "length": 2.54,
+          "electrical_type": "passive",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "rectangle",
+          "start": [-1.27, -2.54],
+          "end": [1.27, 2.54]
+        }
+      ]
+    },
+    {
+      "name": "DC Voltage Source",
+      "properties": {
+        "Reference": "V",
+        "Value": "5V",
+        "Max_Current": "2A",
+        "Quality": "standard",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "1",
+          "name": "+",
+          "x": 0.0,
+          "y": 5.08,
+          "rotation": 90.0,
+          "length": 2.54,
+          "electrical_type": "power_out",
+          "shape": "line"
+        },
+        {
+          "number": "2",
+          "name": "-",
+          "x": 0.0,
+          "y": -5.08,
+          "rotation": 270.0,
+          "length": 2.54,
+          "electrical_type": "power_out",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "circle",
+          "center": [0.0, 0.0],
+          "radius": 2.54
+        },
+        {
+          "type": "polyline",
+          "points": [[-0.8, 1.2], [0.8, 1.2]]
+        },
+        {
+          "type": "polyline",
+          "points": [[0.0, 2.0], [0.0, 0.4]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-0.8, -1.2], [0.8, -1.2]]
+        }
+      ]
+    },
+    {
+      "name": "Battery",
+      "properties": {
+        "Reference": "BT",
+        "Value": "9V",
+        "Max_Current": "1A",
+        "Quality": "standard",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "1",
+          "name": "+",
+          "x": 0.0,
+          "y": 5.08,
+          "rotation": 90.0,
+          "length": 2.54,
+          "electrical_type": "power_out",
+          "shape": "line"
+        },
+        {
+          "number": "2",
+          "name": "-",
+          "x": 0.0,
+          "y": -5.08,
+          "rotation": 270.0,
+          "length": 2.54,
+          "electrical_type": "power_out",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "polyline",
+          "points": [[-2.54, 1.0], [2.54, 1.0]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-1.27, -1.0], [1.27, -1.0]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-0.8, 2.6], [0.8, 2.6]]
+        },
+        {
+          "type": "polyline",
+          "points": [[0.0, 3.4], [0.0, 1.8]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-0.8, -2.6], [0.8, -2.6]]
+        }
+      ]
+    },
+    {
+      "name": "Ground",
+      "properties": {
+        "Reference": "GND",
+        "Value": "GND",
+        "Footprint": "",
+        "Datasheet": ""
+      },
+      "pins": [
+        {
+          "number": "1",
+          "name": "GND",
+          "x": 0.0,
+          "y": 0.0,
+          "rotation": 270.0,
+          "length": 2.54,
+          "electrical_type": "power_in",
+          "shape": "line"
+        }
+      ],
+      "graphics": [
+        {
+          "type": "polyline",
+          "points": [[-2.54, -2.54], [2.54, -2.54]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-1.5, -3.5], [1.5, -3.5]]
+        },
+        {
+          "type": "polyline",
+          "points": [[-0.5, -4.5], [0.5, -4.5]]
+        }
+      ]
+    }
+  ]
+}

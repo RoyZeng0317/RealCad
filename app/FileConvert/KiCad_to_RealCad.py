@@ -1,49 +1,51 @@
-# 這裡要的是把 KiCad 的檔案轉換成 RealCad 可以用的檔案
-# 包含所有的 .kicad_sch .kicad_pcb .kicad_sym 等都適用
-#
-# 目前完成 .kicad_sym（符號庫）跟 .kicad_sch（電路圖）這兩種。
-# .kicad_pcb 之後再做——RealCad 目前還沒有 PCB 的資料格式。
-#
-# RealCad 符號庫是 sch/home_screen.py 裡 open_library() 讀的那種 .RealCad_lib
-# (JSON 檔),這裡把它擴充成真的裝得下符號資料,原本的 "name" 欄位保留相容:
-#   {
-#     "name": "<函式庫名稱>",
-#     "format": "RealCad-Symbol-Library",
-#     "version": 1,
-#     "source": "kicad_sym",
-#     "symbols": [
-#       {
-#         "name": "R",
-#         "properties": {"Reference": "R", "Value": "R", ...},
-#         "pins": [{"number": "1", "name": "~", "x": 0, "y": 3.81, "rotation": 270,
-#                    "length": 1.27, "electrical_type": "passive", "shape": "line"}, ...],
-#         "graphics": [{"type": "rectangle", "start": [-1.016, -2.54], "end": [1.016, 2.54]}, ...]
-#       }, ...
-#     ]
-#   }
-#
-# .kicad_sch -> RealCad 電路圖,輸出 sch/sch_editor.py 存的 .RealCad_sch:
-#   { "name", "format": "RealCad-Schematic", "version": 1, "source": "kicad_sch",
-#     "components": [{"id","symbol":{同上符號格式},"x","y","ref"}, ...],
-#     "wires": [{"from":[comp_id,pin_no], "to":[comp_id,pin_no]}, ...] }
-#
-# KiCad 電路圖的接線是「座標重合」判斷連接(wire 端點座標 == pin 的絕對座標),
-# 不是像 RealCad 這樣直接用 (元件,pin) 配對,所以要:
-#   1. 從 lib_symbols 取出每個符號定義(pin 的區域座標)
-#   2. 每個放置的 symbol instance 有自己的 (at x y rotation),把 pin 區域座標轉成絕對座標
-#   3. 用 union-find 把所有 wire 端點 + pin 絕對座標(座標相同視為同一點)分組成網路(net)
-#   4. 同一個 net 裡的 pin,兩兩之間補一條 RealCad 的 wire
-#
-# 已知限制: 旋轉角度只保證 0°/180° 一定正確(這兩個沒有方向性模糊的問題);
-# 90°/270° 用標準旋轉矩陣處理,但因為沒有真正的 KiCad 環境可以比對驗證,
-# 有旋轉的元件建議轉換後自行檢查接線是否正確。鏡像(mirror)目前未處理。
-#
-# .kicad_pro -> RealCad 專案。注意 .kicad_pro 本身就是「純 JSON」,
-# 不是前面幾種的 S-expression 語法,所以直接 json.load 讀,不用經過 parse_sexp。
-# 輸出沿用 home_screen.py 的 .RealCad_pro 專案格式({"name","version"}),
-# 並把整份原始 KiCad 專案 JSON 原封不動存進 "kicad_project" 欄位——
-# RealCad 目前沒有設計規則/網路類別/板層這些概念,先不逐項轉換,保留原始資料
-# 以免遺失資訊,以後 RealCad 有對應功能時可以回頭從這裡取用。
+"""
+這裡要的是把 KiCad 的檔案轉換成 RealCad 可以用的檔案
+包含所有的 .kicad_sch .kicad_pcb .kicad_sym 等都適用
+
+目前完成 .kicad_sym（符號庫）跟 .kicad_sch（電路圖）這兩種。
+.kicad_pcb 之後再做——RealCad 目前還沒有 PCB 的資料格式。
+
+RealCad 符號庫是 sch/home_screen.py 裡 open_library() 讀的那種 .RealCad_lib
+(JSON 檔),這裡把它擴充成真的裝得下符號資料,原本的 "name" 欄位保留相容:
+  {
+    "name": "<函式庫名稱>",
+    "format": "RealCad-Symbol-Library",
+    "version": 1,
+    "source": "kicad_sym",
+    "symbols": [
+      {
+        "name": "R",
+        "properties": {"Reference": "R", "Value": "R", ...},
+        "pins": [{"number": "1", "name": "~", "x": 0, "y": 3.81, "rotation": 270,
+                   "length": 1.27, "electrical_type": "passive", "shape": "line"}, ...],
+        "graphics": [{"type": "rectangle", "start": [-1.016, -2.54], "end": [1.016, 2.54]}, ...]
+      }, ...
+    ]
+  }
+
+.kicad_sch -> RealCad 電路圖,輸出 sch/sch_editor.py 存的 .RealCad_sch:
+  { "name", "format": "RealCad-Schematic", "version": 1, "source": "kicad_sch",
+    "components": [{"id","symbol":{同上符號格式},"x","y","ref"}, ...],
+    "wires": [{"from":[comp_id,pin_no], "to":[comp_id,pin_no]}, ...] }
+
+KiCad 電路圖的接線是「座標重合」判斷連接(wire 端點座標 == pin 的絕對座標),
+不是像 RealCad 這樣直接用 (元件,pin) 配對,所以要:
+  1. 從 lib_symbols 取出每個符號定義(pin 的區域座標)
+  2. 每個放置的 symbol instance 有自己的 (at x y rotation),把 pin 區域座標轉成絕對座標
+  3. 用 union-find 把所有 wire 端點 + pin 絕對座標(座標相同視為同一點)分組成網路(net)
+  4. 同一個 net 裡的 pin,兩兩之間補一條 RealCad 的 wire
+
+已知限制: 旋轉角度只保證 0°/180° 一定正確(這兩個沒有方向性模糊的問題);
+90°/270° 用標準旋轉矩陣處理,但因為沒有真正的 KiCad 環境可以比對驗證,
+有旋轉的元件建議轉換後自行檢查接線是否正確。鏡像(mirror)目前未處理。
+
+.kicad_pro -> RealCad 專案。注意 .kicad_pro 本身就是「純 JSON」,
+不是前面幾種的 S-expression 語法,所以直接 json.load 讀,不用經過 parse_sexp。
+輸出沿用 home_screen.py 的 .RealCad_pro 專案格式({"name","version"}),
+並把整份原始 KiCad 專案 JSON 原封不動存進 "kicad_project" 欄位——
+RealCad 目前沒有設計規則/網路類別/板層這些概念,先不逐項轉換,保留原始資料
+以免遺失資訊,以後 RealCad 有對應功能時可以回頭從這裡取用。
+"""
 
 import json
 import math
