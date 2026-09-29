@@ -6,7 +6,7 @@ import {
 } from './waveform.js';
 
 export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
-export type ViewPreset = 'overview' | 'generator' | 'scope';
+export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu';
 
 export interface ScopeSettings {
   timeDivIdx: number;

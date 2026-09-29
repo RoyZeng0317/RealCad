@@ -201,3 +201,19 @@ export function Bnc3D({ position }: { position: Vec3 }) {
     </group>
   );
 }
+
+/** 香蕉插座（電源供應器輸出端子）：彩色絕緣外環 + 金屬孔，接線頭中心在 [0, 0, 0.1] */
+export function BananaJack3D({ position, color }: { position: Vec3; color: string }) {
+  return (
+    <group position={position}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.04]} castShadow>
+        <cylinderGeometry args={[0.065, 0.07, 0.08, 24]} />
+        <meshStandardMaterial color={color} roughness={0.4} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.081]}>
+        <cylinderGeometry args={[0.028, 0.028, 0.004, 16]} />
+        <meshStandardMaterial color="#b8a060" metalness={0.9} roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}

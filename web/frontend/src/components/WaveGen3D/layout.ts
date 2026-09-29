@@ -15,7 +15,22 @@ export const SCOPE = {
   bnc: new THREE.Vector2(0.75, -0.85),
 };
 
-type Inst = typeof GEN;
+export const PSU = {
+  pos: new THREE.Vector3(-5.9, 0, 0.7),
+  rotY: 0.28,
+  size: { w: 2.6, h: 1.5, d: 2.2 },
+  jackPlus: new THREE.Vector2(0.8, -0.4),
+  jackGnd: new THREE.Vector2(0.97, -0.4),
+  jackMinus: new THREE.Vector2(1.14, -0.4),
+};
+
+// 電阻負載（放在電源前方桌面上，接線端子朝上）
+export const LOAD = {
+  pos: new THREE.Vector3(-4.7, 0, 3.0),
+  rotY: 0.15,
+};
+
+type Inst = { pos: THREE.Vector3; rotY: number; size: { w: number; h: number; d: number } };
 
 /** 前面板座標 (x, y, 往外 z) → 世界座標 */
 export function panelToWorld(inst: Inst, x: number, y: number, out = 0): THREE.Vector3 {
@@ -24,8 +39,9 @@ export function panelToWorld(inst: Inst, x: number, y: number, out = 0): THREE.V
 }
 
 export const VIEWS = {
-  overview: { pos: new THREE.Vector3(0.2, 4.2, 8.4), target: new THREE.Vector3(0, 0.9, 0.4) },
+  overview: { pos: new THREE.Vector3(-1.6, 5.2, 10.6), target: new THREE.Vector3(-1.6, 0.8, 0.8) },
   // 目標點往右偏，讓儀器避開畫面右側的 HTML 控制面板
   generator: { pos: panelToWorld(GEN, 0.9, 0.3, 4.2), target: panelToWorld(GEN, 0.9, 0, 0) },
   scope: { pos: panelToWorld(SCOPE, 0.9, 0.3, 4.8), target: panelToWorld(SCOPE, 0.9, 0, 0) },
+  psu: { pos: panelToWorld(PSU, 1.0, 1.6, 4.6), target: panelToWorld(PSU, 1.0, -0.4, 0.9) },
 };
