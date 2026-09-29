@@ -78,22 +78,21 @@ export function measure(samples: number[], dt: number): Measurements {
   }
   const n = samples.length || 1;
   const vavg = sum / n;
-  // 頻率：用中間準位的上升穿越點間距估算，至少要看到兩個完整週期的穿越點
+  // 頻率：用中間準位的穿越點間距估算（加遲滯避免雜訊）；上升緣不足兩個時改用下降緣
   const mid = (vmax + vmin) / 2;
   const hyst = (vmax - vmin) * 0.1;
-  const crossings: number[] = [];
-  let armed = false;
-  for (let i = 1; i < samples.length; i++) {
-    if (samples[i] < mid - hyst) armed = true;
-    if (armed && samples[i - 1] < mid && samples[i] >= mid) {
-      crossings.push(i);
-      armed = false;
-    }
+  const rising: number[] = [], falling: number[] = [];
+  let state: 'low' | 'high' | null = null;
+  for (let i = 0; i < samples.length; i++) {
+    const v = samples[i];
+    if (v < mid - hyst) { if (state === 'high') falling.push(i); state = 'low'; }
+    else if (v > mid + hyst) { if (state === 'low') rising.push(i); state = 'high'; }
   }
+  const edges = rising.length >= 2 ? rising : falling;
   let freq: number | null = null;
-  if (crossings.length >= 2 && vmax - vmin > 1e-6) {
-    const span = (crossings[crossings.length - 1] - crossings[0]) * dt;
-    freq = (crossings.length - 1) / span;
+  if (edges.length >= 2 && vmax - vmin > 1e-6) {
+    const span = (edges[edges.length - 1] - edges[0]) * dt;
+    freq = (edges.length - 1) / span;
   }
   return { vmax, vmin, vpp: vmax - vmin, vrms: Math.sqrt(sq / n), vavg, freq };
 }

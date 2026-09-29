@@ -59,12 +59,11 @@ export function panelToWorld(inst: Inst, x: number, y: number, out = 0): THREE.V
 
 export const VIEWS = {
   overview: { pos: new THREE.Vector3(-1.6, 6.6, 12.4), target: new THREE.Vector3(-1.6, 0.6, 1.6) },
-  // 目標點往右偏，讓儀器避開畫面右側的 HTML 控制面板
-  generator: { pos: panelToWorld(GEN, 0.9, 0.3, 4.2), target: panelToWorld(GEN, 0.9, 0, 0) },
-  scope: { pos: panelToWorld(SCOPE, 0.9, 0.3, 4.8), target: panelToWorld(SCOPE, 0.9, 0, 0) },
+  generator: { pos: panelToWorld(GEN, 0, 0.3, 4.4), target: panelToWorld(GEN, 0, 0, 0) },
+  scope: { pos: panelToWorld(SCOPE, 0, 0.3, 5.0), target: panelToWorld(SCOPE, 0, 0, 0) },
   breadboard: {
-    pos: new THREE.Vector3(BREADBOARD.pos.x + 0.75, 3.3, BREADBOARD.pos.z + 2.3),
-    target: new THREE.Vector3(BREADBOARD.pos.x + 0.75, 0, BREADBOARD.pos.z + 0.25),
+    pos: new THREE.Vector3(BREADBOARD.pos.x, 3.6, BREADBOARD.pos.z + 2.6),
+    target: new THREE.Vector3(BREADBOARD.pos.x, 0, BREADBOARD.pos.z + 0.25),
   },
-  psu: { pos: panelToWorld(PSU, 1.0, 1.6, 4.6), target: panelToWorld(PSU, 1.0, -0.4, 0.9) },
+  psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

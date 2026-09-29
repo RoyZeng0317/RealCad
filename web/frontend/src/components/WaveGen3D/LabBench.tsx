@@ -93,7 +93,7 @@ export function LabBench() {
         enabled={!dragging}
         enableZoom={!knobHover}
         enableDamping
-        minDistance={2}
+        minDistance={0.5}
         maxDistance={20}
         maxPolarAngle={Math.PI * 0.49}
         target={VIEWS.overview.target.toArray() as [number, number, number]}

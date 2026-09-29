@@ -236,21 +236,62 @@ export function Ldo3D({ part, selected }: { part: BoardPart; selected: boolean }
   );
 }
 
+// 杜邦線（公對公）：兩端是黑色方形塑膠殼 + 金屬針，針插進孔（或接線柱頂端的孔），中間是軟線拱起來
+const DUP = { w: P * 0.92, len: 0.24, pin: 0.05 };
+
+function DupontEnd({ at, dir }: { at: THREE.Vector3; dir: THREE.Vector3 }) {
+  // 塑膠殼稍微朝線的方向傾斜，看起來像真的插在板子上被線拉著
+  const quat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(UP, dir), [dir]);
+  return (
+    <group position={at} quaternion={quat}>
+      <mesh position={[0, -DUP.pin / 2, 0]}>
+        <boxGeometry args={[0.012, DUP.pin, 0.012]} />
+        <meshStandardMaterial color="#d9c27a" metalness={0.9} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, DUP.len / 2, 0]} castShadow>
+        <boxGeometry args={[DUP.w, DUP.len, DUP.w]} />
+        <meshStandardMaterial color="#141414" roughness={0.6} />
+      </mesh>
+      {/* 殼上的卡榫小窗 */}
+      <mesh position={[DUP.w / 2 + 0.0005, DUP.len * 0.35, 0]}>
+        <boxGeometry args={[0.001, DUP.len * 0.25, DUP.w * 0.5]} />
+        <meshStandardMaterial color="#6a6a6a" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Wire3D({ part, selected }: { part: BoardPart; selected: boolean }) {
-  const pts = useMemo(() => {
+  const g = useMemo(() => {
     const [A, B] = part.pins.map(holePos);
-    const a0 = A.clone().setY(A.y - (part.pins[0].startsWith('p:') ? 0 : 0.02));
-    const b0 = B.clone().setY(B.y - (part.pins[1].startsWith('p:') ? 0 : 0.02));
-    const h = 0.04 + Math.hypot(B.x - A.x, B.z - A.z) * 0.12;
-    const mid = A.clone().add(B).multiplyScalar(0.5);
-    return [a0, A.clone().setY(A.y + h), mid.setY(Math.max(A.y, B.y) + h * 1.3), B.clone().setY(B.y + h), b0];
+    const d = Math.hypot(B.x - A.x, B.z - A.z);
+    const flat = new THREE.Vector3(B.x - A.x, 0, B.z - A.z).normalize();
+    // 塑膠殼往對方傾斜 12°
+    const tilt = (s: number) => new THREE.Vector3(0, 1, 0).addScaledVector(flat, s * 0.2).normalize();
+    const dA = tilt(1), dB = tilt(-1);
+    const topA = A.clone().addScaledVector(dA, DUP.len), topB = B.clone().addScaledVector(dB, DUP.len);
+    const h = 0.12 + d * 0.22; // 杜邦線比較長、比較軟，拱得比較高
+    const mid = topA.clone().add(topB).multiplyScalar(0.5);
+    mid.y = Math.max(topA.y, topB.y) + h;
+    const pts = [
+      topA, topA.clone().addScaledVector(dA, 0.08),
+      topA.clone().lerp(mid, 0.55).setY(mid.y - h * 0.15), mid,
+      topB.clone().lerp(mid, 0.55).setY(mid.y - h * 0.15),
+      topB.clone().addScaledVector(dB, 0.08), topB,
+    ];
+    return { A, B, dA, dB, pts };
   }, [part.pins]);
-  const geo = useMemo(() => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 60, 0.012, 8, false), [pts]);
+  const geo = useMemo(() => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.pts, false, 'centripetal'), 80, 0.011, 8, false), [g]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
-    <mesh geometry={geo} castShadow {...usePartEvents(part)}>
-      <meshStandardMaterial color={part.color} roughness={0.5} emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
-    </mesh>
+    <group {...usePartEvents(part)}>
+      <mesh geometry={geo} castShadow>
+        <meshStandardMaterial color={part.color} roughness={0.45}
+          emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
+      </mesh>
+      <DupontEnd at={g.A} dir={g.dA} />
+      <DupontEnd at={g.B} dir={g.dB} />
+    </group>
   );
 }
 

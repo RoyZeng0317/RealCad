@@ -53,7 +53,7 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'resistor') return `電阻 ${fmtOhm(p.value!)}`;
   if (p.kind === 'diode') return `二極體 ${p.model}`;
   if (p.kind === 'ldo') return 'LT1117-3.3 穩壓 IC';
-  return '跳線';
+  return '杜邦線';
 }
 
 export function fmtOhm(r: number): string {

@@ -1,4 +1,4 @@
-// HTML 控制面板的「麵包板」分頁：選工具放零件（電阻 / 1N400x / LT1117 / 跳線）、選取零件看電壓電流、三用電表
+// 麵包板操作介面：左側元件庫（零件/工具/範例）、右側檢視器（三用電表、選取零件的工作點）
 import { useEffect, type CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
 import { useBench } from './bench.js';
@@ -8,98 +8,152 @@ import {
   fmtOhm, partLabel, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit } from './boardDemo.js';
-import { Section, chip } from './panelUi.js';
+import { useLabUi } from './labUi.js';
+import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
-const TOOLS: [Tool, string][] = [
-  ['select', '選取'], ['probe', '三用電表'], ['wire', '跳線'],
-  ['resistor', '電阻'], ['diode', '二極體'], ['ldo', 'LT1117'],
-];
-
-const HINT: Record<Tool, string> = {
+export const TOOL_HINT: Record<Tool, string> = {
   select: '點零件（或它插的孔）看電壓、電流、功率與溫度；Delete 鍵刪除。',
   probe: '點任一個孔：紅棒放在那裡，黑棒固定接 GND，讀出該點對地電壓。',
-  wire: '先點第一個孔（或 Va/Vb/GND 接線柱），再點第二個孔。',
+  wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
   diode: '先點陽極（A）的孔，再點陰極（K，有銀色環那端）的孔。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
 };
 
-export function BoardSection() {
-  const s = useBoard();
-  const bench = useBench();
+export const TOOL_NAME: Record<Tool, string> = {
+  select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', ldo: 'LT1117-3.3',
+};
 
+/** Esc 取消放置、Delete 刪除選取的零件 */
+export function useBoardKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.tagName === 'SELECT') return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       const st = useBoard.getState();
-      if (e.key === 'Escape') useBoard.setState({ pending: null, message: '' });
+      if (e.key === 'Escape') useBoard.setState({ pending: null, message: '', tool: 'select' });
       if ((e.key === 'Delete' || e.key === 'Backspace') && st.selectedId) st.removePart(st.selectedId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+}
 
-  const selected = s.parts.find((p) => p.id === s.selectedId) ?? null;
-  const dmmV = s.dmm ? bench.holeV(s.dmm) : null;
+interface LibItem { tool: Tool; name: string; sub: string; icon: string }
+const PART_ITEMS: LibItem[] = [
+  { tool: 'resistor', name: '電阻', sub: '碳膜 1/4 W・E12 10 Ω–1 MΩ', icon: '▭' },
+  { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
+  { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
+  { tool: 'wire', name: '杜邦線', sub: '公對公・接孔或接線柱', icon: '〰' },
+];
+const TOOL_ITEMS: LibItem[] = [
+  { tool: 'select', name: '選取', sub: '看零件工作點・Delete 刪除', icon: '↖' },
+  { tool: 'probe', name: '三用電表', sub: 'DC V・黑棒接 GND', icon: 'V' },
+];
 
+function LibRow({ item }: { item: LibItem }) {
+  const tool = useBoard((s) => s.tool);
+  const setTool = useBoard((s) => s.setTool);
+  const active = tool === item.tool;
+  return (
+    <button
+      onClick={() => { setTool(item.tool); if (item.tool !== 'select') useLabUi.getState().focus('breadboard'); }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', cursor: 'pointer',
+        background: active ? '#0b3550' : 'transparent', border: `1px solid ${active ? T.accent : 'transparent'}`,
+        borderRadius: 6, padding: '6px 8px', color: T.text, fontFamily: T.font,
+      }}
+    >
+      <span style={{ width: 28, textAlign: 'center', color: T.accent, fontFamily: T.mono, fontWeight: 700 }}>{item.icon}</span>
+      <span style={{ display: 'flex', flexDirection: 'column' }}>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>{item.name}</span>
+        <span style={{ fontSize: 11, color: T.muted }}>{item.sub}</span>
+      </span>
+    </button>
+  );
+}
+
+/** 目前工具的參數（電阻值、二極體型號、杜邦線顏色、LT1117 腳位方向） */
+function ToolParams() {
+  const s = useBoard();
+  if (s.tool === 'resistor') return (
+    <select style={selectStyle} value={s.resistorValue} onChange={(e) => s.setParam({ resistorValue: Number(e.target.value) })}>
+      {RESISTOR_VALUES.map((v) => <option key={v} value={v}>{fmtOhm(v)}</option>)}
+    </select>
+  );
+  if (s.tool === 'diode') return (
+    <select style={selectStyle} value={s.diodeModel} onChange={(e) => s.setParam({ diodeModel: e.target.value as typeof s.diodeModel })}>
+      {DIODE_MODELS.map((m) => <option key={m} value={m}>{m}（PIV {DIODE_PIV[m]} V）</option>)}
+    </select>
+  );
+  if (s.tool === 'wire') return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {WIRE_COLORS.map((c) => (
+        <button key={c} onClick={() => s.setParam({ wireColor: c })} style={{
+          flex: 1, height: 22, borderRadius: 4, background: c, cursor: 'pointer',
+          border: s.wireColor === c ? `2px solid ${T.accent}` : '1px solid #2a2a5a',
+        }} />
+      ))}
+    </div>
+  );
+  if (s.tool === 'ldo') return (
+    <div style={row}>
+      <button style={chip(s.ldoDir === 1)} onClick={() => s.setParam({ ldoDir: 1 })}>腳位往下排</button>
+      <button style={chip(s.ldoDir === -1)} onClick={() => s.setParam({ ldoDir: -1 })}>腳位往上排</button>
+    </div>
+  );
+  return null;
+}
+
+/** 左側元件庫的「零件 / 工具 / 範例」三個區塊 */
+export function PartLibrary() {
+  const clearBoard = useBoard((s) => s.clearBoard);
   return (
     <>
-      <Section title="麵包板 RB-2（2 × 830 孔）· 工具">
-        <div style={grid3}>
-          {TOOLS.map(([t, name]) => (
-            <button key={t} style={chip(s.tool === t)} onClick={() => s.setTool(t)}>{name}</button>
-          ))}
-        </div>
-
-        {s.tool === 'resistor' && (
-          <label style={field}>電阻值（1/4 W）
-            <select style={select} value={s.resistorValue} onChange={(e) => s.setParam({ resistorValue: Number(e.target.value) })}>
-              {RESISTOR_VALUES.map((v) => <option key={v} value={v}>{fmtOhm(v)}</option>)}
-            </select>
-          </label>
-        )}
-        {s.tool === 'diode' && (
-          <label style={field}>型號（1 A 整流二極體）
-            <select style={select} value={s.diodeModel} onChange={(e) => s.setParam({ diodeModel: e.target.value as typeof s.diodeModel })}>
-              {DIODE_MODELS.map((m) => <option key={m} value={m}>{m}（PIV {DIODE_PIV[m]} V）</option>)}
-            </select>
-          </label>
-        )}
-        {s.tool === 'wire' && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            {WIRE_COLORS.map((c) => (
-              <button key={c} onClick={() => s.setParam({ wireColor: c })} style={{
-                flex: 1, height: 24, borderRadius: 6, background: c, cursor: 'pointer',
-                border: s.wireColor === c ? '2px solid #2f8cff' : '1px solid #3a424d',
-              }} />
-            ))}
-          </div>
-        )}
-        {s.tool === 'ldo' && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button style={chip(s.ldoDir === 1)} onClick={() => s.setParam({ ldoDir: 1 })}>腳位往下排</button>
-            <button style={chip(s.ldoDir === -1)} onClick={() => s.setParam({ ldoDir: -1 })}>腳位往上排</button>
-          </div>
-        )}
-        <p style={help}>{HINT[s.tool]}{s.pending && <><br /><b style={{ color: '#ffd21f' }}>已選第一點 {holeName(s.pending)}，請點第二點（Esc 取消）</b></>}</p>
-        {s.message && <div style={warn}>{s.message}</div>}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button style={chip(false, '', '#2d4a6b')} onClick={loadDemoCircuit}>載入範例電路</button>
-          <button style={chip(false, '', '#5a3035')} onClick={() => { if (confirm('清空麵包板上所有零件？')) s.clearBoard(); }}>清空麵包板</button>
-        </div>
+      <Section title="零件">
+        {PART_ITEMS.map((it) => <LibRow key={it.tool} item={it} />)}
+        <ToolParams />
       </Section>
-
-      <Section title="三用電表（DC V，黑棒接 GND）">
-        <div style={dmmBox}>{s.dmm ? (dmmV === null ? '---- （未接到電路）' : `${dmmV.toFixed(3)} V`) : '選「三用電表」工具後點一個孔'}</div>
-        {s.dmm && <div style={{ fontSize: 12, color: '#8a97a6' }}>紅棒：{holeName(s.dmm)}</div>}
+      <Section title="工具">
+        {TOOL_ITEMS.map((it) => <LibRow key={it.tool} item={it} />)}
       </Section>
-
-      {selected && <PartCard part={selected} />}
+      <Section title="範例">
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadDemoCircuit(); useLabUi.getState().focus('breadboard'); }}>
+          3.3 V 穩壓電路（1N4007 + LT1117）
+        </button>
+        <button style={chip(false, '', '#3a1a2a')} onClick={() => { if (confirm('清空麵包板上所有零件？')) clearBoard(); }}>清空麵包板</button>
+      </Section>
     </>
   );
 }
 
-function PartCard({ part }: { part: BoardPart }) {
+/** 右側檢視器上方：目前工具提示、放置中的第一點、錯誤訊息 */
+export function ToolStatus() {
+  const { tool, pending, message } = useBoard();
+  return (
+    <Section title={`工具：${TOOL_NAME[tool]}`}>
+      <p style={help}>{TOOL_HINT[tool]}</p>
+      {pending && <p style={{ ...help, color: T.value }}>已選第一點 {holeName(pending)}，請點第二點（Esc 取消）</p>}
+      {message && <div style={warn}>{message}</div>}
+    </Section>
+  );
+}
+
+export function DmmCard() {
+  const dmm = useBoard((s) => s.dmm);
+  const bench = useBench();
+  const v = dmm ? bench.holeV(dmm) : null;
+  return (
+    <Section title="三用電表（DC V）" right={dmm ? (
+      <button style={{ ...chip(false), flex: 'none', padding: '1px 8px', fontSize: 11 }} onClick={() => useBoard.setState({ dmm: null })}>移除</button>
+    ) : undefined}>
+      <div style={dmmBox}>{dmm ? (v === null ? '----' : `${v.toFixed(3)} V`) : '— — —'}</div>
+      <p style={help}>{dmm ? `紅棒：${holeName(dmm)}　黑棒：GND` : '左側選「三用電表」後點麵包板上的孔'}</p>
+    </Section>
+  );
+}
+
+export function PartCard({ part }: { part: BoardPart }) {
   const s = useBoard();
   const bench = useBench();
   const r = bench.sol.el[part.id];
@@ -143,48 +197,35 @@ function PartCard({ part }: { part: BoardPart }) {
   return (
     <Section title={`選取：${partLabel(part)}`}>
       <div style={{ ...dmmBox, fontSize: 13, color: statusColor, textAlign: 'left' }}>{status}</div>
-      <div style={cardGrid}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
         {rows.map(([k, v, c]) => (
-          <div key={k} style={stat}><div style={statK}>{k}</div><div style={{ ...statV, color: c ?? '#ffd21f' }}>{v}</div></div>
+          <Stat key={k} k={k} v={v} color={c} />
         ))}
         {part.kind !== 'wire' && (
-          <div style={stat}><div style={statK}>溫度</div>
-            <div style={{ ...statV, color: temp > 120 ? '#ff8a1f' : '#ffd21f' }}>{temp} °C</div></div>
+          <Stat k="溫度" v={`${temp} °C`} color={temp > 120 ? '#ff8a1f' : undefined} />
         )}
       </div>
       {part.kind === 'ldo' && (
-        <div style={{ fontSize: 12, color: '#8a97a6' }}>
+        <div style={help}>
           腳位：1 GND {holeName(part.pins[0])}・2 OUT {holeName(part.pins[1])}・3 IN {holeName(part.pins[2])}
         </div>
       )}
       {part.kind !== 'wire' && part.kind !== 'ldo' && (
-        <div style={{ fontSize: 12, color: '#8a97a6' }}>
+        <div style={help}>
           {part.kind === 'diode' ? '陽極 ' : ''}{holeName(part.pins[0])} → {part.kind === 'diode' ? '陰極 ' : ''}{holeName(part.pins[1])}
           {part.kind !== 'resistor' ? '' : `　燒毀溫度約 ${THERMAL.resistor.burn} °C`}
         </div>
       )}
       <div style={{ display: 'flex', gap: 6 }}>
-        {part.burnt && <button style={chip(false, '', '#6b5a2a')} onClick={() => s.replacePart(part.id)}>更換新零件</button>}
-        <button style={chip(false, '', '#5a3035')} onClick={() => s.removePart(part.id)}>刪除</button>
+        {part.burnt && <button style={chip(false, '', '#5a4a1a')} onClick={() => s.replacePart(part.id)}>更換新零件</button>}
+        <button style={chip(false, '', '#5a2030')} onClick={() => s.removePart(part.id)}>刪除</button>
         <button style={chip(false)} onClick={() => s.selectPart(null)}>取消選取</button>
       </div>
     </Section>
   );
 }
 
-const grid3: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 };
-const field: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 };
-const select: CSSProperties = { background: '#1f252c', color: '#e6ebf1', border: '1px solid #3a424d', borderRadius: 6, padding: '5px 6px' };
-const help: CSSProperties = { fontSize: 12, color: '#8a97a6', lineHeight: 1.6, margin: 0 };
-const warn: CSSProperties = {
-  fontSize: 12, color: '#ffb4a8', background: 'rgba(210,59,59,0.15)', border: '1px solid #6b2a2a',
-  borderRadius: 6, padding: '6px 8px',
-};
 const dmmBox: CSSProperties = {
-  background: '#0d1512', border: '1px solid #2c5a3c', borderRadius: 6, padding: '6px 10px',
-  fontFamily: 'Consolas, monospace', color: '#7dffb0', fontSize: 18, textAlign: 'right',
+  background: '#06120c', border: '1px solid #1f5a3a', borderRadius: 6, padding: '6px 10px',
+  fontFamily: T.mono, color: '#7dffb0', fontSize: 22, textAlign: 'right', letterSpacing: 1,
 };
-const cardGrid: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 };
-const stat: CSSProperties = { background: '#1f252c', borderRadius: 6, padding: '4px 8px' };
-const statK: CSSProperties = { fontSize: 11, color: '#8a97a6' };
-const statV: CSSProperties = { fontFamily: 'Consolas, monospace', fontSize: 13 };

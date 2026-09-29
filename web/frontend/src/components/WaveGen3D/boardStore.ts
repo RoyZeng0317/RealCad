@@ -78,7 +78,7 @@ export const useBoard = create<BoardState>((set, get) => ({
 
     const occ = occupied(s.parts);
     if (!k.startsWith('p:') && occ.has(k)) { set({ message: '這個孔已經插了零件腳' }); return; }
-    if (s.tool !== 'wire' && k.startsWith('p:')) { set({ message: '零件腳不能直接插在接線柱，請用跳線連接' }); return; }
+    if (s.tool !== 'wire' && k.startsWith('p:')) { set({ message: '零件腳不能直接插在接線柱，請用杜邦線連接' }); return; }
 
     if (s.tool === 'ldo') {
       const pins = ldoPins(k, s.ldoDir);

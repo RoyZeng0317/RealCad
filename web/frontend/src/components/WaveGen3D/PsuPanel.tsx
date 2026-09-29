@@ -1,6 +1,5 @@
 // HTML 控制面板的「電源供應器 + 負載」分頁
-import type { CSSProperties } from 'react';
-import { Section, Slider, chip } from './panelUi.js';
+import { Section, Slider, chip, Stat, row, warn } from './panelUi.js';
 import { usePsuLab, loadResistance } from './psuStore.js';
 import { V_MAX, I_MAX, LOAD_STEPS, RATED_POWER } from './psu.js';
 import { useBench } from './bench.js';
@@ -29,10 +28,10 @@ export function PsuSection() {
           ))}
         </div>
         <div style={row}>
-          <button style={chip(psu.power, '#d23b3b')} onClick={() => setPsu({ power: !psu.power, output: false })}>
+          <button style={chip(psu.power, '#b32d2d')} onClick={() => setPsu({ power: !psu.power, output: false })}>
             電源 {psu.power ? 'ON' : 'OFF'}
           </button>
-          <button style={chip(psu.output, '#27b34a')} onClick={() => psu.power && setPsu({ output: !psu.output })}>
+          <button style={chip(psu.output, '#1f8f3c')} onClick={() => psu.power && setPsu({ output: !psu.output })}>
             輸出 {psu.output ? 'ON' : 'OFF'}
           </button>
         </div>
@@ -41,7 +40,7 @@ export function PsuSection() {
       <Section title="負載（鋁殼功率電阻 25 W）">
         <Slider label="電阻" value={burnt ? '燒斷（開路）' : rLabel(LOAD_STEPS[loadIdx])}
           min={0} max={LOAD_STEPS.length - 1} step={1} v={loadIdx} onChange={setLoadIdx} />
-        <div style={grid}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
           <Stat k="模式" v={rd.mode} color={rd.mode === 'CC' ? '#ff4d3a' : rd.mode === 'CV' ? '#3cff7a' : undefined} />
           <Stat k="電壓" v={`${rd.v.toFixed(2)} V`} />
           <Stat k="電源總電流" v={`${rd.i.toFixed(3)} A`} />
@@ -53,7 +52,7 @@ export function PsuSection() {
         {burnt && (
           <div style={warn}>
             電阻已燒斷，電路變成開路。
-            <button style={{ ...chip(false, '', '#6b5a2a'), marginTop: 6, width: '100%' }} onClick={replaceResistor}>
+            <button style={{ ...chip(false, '', '#5a4a1a'), marginTop: 6, width: '100%' }} onClick={replaceResistor}>
               更換電阻
             </button>
           </div>
@@ -62,19 +61,3 @@ export function PsuSection() {
     </>
   );
 }
-
-function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
-  return (
-    <div style={{ background: '#1f252c', borderRadius: 6, padding: '4px 8px' }}>
-      <div style={{ fontSize: 11, color: '#8a97a6' }}>{k}</div>
-      <div style={{ fontFamily: 'Consolas, monospace', color: color ?? '#ffd21f', fontSize: 14 }}>{v}</div>
-    </div>
-  );
-}
-
-const row: CSSProperties = { display: 'flex', gap: 6 };
-const grid: CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 };
-const warn: CSSProperties = {
-  fontSize: 12, color: '#ffb4a8', background: 'rgba(210,59,59,0.15)', border: '1px solid #6b2a2a',
-  borderRadius: 6, padding: '6px 8px', lineHeight: 1.5,
-};
