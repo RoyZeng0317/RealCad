@@ -4,8 +4,7 @@ import {
   type GenSettings, type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT,
   TIME_DIVS, VOLT_DIVS, H_DIVS,
 } from './waveform.js';
-import { usePsuLab, loadResistance } from './psuStore.js';
-import { solvePsu } from './psu.js';
+import { getBench } from './bench.js';
 
 export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
 export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu' | 'breadboard';
@@ -116,8 +115,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
     let voltDivIdx = VOLT_DIVS.findIndex((v) => peak / v <= 3.5);
     if (voltDivIdx < 0) voltDivIdx = VOLT_DIVS.length - 1;
     // CH2：直流電壓從第 -3 格往上最多用到 +3.5 格（共 6.5 格）
-    const st = usePsuLab.getState();
-    const v2 = Math.abs(solvePsu(st.psu, loadResistance(st)).v);
+    const v2 = Math.abs(getBench().psu.v);
     let ch2VoltDivIdx = VOLT_DIVS.findIndex((v) => Math.max(v2, 0.5) / v <= 6.5);
     if (ch2VoltDivIdx < 0) ch2VoltDivIdx = VOLT_DIVS.length - 1;
     const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset : 0;

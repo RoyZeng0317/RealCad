@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { usePsuLab, loadResistance } from './psuStore.js';
-import { solvePsu, stepTemperature, AMBIENT, BURN_TEMP, RATED_POWER } from './psu.js';
+import { stepTemperature, AMBIENT, BURN_TEMP, RATED_POWER } from './psu.js';
+import { getBench } from './bench.js';
 import { createCanvasTexture, label, type PanelCtx } from './panelTexture.js';
 import { formatSI } from './waveform.js';
 import { Knob3D } from './parts.js';
-import { PSU, LOAD, LOAD_POSTS, loadToWorld, panelToWorld } from './layout.js';
+import { PSU, LOAD, LOAD_POSTS, loadToWorld } from './layout.js';
+import { BananaLead } from './BananaLead.js';
 
 const BOARD = { w: 1.5, h: 0.08, d: 1.0 };
 const POSTS = LOAD_POSTS;
@@ -29,59 +31,19 @@ function BindingPost({ at, color }: { at: THREE.Vector3; color: string }) {
   );
 }
 
-/** 紅/黑測試線：從電源香蕉插座拉到負載接線柱，線上光點速度 ∝ 電流 */
+/** 負載這對測試線只流負載電流 */
+const loadCurrent = () => {
+  const r = loadResistance(usePsuLab.getState());
+  return isFinite(r) ? getBench().psu.v / r : 0;
+};
+
 function Lead({ from, to, color, reverse }: { from: THREE.Vector2; to: THREE.Vector3; color: string; reverse?: boolean }) {
-  const { curve, geo, plugAt } = useMemo(() => {
-    // 路徑：插座往前 → 垂到桌面 → 從接線柱正上方插進去（避開電阻本體與負載板）
-    const end = loadToWorld(to);
-    const above = loadToWorld(to.clone().add(new THREE.Vector3(Math.sign(to.x) * 0.1, 0.45, -0.05)));
-    const out = panelToWorld(PSU, from.x, from.y, 0.6);
-    const pts = [
-      panelToWorld(PSU, from.x, from.y, 0.28),
-      out,
-      new THREE.Vector3().lerpVectors(out, above, 0.45).setY(0.05),
-      above,
-      end.clone().add(new THREE.Vector3(0, 0.05, 0)),
-    ];
-    const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
-    return { curve, geo: new THREE.TubeGeometry(curve, 80, 0.025, 10, false), plugAt: panelToWorld(PSU, from.x, from.y, 0) };
-  }, [from, to]);
-  useEffect(() => () => geo.dispose(), [geo]);
-
-  const dots = useRef<THREE.Mesh[]>([]);
-  const phase = useRef(0);
-  useFrame((_, dt) => {
-    const st = usePsuLab.getState();
-    const { i } = solvePsu(st.psu, loadResistance(st));
-    phase.current = (phase.current + dt * (0.05 + i * 0.12)) % 1;
-    dots.current.forEach((m, k) => {
-      if (!m) return;
-      m.visible = i > 1e-4;
-      const u = (phase.current + k / 3) % 1;
-      m.position.copy(curve.getPointAt(reverse ? 1 - u : u));
-    });
-  });
-
-  return (
-    <group>
-      <mesh geometry={geo} castShadow>
-        <meshStandardMaterial color={color} roughness={0.5} />
-      </mesh>
-      {/* 插在電源上的香蕉插頭 */}
-      <group position={plugAt} rotation={[0, PSU.rotY, 0]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.18]} castShadow>
-          <cylinderGeometry args={[0.045, 0.055, 0.2, 16]} />
-          <meshStandardMaterial color={color} roughness={0.45} />
-        </mesh>
-      </group>
-      {[0, 1, 2].map((k) => (
-        <mesh key={k} ref={(m) => { if (m) dots.current[k] = m; }}>
-          <sphereGeometry args={[0.035, 10, 8]} />
-          <meshBasicMaterial color="#9fe8ff" toneMapped={false} />
-        </mesh>
-      ))}
-    </group>
-  );
+  // 路徑：插座往前 → 垂到桌面 → 從接線柱正上方插進去（避開電阻本體與負載板）
+  const { end, above } = useMemo(() => ({
+    end: loadToWorld(to),
+    above: loadToWorld(to.clone().add(new THREE.Vector3(Math.sign(to.x) * 0.1, 0.45, -0.05))),
+  }), [to]);
+  return <BananaLead from={from} end={end} above={above} color={color} reverse={reverse} getCurrent={loadCurrent} />;
 }
 
 function drawLabel(p: PanelCtx, r: number, burnt: boolean) {
@@ -120,7 +82,7 @@ export function PowerLoad3D() {
   useEffect(() => { temp.current = AMBIENT; }, [nonce]); // 「更換電阻」後從室溫重新開始
   useFrame(({ clock }, dt) => {
     const st = usePsuLab.getState();
-    const { p } = solvePsu(st.psu, loadResistance(st));
+    const p = getBench().loadP;
     temp.current = stepTemperature(temp.current, p, Math.min(dt, 0.1));
     const nowBurnt = st.burnt || temp.current > BURN_TEMP;
     const heat = THREE.MathUtils.clamp((temp.current - 90) / 220, 0, 1);

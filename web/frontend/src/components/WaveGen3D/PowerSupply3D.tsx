@@ -1,8 +1,8 @@
 // 3D 直流電源供應器 PS-3005（0–30 V / 0–5 A）：七段 LCD、VOLTAGE/CURRENT 旋鈕、記憶預設、輸出開關、香蕉插座
 import { useEffect, useMemo } from 'react';
 import { RoundedBox } from '@react-three/drei';
-import { usePsuLab, loadResistance } from './psuStore.js';
-import { solvePsu } from './psu.js';
+import { usePsuLab } from './psuStore.js';
+import { useBench } from './bench.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
 import { drawPsuLcd } from './psuDisplay.js';
 import { Knob3D, Button3D, Led3D, BananaJack3D } from './parts.js';
@@ -33,9 +33,8 @@ function drawPanel(p: PanelCtx) {
 
 export function PowerSupply3D() {
   const psu = usePsuLab((s) => s.psu);
-  const r = usePsuLab(loadResistance);
   const { setPsu, stepV, stepI } = usePsuLab.getState();
-  const reading = solvePsu(psu, r);
+  const reading = useBench().psu;
 
   const panelTex = useMemo(() => createCanvasTexture(PW, PH, drawPanel), []);
   const lcd = useMemo(() => createCanvasTexture(LCD.w, LCD.h, () => {}, 400), []);

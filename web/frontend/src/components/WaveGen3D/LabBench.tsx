@@ -9,6 +9,7 @@ import { PowerSupply3D } from './PowerSupply3D.js';
 import { PowerLoad3D } from './PowerLoad3D.js';
 import { ScopeProbe } from './ScopeProbe.js';
 import { LabBreadboard } from './LabBreadboard.js';
+import { BoardLeads } from './BoardLeads.js';
 import { useWaveLab } from './waveStore.js';
 import { VIEWS } from './layout.js';
 
@@ -84,6 +85,7 @@ export function LabBench() {
       <PowerLoad3D />
       <ScopeProbe />
       <LabBreadboard />
+      <BoardLeads />
 
       <OrbitControls
         ref={controls}

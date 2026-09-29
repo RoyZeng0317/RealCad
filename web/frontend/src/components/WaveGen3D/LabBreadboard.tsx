@@ -1,19 +1,22 @@
 // 3D 大型麵包板（仿 JE25：黑色底板 + 2 條端子排 + 3 條電源軌 + Va/Vb/GND 接線柱）
-// 滑鼠移到孔上會把「電氣相通的那一組孔」標成綠色，並顯示說明
-import { useEffect, useMemo, useRef, useState } from 'react';
+// 滑鼠移到孔上會把「電氣相通的那一組孔」標成綠色，並顯示說明與節點電壓；點孔放零件/量測（見 boardStore 的工具）
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { createCanvasTexture, label, FONT, type PanelCtx } from './panelTexture.js';
 import { BREADBOARD } from './layout.js';
+import { POST_XS, POST_Z, postKey, holeKeyOf, type PostName } from './boardModel.js';
+import { useBoard } from './boardStore.js';
+import { useBench } from './bench.js';
+import { BoardParts3D, BoardThermal } from './BoardParts3D.js';
 import {
   P, ROWS, STRIPS, STRIP_LEN, STRIP_Z, STRIP_H, PLATE, TOP_Y, TERM_W, BUS_W, COLS,
   termColX, rowZ, BUS_SLOTS, busZ, busRailX, hitHole, describeHit, type HoleHit,
 } from './breadboardGrid.js';
 
 const PX = 900; // 麵包板貼圖解析度（像素/單位），孔要畫得清楚
-const POSTS: [string, string, number][] = [['Va', '#c8201c', 0.2], ['Vb', '#e0b010', 0.55], ['GND', '#16181b', 0.9]];
-const POST_Z = -1.52;
+const POSTS: [PostName, string][] = [['Va', '#c8201c'], ['Vb', '#e0b010'], ['GND', '#16181b']];
 
 function hole(p: PanelCtx, x: number, zRel: number) {
   const s = P * 0.52;
@@ -65,14 +68,25 @@ function drawPlate(p: PanelCtx) {
   label(p, 'RealCad', -1.0, 1.62, 0.07, '#ffffff', 'left', 800);
   label(p, 'BREADBOARD', -1.0, 1.5, 0.075, '#ffffff', 'left', 800);
   label(p, '— RB-2 · 2 × 830 —', -1.0, 1.39, 0.05, '#c9ced4', 'left', 700);
-  for (const [name, , x] of POSTS) {
-    label(p, name === 'GND' ? '⏚' : name, x, -POST_Z - 0.17, 0.075, '#ffffff', 'center', 700);
+  for (const [name] of POSTS) {
+    label(p, name === 'GND' ? '⏚' : name, POST_XS[name], -POST_Z - 0.17, 0.075, '#ffffff', 'center', 700);
   }
 }
 
-function BindingPost({ x, color }: { x: number; color: string }) {
+function BindingPost({ name, color }: { name: PostName; color: string }) {
+  const [hover, setHover] = useState(false);
   return (
-    <group position={[x, PLATE.h, POST_Z]}>
+    <group
+      position={[POST_XS[name], PLATE.h, POST_Z]}
+      onClick={(e) => { if (e.delta > 4) return; e.stopPropagation(); useBoard.getState().clickHole(postKey(name)); }}
+      onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
+    >
+      {hover && (
+        <Html position={[0, 0.3, 0]} center style={{ pointerEvents: 'none' }}>
+          <div style={tipStyle}>{name} 接線柱{name === 'Va' ? '（接電源 +）' : name === 'GND' ? '（接電源 −，0 V）' : '（未接電源，可接跳線）'}</div>
+        </Html>
+      )}
       <mesh position={[0, 0.02, 0]}>
         <cylinderGeometry args={[0.085, 0.085, 0.04, 6]} />
         <meshStandardMaterial color="#c9ced4" metalness={0.9} roughness={0.3} />
@@ -90,6 +104,10 @@ function BindingPost({ x, color }: { x: number; color: string }) {
 }
 
 const hitKey = (h: HoleHit | null) => (h ? JSON.stringify(h) : '');
+const tipStyle: CSSProperties = {
+  whiteSpace: 'nowrap', background: 'rgba(18,21,26,0.92)', color: '#e6ebf1', fontSize: 12,
+  padding: '4px 8px', borderRadius: 6, border: '1px solid #2c333c', fontFamily: FONT,
+};
 
 /** 目前滑鼠指到的孔 → 相通範圍的綠色標示框（板子本地座標） */
 function highlightRect(h: HoleHit) {
@@ -129,6 +147,12 @@ export function LabBreadboard() {
       document.body.style.cursor = h ? 'crosshair' : 'auto';
     }
   };
+  const onClick = (e: ThreeEvent<MouseEvent>) => {
+    if (e.delta > 4 || !group.current) return; // 拖曳視角時不算點擊
+    const local = group.current.worldToLocal(e.point.clone());
+    const h = hitHole(local.x, local.z);
+    if (h) useBoard.getState().clickHole(holeKeyOf(h));
+  };
   const onOut = () => {
     lastKey.current = '';
     setHover(null);
@@ -136,6 +160,8 @@ export function LabBreadboard() {
   };
 
   const hl = hover ? highlightRect(hover) : null;
+  const bench = useBench();
+  const hoverV = hover ? bench.holeV(holeKeyOf(hover)) : null;
 
   return (
     <group ref={group} position={BREADBOARD.pos} rotation={[0, BREADBOARD.rotY, 0]}>
@@ -163,14 +189,16 @@ export function LabBreadboard() {
             <meshStandardMaterial color="#ece6d6" roughness={0.7} />
           </mesh>
           <mesh position={[0, STRIP_H + 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}
-            onPointerMove={onMove} onPointerOut={onOut}>
+            onPointerMove={onMove} onPointerOut={onOut} onClick={onClick}>
             <planeGeometry args={[s.w, STRIP_LEN]} />
             <meshStandardMaterial map={s.kind === 'term' ? tex.term : tex.bus} roughness={0.75} />
           </mesh>
         </group>
       ))}
 
-      {POSTS.map(([name, color, x]) => <BindingPost key={name} x={x} color={color} />)}
+      {POSTS.map(([name, color]) => <BindingPost key={name} name={name} color={color} />)}
+      <BoardParts3D />
+      <BoardThermal />
 
       {hl && hover && (
         <>
@@ -183,11 +211,9 @@ export function LabBreadboard() {
             <meshBasicMaterial color="#ffffff" toneMapped={false} />
           </mesh>
           <Html position={[hl.hx, TOP_Y + 0.05, hl.hz]} center style={{ pointerEvents: 'none', transform: 'translateY(-26px)' }}>
-            <div style={{
-              whiteSpace: 'nowrap', background: 'rgba(18,21,26,0.92)', color: '#e6ebf1', fontSize: 12,
-              padding: '4px 8px', borderRadius: 6, border: '1px solid #2c333c', fontFamily: FONT,
-            }}>
+            <div style={tipStyle}>
               {describeHit(hover)}
+              {hoverV !== null && <span style={{ color: '#7dffb0' }}>　{hoverV.toFixed(3)} V</span>}
             </div>
           </Html>
         </>

@@ -47,7 +47,7 @@ export function hitHole(x: number, z: number): HoleHit | null {
   const s = STRIPS.find((st) => Math.abs(x - st.x) <= st.w / 2);
   if (!s) return null;
   const lx = x - s.x, lz = z - STRIP_Z;
-  const tol = P * 0.45;
+  const tol = P * 0.5; // 點在孔的格子內任何位置都算這個孔
   if (s.kind === 'term') {
     const row = Math.round(lz / P + (ROWS - 1) / 2);
     if (row < 0 || row >= ROWS || Math.abs(lz - rowZ(row)) > tol) return null;

@@ -2,7 +2,8 @@
 import type { CSSProperties } from 'react';
 import { Section, Slider, chip } from './panelUi.js';
 import { usePsuLab, loadResistance } from './psuStore.js';
-import { solvePsu, V_MAX, I_MAX, LOAD_STEPS, RATED_POWER } from './psu.js';
+import { V_MAX, I_MAX, LOAD_STEPS, RATED_POWER } from './psu.js';
+import { useBench } from './bench.js';
 import { formatSI } from './waveform.js';
 
 const rLabel = (r: number) => (isFinite(r) ? formatSI(r, 'Ω', 2) : '開路');
@@ -10,8 +11,10 @@ const rLabel = (r: number) => (isFinite(r) ? formatSI(r, 'Ω', 2) : '開路');
 export function PsuSection() {
   const { psu, loadIdx, loadTemp, burnt, setPsu, setLoadIdx, replaceResistor } = usePsuLab();
   const r = loadResistance({ loadIdx, burnt });
-  const rd = solvePsu(psu, r);
-  const over = rd.p > RATED_POWER;
+  const bench = useBench();
+  const rd = bench.psu;
+  const loadI = isFinite(r) ? rd.v / r : 0;
+  const over = bench.loadP > RATED_POWER;
 
   return (
     <>
@@ -41,8 +44,9 @@ export function PsuSection() {
         <div style={grid}>
           <Stat k="模式" v={rd.mode} color={rd.mode === 'CC' ? '#ff4d3a' : rd.mode === 'CV' ? '#3cff7a' : undefined} />
           <Stat k="電壓" v={`${rd.v.toFixed(2)} V`} />
-          <Stat k="電流" v={`${rd.i.toFixed(3)} A`} />
-          <Stat k="功率" v={`${rd.p.toFixed(2)} W`} color={over ? '#ff4d3a' : undefined} />
+          <Stat k="電源總電流" v={`${rd.i.toFixed(3)} A`} />
+          <Stat k="負載電流" v={`${loadI.toFixed(3)} A`} />
+          <Stat k="負載功率" v={`${bench.loadP.toFixed(2)} W`} color={over ? '#ff4d3a' : undefined} />
           <Stat k="溫度" v={`${loadTemp} °C`} color={loadTemp > 150 ? '#ff8a1f' : undefined} />
         </div>
         {over && !burnt && <div style={warn}>⚠ 超過電阻額定功率 {RATED_POWER} W，溫度會持續上升，超過 350 °C 會燒斷</div>}

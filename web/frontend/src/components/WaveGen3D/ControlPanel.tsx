@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { useWaveLab, type ViewPreset } from './waveStore.js';
 import { type Waveform, TIME_DIVS, VOLT_DIVS, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT, formatSI } from './waveform.js';
 import { PsuSection } from './PsuPanel.js';
+import { BoardSection } from './BoardPanel.js';
 import { V_MAX } from './psu.js';
 import { Section, Slider, chip } from './panelUi.js';
 
@@ -114,12 +115,7 @@ export function ControlPanel() {
 
           {tab === 'psu' && <PsuSection />}
 
-          {tab === 'breadboard' && <Section title="麵包板 RB-2（2 × 830 孔）">
-            <p style={{ ...s.help, margin: 0 }}>
-              兩條 63 列端子排（每列 a–e、f–j 各 5 孔相通，中間溝槽可跨接 DIP IC）＋ 三條雙軌電源排（紅 + / 藍 −，整條相通），上方有 Va、Vb、GND 三個接線柱。
-              把滑鼠移到任一個孔上，會用綠色標出跟它相通的所有孔。
-            </p>
-          </Section>}
+          {tab === 'breadboard' && <BoardSection />}
 
           <p style={s.help}>
             拖曳空白處旋轉視角、滾輪縮放、右鍵平移。3D 面板上的按鍵可直接點；旋鈕用「按住上下拖曳」或「滑鼠滾輪」轉動，按住 Shift 微調。

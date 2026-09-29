@@ -46,6 +46,9 @@ export const BREADBOARD = {
   rotY: 0,
 };
 
+export const boardToWorld = (v: THREE.Vector3) =>
+  v.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), BREADBOARD.rotY).add(BREADBOARD.pos);
+
 type Inst = { pos: THREE.Vector3; rotY: number; size: { w: number; h: number; d: number } };
 
 /** 前面板座標 (x, y, 往外 z) → 世界座標 */
@@ -60,8 +63,8 @@ export const VIEWS = {
   generator: { pos: panelToWorld(GEN, 0.9, 0.3, 4.2), target: panelToWorld(GEN, 0.9, 0, 0) },
   scope: { pos: panelToWorld(SCOPE, 0.9, 0.3, 4.8), target: panelToWorld(SCOPE, 0.9, 0, 0) },
   breadboard: {
-    pos: new THREE.Vector3(BREADBOARD.pos.x + 0.9, 4.6, BREADBOARD.pos.z + 2.6),
-    target: new THREE.Vector3(BREADBOARD.pos.x + 0.9, 0, BREADBOARD.pos.z + 0.1),
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 0.75, 3.3, BREADBOARD.pos.z + 2.3),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 0.75, 0, BREADBOARD.pos.z + 0.25),
   },
   psu: { pos: panelToWorld(PSU, 1.0, 1.6, 4.6), target: panelToWorld(PSU, 1.0, -0.4, 0.9) },
 };

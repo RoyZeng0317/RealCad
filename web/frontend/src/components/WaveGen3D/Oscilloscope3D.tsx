@@ -3,8 +3,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import { useWaveLab } from './waveStore.js';
-import { usePsuLab, loadResistance } from './psuStore.js';
-import { solvePsu } from './psu.js';
+import { getBench } from './bench.js';
 import { DcTrace } from './ch2Signal.js';
 import { sampleWave, findTrigger, measure, TIME_DIVS, VOLT_DIVS, H_DIVS } from './waveform.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
@@ -57,8 +56,7 @@ export function Oscilloscope3D() {
   useFrame(({ clock }) => {
     const { gen, scope: sc } = useWaveLab.getState();
     const now = clock.elapsedTime;
-    const ps = usePsuLab.getState();
-    psuTrace.update(now, solvePsu(ps.psu, loadResistance(ps)).v);
+    psuTrace.update(now, getBench().psu.v);
 
     const timeDiv = TIME_DIVS[sc.timeDivIdx];
     const span = H_DIVS * timeDiv;
