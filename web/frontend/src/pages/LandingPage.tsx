@@ -52,6 +52,9 @@ export function LandingPage() {
           <button style={styles.exploreBtn} onClick={() => window.open('/editor', '_blank')}>
             Explore Demos
           </button>
+          <button style={styles.exploreBtn} onClick={() => navigate('/wavegen')}>
+            函數波產生器 3D
+          </button>
         </div>
       </main>
 

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useAuthStore } from './stores/authStore.js';
 import { EditorPage } from './pages/EditorPage.js';
 import { LandingPage } from './pages/LandingPage.js';
+import { WaveGenPage } from './pages/WaveGenPage.js';
 
 export default function App() {
   const checkAuth = useAuthStore((s) => s.checkAuth);
@@ -15,6 +16,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/editor/:projectId?" element={<EditorPage />} />
+      <Route path="/wavegen" element={<WaveGenPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
