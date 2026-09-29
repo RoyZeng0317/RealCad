@@ -1,28 +1,36 @@
-// 示波器螢幕繪製：格線、CH1 波形、觸發標記、檔位與自動量測
+// 示波器螢幕繪製：格線、CH1/CH2 波形、接地與觸發標記、檔位與兩個通道的自動量測
 import { type Measurements, formatSI, H_DIVS, V_DIVS } from './waveform.js';
 import type { ScopeSettings } from './waveStore.js';
 import { FONT, MONO } from './panelTexture.js';
 
-export interface ScopeFrame {
-  samples: number[]; // 已扣除 AC 耦合的電壓
-  timeDiv: number;
+export type ScopeStatus = 'Trig\'d' | 'Auto' | 'Stop';
+
+export interface ChannelFrame {
+  samples: number[];
   voltDiv: number;
-  scope: ScopeSettings;
-  status: 'Trig\'d' | 'Auto' | 'Stop';
+  position: number;
   meas: Measurements;
-  powered: boolean;
 }
 
-const TOP = 48, BOTTOM = 60;
-const CH1 = '#ffd21f';
+export interface ScopeFrame {
+  ch1: ChannelFrame;
+  ch2: ChannelFrame | null; // null = CH2 關閉
+  timeDiv: number;
+  scope: ScopeSettings;
+  status: ScopeStatus;
+}
+
+const TOP = 48, BOTTOM = 84;
+export const CH1_COLOR = '#ffd21f';
+export const CH2_COLOR = '#2fd4ff';
 
 export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f: ScopeFrame) {
   ctx.fillStyle = '#04070a';
   ctx.fillRect(0, 0, W, H);
-  if (!f.powered) return;
 
   const gx = 8, gy = TOP, gw = W - 16, gh = H - TOP - BOTTOM;
   const dx = gw / H_DIVS, dy = gh / V_DIVS;
+  const cx = gx + gw / 2, cy = gy + gh / 2;
 
   // 格線（中央十字軸有細刻度，跟真實示波器一樣）
   ctx.strokeStyle = 'rgba(120,140,160,0.28)';
@@ -35,35 +43,35 @@ export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f
   ctx.setLineDash([]);
   ctx.strokeStyle = 'rgba(150,170,190,0.55)';
   ctx.strokeRect(gx, gy, gw, gh);
-  const cx = gx + gw / 2, cy = gy + gh / 2;
   ctx.beginPath();
   for (let i = 0; i <= H_DIVS * 5; i++) { const x = gx + (i * dx) / 5; ctx.moveTo(x, cy - 4); ctx.lineTo(x, cy + 4); }
   for (let j = 0; j <= V_DIVS * 5; j++) { const y = gy + (j * dy) / 5; ctx.moveTo(cx - 4, y); ctx.lineTo(cx + 4, y); }
   ctx.stroke();
 
-  const vToY = (v: number) => cy - (v / f.voltDiv + f.scope.position) * dy;
+  const vToY = (ch: ChannelFrame, v: number) => cy - (v / ch.voltDiv + ch.position) * dy;
+  const clampY = (y: number) => Math.max(gy + 9, Math.min(gy + gh - 9, y));
 
-  // CH1 波形（加上螢光殘影效果）
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(gx, gy, gw, gh);
-  ctx.clip();
-  ctx.strokeStyle = CH1;
-  ctx.lineWidth = 2.5;
-  ctx.shadowColor = CH1;
-  ctx.shadowBlur = 10;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  const n = f.samples.length;
-  f.samples.forEach((v, i) => {
-    const x = gx + (i / (n - 1)) * gw;
-    const y = Math.max(gy - 4, Math.min(gy + gh + 4, vToY(v)));
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  ctx.restore();
+  const trace = (ch: ChannelFrame, color: string) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(gx, gy, gw, gh);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    const n = ch.samples.length;
+    ch.samples.forEach((v, i) => {
+      const x = gx + (i / (n - 1)) * gw;
+      const y = Math.max(gy - 4, Math.min(gy + gh + 4, vToY(ch, v)));
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  };
 
-  // 左側 CH1 接地標記、右側觸發準位標記、上方觸發時間點標記
   const marker = (x: number, y: number, dir: 1 | -1, color: string, text: string) => {
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -75,52 +83,71 @@ export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f
     ctx.textBaseline = 'middle';
     ctx.fillText(text, x + dir * 5, y + 1);
   };
-  const clampY = (y: number) => Math.max(gy + 9, Math.min(gy + gh - 9, y));
-  marker(gx, clampY(vToY(0)), 1, CH1, '1');
-  marker(gx + gw, clampY(vToY(f.scope.trigLevel)), -1, '#ff8a1f', 'T');
+
+  if (f.ch2) trace(f.ch2, CH2_COLOR);
+  trace(f.ch1, CH1_COLOR);
+  marker(gx, clampY(vToY(f.ch1, 0)), 1, CH1_COLOR, '1');
+  if (f.ch2) marker(gx, clampY(vToY(f.ch2, 0)), 1, CH2_COLOR, '2');
+  const trigCh = f.scope.trigSource === 'CH2' && f.ch2 ? f.ch2 : f.ch1;
+  marker(gx + gw, clampY(vToY(trigCh, f.scope.trigLevel)), -1, '#ff8a1f', 'T');
   ctx.fillStyle = '#ff8a1f';
   ctx.beginPath();
   ctx.moveTo(cx - 8, gy); ctx.lineTo(cx + 8, gy); ctx.lineTo(cx, gy + 12);
   ctx.fill();
 
-  // 上方狀態列
+  // 上方狀態列：狀態、CH1/CH2 檔位、時基、觸發
   ctx.textBaseline = 'middle';
   ctx.font = `800 22px ${FONT}`;
   ctx.textAlign = 'left';
-  const statusColor = f.status === 'Stop' ? '#ff4a4a' : f.status === 'Auto' ? '#ffb020' : '#39ff6a';
-  ctx.fillStyle = statusColor;
-  ctx.fillText(f.status === 'Stop' ? 'STOP' : f.status, 14, TOP / 2);
-  ctx.font = `800 20px ${MONO}`;
-  const ch = `CH1 ${formatSI(f.voltDiv, 'V')}/div ${f.scope.coupling}`;
-  const chW = ctx.measureText(ch).width + 16;
-  ctx.fillStyle = CH1;
-  ctx.fillRect(120, 10, chW, 28);
-  ctx.fillStyle = '#000';
-  ctx.fillText(ch, 128, TOP / 2);
+  ctx.fillStyle = f.status === 'Stop' ? '#ff4a4a' : f.status === 'Auto' ? '#ffb020' : '#39ff6a';
+  ctx.fillText(f.status === 'Stop' ? 'STOP' : f.status, 12, TOP / 2);
+  ctx.font = `800 19px ${MONO}`;
+  let x = 104;
+  const chip = (text: string, color: string) => {
+    const w = ctx.measureText(text).width + 14;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, 11, w, 26);
+    ctx.fillStyle = '#000';
+    ctx.fillText(text, x + 7, TOP / 2);
+    x += w + 8;
+  };
+  chip(`1 ${formatSI(f.ch1.voltDiv, 'V')}${f.scope.coupling === 'AC' ? ' AC' : ''}`, CH1_COLOR);
+  if (f.ch2) chip(`2 ${formatSI(f.ch2.voltDiv, 'V')}`, CH2_COLOR);
   ctx.fillStyle = '#e8eef5';
-  ctx.fillText(`H ${formatSI(f.timeDiv, 's')}/div`, 120 + chW + 18, TOP / 2);
+  ctx.fillText(`H ${formatSI(f.timeDiv, 's')}`, x + 4, TOP / 2);
   ctx.fillStyle = '#ff8a1f';
   ctx.textAlign = 'right';
-  ctx.fillText(`T ↑ ${formatSI(f.scope.trigLevel, 'V')}`, W - 14, TOP / 2);
+  ctx.fillText(`T${f.scope.trigSource === 'CH2' ? 2 : 1}↑${formatSI(f.scope.trigLevel, 'V')}`, W - 10, TOP / 2);
 
-  // 下方自動量測
-  const m = f.meas;
-  const items = [
-    ['Freq', m.freq ? formatSI(m.freq, 'Hz', 4) : '--'],
-    ['Vpp', formatSI(m.vpp, 'V')],
-    ['Vmax', formatSI(m.vmax, 'V')],
-    ['Vmin', formatSI(m.vmin, 'V')],
-    ['Vrms', formatSI(m.vrms, 'V')],
-  ];
-  const cw = (W - 16) / items.length;
-  items.forEach(([k, v], i) => {
-    const x = 8 + i * cw + cw / 2;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#7f93a8';
-    ctx.font = `600 16px ${FONT}`;
-    ctx.fillText(k, x, H - BOTTOM + 18);
-    ctx.fillStyle = CH1;
-    ctx.font = `700 20px ${MONO}`;
-    ctx.fillText(v, x, H - BOTTOM + 42);
-  });
+  // 下方兩列自動量測
+  const row = (y: number, name: string, color: string, items: [string, string][]) => {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = color;
+    ctx.font = `800 17px ${FONT}`;
+    ctx.fillText(name, 14, y);
+    const cw = (W - 70) / items.length;
+    items.forEach(([k, v], i) => {
+      const ix = 62 + i * cw;
+      ctx.fillStyle = '#7f93a8';
+      ctx.font = `600 15px ${FONT}`;
+      ctx.fillText(k, ix, y);
+      ctx.fillStyle = color;
+      ctx.font = `700 17px ${MONO}`;
+      ctx.fillText(v, ix + ctx.measureText(k).width + 26, y);
+    });
+  };
+  const m1 = f.ch1.meas;
+  row(H - BOTTOM + 24, 'CH1', CH1_COLOR, [
+    ['Freq', m1.freq ? formatSI(m1.freq, 'Hz', 4) : '--'],
+    ['Vpp', formatSI(m1.vpp, 'V')],
+    ['Vrms', formatSI(m1.vrms, 'V')],
+  ]);
+  if (f.ch2) {
+    const m2 = f.ch2.meas;
+    row(H - BOTTOM + 60, 'CH2', CH2_COLOR, [
+      ['Vavg', formatSI(m2.vavg, 'V')],
+      ['Vmax', formatSI(m2.vmax, 'V')],
+      ['Vmin', formatSI(m2.vmin, 'V')],
+    ]);
+  }
 }

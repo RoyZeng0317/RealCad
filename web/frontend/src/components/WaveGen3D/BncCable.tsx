@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { GEN, SCOPE, panelToWorld } from './layout.js';
 import { useWaveLab } from './waveStore.js';
 
-function Plug({ at, rotY }: { at: THREE.Vector3; rotY: number }) {
+export function Plug({ at, rotY }: { at: THREE.Vector3; rotY: number }) {
   return (
     <group position={at} rotation={[0, rotY, 0]}>
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.12]} castShadow>
@@ -26,9 +26,9 @@ export function BncCable() {
     const b = panelToWorld(SCOPE, SCOPE.bnc.x, SCOPE.bnc.y, 0);
     const pts = [
       panelToWorld(GEN, GEN.bnc.x, GEN.bnc.y, 0.35),
-      panelToWorld(GEN, GEN.bnc.x, GEN.bnc.y, 0.75),
-      new THREE.Vector3((a.x * 2 + b.x) / 3, 0.05, Math.max(a.z, b.z) + 1.25),
-      new THREE.Vector3((a.x + b.x * 2) / 3, 0.05, Math.max(a.z, b.z) + 1.1),
+      panelToWorld(GEN, GEN.bnc.x, GEN.bnc.y, 0.55),
+      new THREE.Vector3((a.x * 2 + b.x) / 3, 0.05, Math.max(a.z, b.z) + 0.6),
+      new THREE.Vector3((a.x + b.x * 2) / 3, 0.05, Math.max(a.z, b.z) + 0.5),
       panelToWorld(SCOPE, SCOPE.bnc.x, SCOPE.bnc.y, 0.75),
       panelToWorld(SCOPE, SCOPE.bnc.x, SCOPE.bnc.y, 0.35),
     ];

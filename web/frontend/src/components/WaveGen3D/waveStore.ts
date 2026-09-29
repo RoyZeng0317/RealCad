@@ -4,9 +4,11 @@ import {
   type GenSettings, type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT,
   TIME_DIVS, VOLT_DIVS, H_DIVS,
 } from './waveform.js';
+import { usePsuLab, loadResistance } from './psuStore.js';
+import { solvePsu } from './psu.js';
 
 export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
-export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu';
+export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu' | 'breadboard';
 
 export interface ScopeSettings {
   timeDivIdx: number;
@@ -15,6 +17,11 @@ export interface ScopeSettings {
   trigLevel: number; // V
   running: boolean;
   coupling: 'DC' | 'AC';
+  // CH2（預設用探棒量測電源供應器輸出，只有 DC 耦合）
+  ch2On: boolean;
+  ch2VoltDivIdx: number;
+  ch2Position: number; // 格
+  trigSource: 'CH1' | 'CH2';
 }
 
 interface WaveLabState {
@@ -33,6 +40,7 @@ interface WaveLabState {
   setScope: (patch: Partial<ScopeSettings>) => void;
   stepTimeDiv: (d: number) => void;
   stepVoltDiv: (d: number) => void;
+  stepCh2VoltDiv: (d: number) => void;
   autoSet: () => void;
   setView: (v: ViewPreset) => void;
   setDragging: (v: boolean) => void;
@@ -61,6 +69,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   scope: {
     timeDivIdx: TIME_DIVS.indexOf(0.0002), voltDivIdx: VOLT_DIVS.indexOf(1),
     position: 0, trigLevel: 0, running: true, coupling: 'DC',
+    ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: -3, trigSource: 'CH1',
   },
   view: 'overview',
   viewNonce: 0,
@@ -91,6 +100,9 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   stepVoltDiv: (d) => set((s) => ({
     scope: { ...s.scope, voltDivIdx: clamp(s.scope.voltDivIdx + d, 0, VOLT_DIVS.length - 1) },
   })),
+  stepCh2VoltDiv: (d) => set((s) => ({
+    scope: { ...s.scope, ch2VoltDivIdx: clamp(s.scope.ch2VoltDivIdx + d, 0, VOLT_DIVS.length - 1) },
+  })),
 
   // AUTO SET：畫面約顯示 2.5 個週期、峰值約佔 3.5 格、觸發準位放在直流準位
   autoSet: () => {
@@ -103,10 +115,16 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
     const peak = on ? (ac ? 0 : Math.abs(gen.offset)) + gen.amplitude / 2 : 0.5;
     let voltDivIdx = VOLT_DIVS.findIndex((v) => peak / v <= 3.5);
     if (voltDivIdx < 0) voltDivIdx = VOLT_DIVS.length - 1;
+    // CH2：直流電壓從第 -3 格往上最多用到 +3.5 格（共 6.5 格）
+    const st = usePsuLab.getState();
+    const v2 = Math.abs(solvePsu(st.psu, loadResistance(st)).v);
+    let ch2VoltDivIdx = VOLT_DIVS.findIndex((v) => Math.max(v2, 0.5) / v <= 6.5);
+    if (ch2VoltDivIdx < 0) ch2VoltDivIdx = VOLT_DIVS.length - 1;
+    const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset : 0;
     set({
       scope: {
-        ...scope, timeDivIdx, voltDivIdx, position: 0,
-        trigLevel: on && !ac ? gen.offset : 0, running: true,
+        ...scope, timeDivIdx, voltDivIdx, position: 0, ch2VoltDivIdx, ch2Position: -3,
+        trigLevel, running: true,
       },
     });
   },

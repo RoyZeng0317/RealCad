@@ -3,6 +3,7 @@ import { useState, type CSSProperties } from 'react';
 import { useWaveLab, type ViewPreset } from './waveStore.js';
 import { type Waveform, TIME_DIVS, VOLT_DIVS, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT, formatSI } from './waveform.js';
 import { PsuSection } from './PsuPanel.js';
+import { V_MAX } from './psu.js';
 import { Section, Slider, chip } from './panelUi.js';
 
 const WAVES: [Waveform, string][] = [
@@ -10,7 +11,7 @@ const WAVES: [Waveform, string][] = [
   ['ramp', '鋸齒'], ['pulse', '脈波'], ['noise', '雜訊'],
 ];
 const VIEWS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '產生器'], ['scope', '示波器'], ['psu', '電源'],
+  ['overview', '全景'], ['generator', '產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'],
 ];
 type Tab = Exclude<ViewPreset, 'overview'>;
 
@@ -31,7 +32,7 @@ export function ControlPanel() {
       {open && (
         <div style={s.body}>
           <Section title="視角">
-            <div style={s.row}>
+            <div style={s.grid3}>
               {VIEWS.map(([v, t]) => (
                 <button key={v} style={chip(view === v)} onClick={() => pickView(v)}>{t}</button>
               ))}
@@ -67,16 +68,39 @@ export function ControlPanel() {
             </div>
           </Section>}
 
-          {tab === 'scope' && <Section title="示波器 DS-1100">
-            <Slider label="VOLTS/DIV" value={formatSI(VOLT_DIVS[scope.voltDivIdx], 'V')}
+          {tab === 'scope' && <Section title="示波器 DS-1102（雙通道）">
+            <Slider label="CH1 VOLTS/DIV（函數波產生器）" value={formatSI(VOLT_DIVS[scope.voltDivIdx], 'V')}
               min={0} max={VOLT_DIVS.length - 1} step={1} v={scope.voltDivIdx}
               onChange={(x) => setScope({ voltDivIdx: x })} />
+            <button style={chip(scope.ch2On, '#1a9fc4')} onClick={() => setScope({ ch2On: !scope.ch2On })}>
+              CH2（探棒量電源供應器）{scope.ch2On ? '顯示中' : '已關閉'}
+            </button>
+            {scope.ch2On && <>
+              <Slider label="CH2 VOLTS/DIV" value={formatSI(VOLT_DIVS[scope.ch2VoltDivIdx], 'V')}
+                min={0} max={VOLT_DIVS.length - 1} step={1} v={scope.ch2VoltDivIdx}
+                onChange={(x) => setScope({ ch2VoltDivIdx: x })} />
+              <Slider label="CH2 垂直位置" value={`${scope.ch2Position.toFixed(1)} div`}
+                min={-4} max={4} step={0.1} v={scope.ch2Position}
+                onChange={(x) => setScope({ ch2Position: x })} />
+            </>}
             <Slider label="TIME/DIV" value={formatSI(TIME_DIVS[scope.timeDivIdx], 's')}
               min={0} max={TIME_DIVS.length - 1} step={1} v={scope.timeDivIdx}
               onChange={(x) => setScope({ timeDivIdx: x })} />
-            <Slider label="觸發準位" value={formatSI(scope.trigLevel, 'V')}
-              min={-OUTPUT_LIMIT} max={OUTPUT_LIMIT} step={0.01} v={scope.trigLevel}
+            <div style={s.row}>
+              {(['CH1', 'CH2'] as const).map((src) => (
+                <button key={src} style={chip(scope.trigSource === src, '#b8621f')} onClick={() => setScope({ trigSource: src })}>
+                  觸發源 {src}
+                </button>
+              ))}
+            </div>
+            <Slider label={`觸發準位（${scope.trigSource}）`} value={formatSI(scope.trigLevel, 'V')}
+              min={scope.trigSource === 'CH2' ? -V_MAX : -OUTPUT_LIMIT}
+              max={scope.trigSource === 'CH2' ? V_MAX : OUTPUT_LIMIT}
+              step={0.01} v={scope.trigLevel}
               onChange={(x) => setScope({ trigLevel: x })} />
+            {scope.trigSource === 'CH2' && (
+              <p style={s.help}>CH2 是直流電壓，只有在開/關電源輸出或切換負載的瞬間才有邊緣：把 TIME/DIV 調到 1–5 ms/div，再按電源的輸出開關就能看到電壓上升曲線。</p>
+            )}
             <div style={s.row}>
               <button style={chip(false, '', '#6b5a2a')} onClick={autoSet}>AUTO SET</button>
               <button style={chip(scope.running, '#27b34a')} onClick={() => setScope({ running: !scope.running })}>
@@ -89,6 +113,13 @@ export function ControlPanel() {
           </Section>}
 
           {tab === 'psu' && <PsuSection />}
+
+          {tab === 'breadboard' && <Section title="麵包板 RB-2（2 × 830 孔）">
+            <p style={{ ...s.help, margin: 0 }}>
+              兩條 63 列端子排（每列 a–e、f–j 各 5 孔相通，中間溝槽可跨接 DIP IC）＋ 三條雙軌電源排（紅 + / 藍 −，整條相通），上方有 Va、Vb、GND 三個接線柱。
+              把滑鼠移到任一個孔上，會用綠色標出跟它相通的所有孔。
+            </p>
+          </Section>}
 
           <p style={s.help}>
             拖曳空白處旋轉視角、滾輪縮放、右鍵平移。3D 面板上的按鍵可直接點；旋鈕用「按住上下拖曳」或「滑鼠滾輪」轉動，按住 Shift 微調。

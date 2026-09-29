@@ -7,6 +7,8 @@ import { Oscilloscope3D } from './Oscilloscope3D.js';
 import { BncCable } from './BncCable.js';
 import { PowerSupply3D } from './PowerSupply3D.js';
 import { PowerLoad3D } from './PowerLoad3D.js';
+import { ScopeProbe } from './ScopeProbe.js';
+import { LabBreadboard } from './LabBreadboard.js';
 import { useWaveLab } from './waveStore.js';
 import { VIEWS } from './layout.js';
 
@@ -56,13 +58,13 @@ export function LabBench() {
       <directionalLight
         position={[4, 9, 6]} intensity={1.6} castShadow
         shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
-        shadow-camera-left={-10} shadow-camera-right={8} shadow-camera-top={6} shadow-camera-bottom={-6}
+        shadow-camera-left={-10} shadow-camera-right={8} shadow-camera-top={8} shadow-camera-bottom={-8}
       />
       <directionalLight position={[-6, 4, 8]} intensity={0.5} />
 
       {/* 實驗桌 */}
-      <mesh position={[-1.6, -0.1, 0.6]} receiveShadow>
-        <boxGeometry args={[14, 0.2, 5.4]} />
+      <mesh position={[-1.6, -0.1, 2.2]} receiveShadow>
+        <boxGeometry args={[14, 0.2, 8.6]} />
         <meshStandardMaterial color="#8a6a4a" roughness={0.8} />
       </mesh>
       <mesh position={[-1.6, 0.001, 2.1]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -73,13 +75,15 @@ export function LabBench() {
         <planeGeometry args={[60, 60]} />
         <meshStandardMaterial color="#121418" />
       </mesh>
-      <ContactShadows position={[-1.6, 0.002, 0.6]} scale={16} blur={2.2} opacity={0.5} far={3} />
+      <ContactShadows position={[-1.6, 0.002, 2.2]} scale={18} blur={2.2} opacity={0.5} far={3} />
 
       <FunctionGenerator3D />
       <Oscilloscope3D />
       <BncCable />
       <PowerSupply3D />
       <PowerLoad3D />
+      <ScopeProbe />
+      <LabBreadboard />
 
       <OrbitControls
         ref={controls}

@@ -7,16 +7,12 @@ import { solvePsu, stepTemperature, AMBIENT, BURN_TEMP, RATED_POWER } from './ps
 import { createCanvasTexture, label, type PanelCtx } from './panelTexture.js';
 import { formatSI } from './waveform.js';
 import { Knob3D } from './parts.js';
-import { PSU, LOAD, panelToWorld } from './layout.js';
+import { PSU, LOAD, LOAD_POSTS, loadToWorld, panelToWorld } from './layout.js';
 
 const BOARD = { w: 1.5, h: 0.08, d: 1.0 };
-const POST_Y = BOARD.h + 0.22;
-const POSTS = { plus: new THREE.Vector3(-0.62, POST_Y, 0.22), minus: new THREE.Vector3(0.62, POST_Y, 0.22) };
+const POSTS = LOAD_POSTS;
 const LABEL = { w: 1.4, h: 0.16 };
 const RES = { w: 0.9, h: 0.26, d: 0.34, z: -0.18 };
-
-const loadToWorld = (v: THREE.Vector3) =>
-  v.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), LOAD.rotY).add(LOAD.pos);
 
 function BindingPost({ at, color }: { at: THREE.Vector3; color: string }) {
   return (
