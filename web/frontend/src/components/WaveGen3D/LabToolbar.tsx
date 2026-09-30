@@ -22,7 +22,6 @@ export function LabToolbar() {
   const psu = usePsuLab((s) => s.psu);
   const { focus, toggleLeft, toggleRight, leftOpen, rightOpen } = useLabUi();
   const tool = useBoard((s) => s.tool);
-  const selectedId = useBoard((s) => s.selectedId);
   const undoN = useProject((s) => s.undo.length);
   const redoN = useProject((s) => s.redo.length);
 
@@ -47,8 +46,7 @@ export function LabToolbar() {
       <div style={group}>
         <button style={btn(tool === 'select')} onClick={boardActions.select} title="選取／拖曳零件（S）">↖ 選取<Key k="S" /></button>
         <button style={btn(tool === 'wire')} onClick={boardActions.wire} title="杜邦線（W）">〰 杜邦線<Key k="W" /></button>
-        <button style={{ ...btn(false), opacity: selectedId ? 1 : 0.55 }} onClick={boardActions.remove}
-          title={selectedId ? '刪除滑鼠選取的零件（X、Delete）' : '先用滑鼠點選零件，再按刪除（X、Delete）'}>✕ 刪除<Key k="X" /></button>
+        <button style={btn(tool === 'erase')} onClick={boardActions.remove} title="刪除模式（X）：再用滑鼠點要刪除的零件">✕ 刪除<Key k="X" /></button>
         <button style={{ ...btn(false), opacity: undoN ? 1 : 0.4 }} disabled={!undoN} onClick={undo} title="復原（Ctrl+Z）">↶</button>
         <button style={{ ...btn(false), opacity: redoN ? 1 : 0.4 }} disabled={!redoN} onClick={redo} title="重做（Ctrl+Y）">↷</button>
       </div>

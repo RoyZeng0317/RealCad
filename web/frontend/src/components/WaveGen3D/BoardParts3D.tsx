@@ -144,6 +144,8 @@ function usePartEvents(part: BoardPart) {
     },
     onClick: (e: ThreeEvent<MouseEvent>) => {
       if (e.delta > 4) return;
+      // 刪除模式：點到零件就直接刪掉
+      if (useBoard.getState().tool === 'erase') { e.stopPropagation(); useBoard.getState().removePart(part.id); return; }
       if (useBoard.getState().tool !== 'select') return; // 放置工具時讓點擊穿透到下面的孔
       e.stopPropagation();
       useBoard.getState().selectPart(part.id);

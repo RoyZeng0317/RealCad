@@ -4,7 +4,7 @@ import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardMod
 import { hitHole } from './breadboardGrid.js';
 import { type BoardPart, type PartKind, type DiodeModel, type LedColor, WIRE_COLORS } from './boardParts.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire';
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'erase';
 
 interface BoardState {
   parts: BoardPart[];
@@ -150,6 +150,12 @@ export const useBoard = create<BoardState>((set, get) => ({
       return;
     }
     if (s.tool === 'probe') { set({ dmm: k, message: '' }); return; }
+    // 刪除模式：點到的孔插著哪個零件（或杜邦線）就刪掉它
+    if (s.tool === 'erase') {
+      const id = occupied(s.parts).get(k);
+      if (id) set({ parts: s.parts.filter((p) => p.id !== id), selectedId: null, message: '' });
+      return;
+    }
 
     const occ = occupied(s.parts);
     if (!k.startsWith('p:') && occ.has(k)) { set({ message: '這個孔已經插了零件腳' }); return; }

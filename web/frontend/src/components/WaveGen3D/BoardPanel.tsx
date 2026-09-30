@@ -12,7 +12,8 @@ import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
 export const TOOL_HINT: Record<Tool, string> = {
-  select: '點零件看電壓、電流、功率與溫度；按住零件拖曳可以移到別的孔（杜邦線是拖其中一端）；X 或 Delete 刪除。',
+  erase: '刪除模式：直接用滑鼠點要刪除的零件或杜邦線（可以連續刪）。按 S 或再按一次刪除回到選取，刪錯可用 Ctrl+Z 復原。',
+  select: '點零件看電壓、電流、功率與溫度；按住零件拖曳可以移到別的孔（杜邦線是拖其中一端）；Delete 刪除選取的零件，按 X（刪除）進入刪除模式直接點零件刪除。',
   probe: '點任一個孔：紅棒放在那裡，黑棒固定接 GND，讀出該點對地電壓。',
   wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
@@ -22,7 +23,7 @@ export const TOOL_HINT: Record<Tool, string> = {
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
+  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
 };
 
 /**
@@ -41,11 +42,10 @@ export function shortcutLetter(e: KeyboardEvent): string {
 export const boardActions = {
   select: () => useBoard.getState().setTool('select'),
   wire: () => useBoard.getState().setTool('wire'),
-  /** 只刪除用滑鼠選取的那個零件；沒有選取就提示先點選 */
+  /** 刪除模式：按一下進入（再按一下離開），之後滑鼠點哪個零件就刪哪個，不用先選取 */
   remove: () => {
     const s = useBoard.getState();
-    if (s.selectedId) s.removePart(s.selectedId);
-    else s.setMessage('請先用滑鼠點選要刪除的零件或杜邦線，再按刪除（X / Delete）');
+    s.setTool(s.tool === 'erase' ? 'select' : 'erase');
   },
 };
 
