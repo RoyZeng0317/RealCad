@@ -45,7 +45,7 @@ export function GeneratorControls() {
       </Section>
       <Section title="輸出接線">
         <LeadControl kind="fg" />
-        <p style={help}>接到麵包板後，產生器就是電路裡的訊號源（輸出內阻 50 Ω），三用電表量到的是平均值。</p>
+        <p style={help}>接到麵包板後，產生器就是電路裡的訊號源（輸出內阻 50 Ω），三用電表量到的是平均值。產生器的黑線（−）和示波器的接地夾都經過儀器外殼接大地，彼此是相通的（共地），跟真的實驗室一樣：接地夾只能夾在地的位置，夾到別的點會經由大地短路。</p>
       </Section>
     </>
   );
