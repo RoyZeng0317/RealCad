@@ -6,7 +6,9 @@ export type LdoMode = 'reg' | 'drop' | 'ilim' | 'off';
 export type Element =
   | { kind: 'psu'; id: string; p: string; n: string; vSet: number; iSet: number; on: boolean }
   | { kind: 'res'; id: string; a: string; b: string; r: number }
-  | { kind: 'diode'; id: string; a: string; k: string; bv: number }
+  | { kind: 'diode'; id: string; a: string; k: string; bv: number; is?: number; nvt?: number }
+  // 戴維寧電壓源（電壓 v、內阻 r）：開發板 GPIO 輸出、5V/3V3 電源腳；以諾頓等效蓋進矩陣，不需要額外電流變數
+  | { kind: 'src'; id: string; p: string; n: string; v: number; r: number }
   | { kind: 'ldo'; id: string; vin: string; vout: string; gnd: string; enabled: boolean };
 
 export interface ElementResult {
@@ -34,10 +36,10 @@ const GMIN = 1e-9;
 const limexp = (x: number) => (x < 40 ? Math.exp(x) : Math.exp(40) * (1 + x - 40));
 const dlimexp = (x: number) => (x < 40 ? Math.exp(x) : Math.exp(40));
 
-export function diodeI(vd: number, bv: number): { i: number; g: number } {
-  const f = limexp(vd / D_NVT);
-  let i = D_IS * (f - 1);
-  let g = (D_IS * dlimexp(vd / D_NVT)) / D_NVT;
+export function diodeI(vd: number, bv: number, is = D_IS, nvt = D_NVT): { i: number; g: number } {
+  const f = limexp(vd / nvt);
+  let i = is * (f - 1);
+  let g = (is * dlimexp(vd / nvt)) / nvt;
   const x = (-vd - bv) / BV_NVT;
   if (x > -60) {
     i -= BV_IS * limexp(x);
@@ -80,6 +82,7 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
     if (e.kind === 'psu') { nets.add(e.p); nets.add(e.n); }
     else if (e.kind === 'res') { nets.add(e.a); nets.add(e.b); }
     else if (e.kind === 'diode') { nets.add(e.a); nets.add(e.k); }
+    else if (e.kind === 'src') { nets.add(e.p); nets.add(e.n); }
     else { nets.add(e.vin); nets.add(e.vout); nets.add(e.gnd); }
   }
   nets.delete(ground);
@@ -134,9 +137,10 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
 
       for (const e of elements) {
         if (e.kind === 'res') G(e.a, e.b, 1 / e.r);
+        else if (e.kind === 'src') { G(e.p, e.n, 1 / e.r); I(e.n, e.p, e.v / e.r); }
         else if (e.kind === 'diode') {
           const v = vd.get(e.id)!;
-          const { i, g } = diodeI(v, e.bv);
+          const { i, g } = diodeI(v, e.bv, e.is, e.nvt);
           G(e.a, e.k, g);
           I(e.a, e.k, i - g * v);
         } else if (e.kind === 'psu') {
@@ -225,8 +229,13 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
       el[e.id] = { v, i: v / e.r, p: (v * v) / e.r };
     } else if (e.kind === 'diode') {
       const v = nodeV[e.a] - nodeV[e.k];
-      const { i } = diodeI(v, e.bv);
+      const { i } = diodeI(v, e.bv, e.is, e.nvt);
       el[e.id] = { v, i, p: v * i };
+    } else if (e.kind === 'src') {
+      // i = 從「+」端流出的電流；p = 內阻上的消耗
+      const v = nodeV[e.p] - nodeV[e.n];
+      const i = (e.v - v) / e.r;
+      el[e.id] = { v, i, p: i * i * e.r };
     } else if (e.kind === 'psu') {
       const v = e.on ? nodeV[e.p] - nodeV[e.n] : 0;
       const mode = e.on ? psuMode.get(e.id)! : 'OFF';

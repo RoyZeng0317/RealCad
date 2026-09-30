@@ -3,6 +3,8 @@ import type { BoardPart } from './boardParts.js';
 import { useBoard } from './boardStore.js';
 import { usePsuLab } from './psuStore.js';
 import { LOAD_STEPS } from './psu.js';
+import { useDev } from './devboards/devStore.js';
+import { DEV_BOARDS } from './devboards/boardDefs.js';
 
 export function loadDemoCircuit() {
   const parts: BoardPart[] = [
@@ -19,4 +21,53 @@ export function loadDemoCircuit() {
   const psu = usePsuLab.getState();
   psu.setPsu({ vSet: 7, iSet: 0.5, power: true, output: true });
   psu.setLoadIdx(LOAD_STEPS.length - 1); // 負載電阻改成開路，電源只供麵包板
+}
+
+/** 範例：Arduino Uno 讓外接 LED 閃爍（D13 → 220 Ω → 紅色 LED → GND），同時板載 L 燈也會閃 */
+export function loadUnoBlink() {
+  const dev = useDev.getState();
+  (['esp32', 'stm32', 'pi5'] as const).forEach((k) => dev.conf[k].present && dev.setPresent(k, false));
+  if (!dev.conf.uno.present) dev.setPresent('uno', true);
+  dev.setCode('uno', DEV_BOARDS.uno.example);
+  if (!useDev.getState().conf.uno.usb) dev.setUsb('uno', true);
+  useBoard.getState().loadParts([
+    { id: 'ex-w1', kind: 'wire', pins: ['h:uno:D13', 't:1:8:9'], color: '#e07a1a', gen: 0 },
+    { id: 'ex-r1', kind: 'resistor', pins: ['t:1:8:7', 't:1:14:7'], value: 220, gen: 0 },
+    { id: 'ex-led', kind: 'led', pins: ['t:1:14:6', 'b:2:1:14'], ledColor: 'red', gen: 0 },
+    { id: 'ex-w2', kind: 'wire', pins: ['h:uno:GND_T', 'b:2:1:2'], color: '#1b1d20', gen: 0 },
+  ]);
+  useBoard.setState({ dmm: 't:1:14:5', tool: 'select', selectedId: 'ex-led' });
+  dev.reboot('uno');
+}
+
+/** 錯誤示範：電源供應器 5 V 直接接到 ESP32 的 GPIO4（3.3 V 晶片不耐 5 V）→ 顯示 ERROR 並燒毀腳位 */
+export function loadEsp32Mistake() {
+  const dev = useDev.getState();
+  (['uno', 'stm32', 'pi5'] as const).forEach((k) => dev.conf[k].present && dev.setPresent(k, false));
+  if (!dev.conf.esp32.present) dev.setPresent('esp32', true);
+  else dev.repair('esp32');
+  dev.setCode('esp32', `// 讀 GPIO4 的電位並印出來
+void setup() {
+  Serial.begin(115200);
+  pinMode(4, INPUT);
+}
+
+void loop() {
+  Serial.print("GPIO4 = ");
+  Serial.println(digitalRead(4));
+  delay(500);
+}
+`);
+  useBoard.getState().loadParts([
+    { id: 'ex-w1', kind: 'wire', pins: ['p:Va', 'b:2:0:0'], color: '#d42a2a', gen: 0 },
+    { id: 'ex-w2', kind: 'wire', pins: ['p:GND', 'b:2:1:0'], color: '#1b1d20', gen: 0 },
+    { id: 'ex-w3', kind: 'wire', pins: ['b:2:0:8', 'h:esp32:IO4'], color: '#e0b010', gen: 0 },
+    { id: 'ex-w4', kind: 'wire', pins: ['b:2:1:8', 'h:esp32:GND_0'], color: '#1b1d20', gen: 0 },
+  ]);
+  useBoard.setState({ dmm: 'b:2:0:10', tool: 'select', selectedId: null });
+  const psu = usePsuLab.getState();
+  psu.setPsu({ vSet: 5, iSet: 0.5, power: true, output: true });
+  psu.setLoadIdx(LOAD_STEPS.length - 1);
+  dev.select('esp32');
+  dev.reboot('esp32');
 }

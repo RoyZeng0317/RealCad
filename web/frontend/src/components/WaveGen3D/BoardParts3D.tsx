@@ -5,9 +5,10 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
+import { useDev } from './devboards/devStore.js';
 import { getBench } from './bench.js';
 import { holePos, type HoleKey } from './boardModel.js';
-import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF } from './boardParts.js';
+import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 
@@ -110,6 +111,7 @@ function usePartEvents(part: BoardPart) {
       if (useBoard.getState().tool !== 'select') return; // 放置工具時讓點擊穿透到下面的孔
       e.stopPropagation();
       useBoard.getState().selectPart(part.id);
+      useDev.getState().select(null);
     },
   };
 }
@@ -181,6 +183,52 @@ export function Diode3D({ part, selected }: { part: BoardPart; selected: boolean
   );
 }
 
+/** 5 mm LED：本體立在兩隻腳的中間，亮度 ∝ 模擬出來的電流（20 mA = 全亮） */
+export function Led3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+  const color = LED_SPEC[part.ledColor ?? 'red'].hex;
+  const g = useMemo(() => {
+    const [A, B] = part.pins.map(holePos);
+    const base = A.clone().add(B).multiplyScalar(0.5).setY(TOP_Y + 0.07);
+    const dir = new THREE.Vector3(B.x - A.x, 0, B.z - A.z).normalize();
+    const footA = base.clone().addScaledVector(dir, -0.012), footB = base.clone().addScaledVector(dir, 0.012);
+    return {
+      base,
+      leads: [
+        [A.clone().setY(TOP_Y - 0.02), A.clone().setY(TOP_Y + 0.03), footA],
+        [B.clone().setY(TOP_Y - 0.02), B.clone().setY(TOP_Y + 0.03), footB],
+      ],
+    };
+  }, [part.pins]);
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.85, roughness: 0.15 }), [color]);
+  useEffect(() => () => mat.dispose(), [mat]);
+  const light = useRef<THREE.PointLight>(null);
+  useFrame(() => {
+    const i = part.burnt ? 0 : Math.max(0, getBench().sol.el[part.id]?.i ?? 0);
+    const k = Math.min(1, i / 0.02);
+    mat.color.set(part.burnt ? '#2a2420' : color);
+    mat.emissive.set(selected ? '#2f8cff' : color);
+    mat.emissiveIntensity = selected ? 0.4 : k * 2.2;
+    if (light.current) light.current.intensity = k * 0.6;
+  });
+  return (
+    <group {...usePartEvents(part)}>
+      {g.leads.map((pts, i) => <Bent key={i} pts={pts} r={0.005} color={LEAD} />)}
+      <group position={g.base}>
+        <mesh position={[0, 0.006, 0]} material={mat}>
+          <cylinderGeometry args={[0.05, 0.05, 0.012, 24]} />
+        </mesh>
+        <mesh position={[0, 0.05, 0]} material={mat} castShadow>
+          <cylinderGeometry args={[0.044, 0.044, 0.08, 24]} />
+        </mesh>
+        <mesh position={[0, 0.09, 0]} material={mat}>
+          <sphereGeometry args={[0.044, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        </mesh>
+        <pointLight ref={light} color={color} distance={0.8} intensity={0} position={[0, 0.12, 0]} />
+      </group>
+    </group>
+  );
+}
+
 function ldoFaceTexture() {
   return createCanvasTexture(0.2, 0.17, (p) => {
     p.ctx.fillStyle = '#16181b';
@@ -236,21 +284,62 @@ export function Ldo3D({ part, selected }: { part: BoardPart; selected: boolean }
   );
 }
 
+// 杜邦線（公對公）：兩端是黑色方形塑膠殼 + 金屬針，針插進孔（或接線柱頂端的孔），中間是軟線拱起來
+const DUP = { w: P * 0.92, len: 0.24, pin: 0.05 };
+
+function DupontEnd({ at, dir }: { at: THREE.Vector3; dir: THREE.Vector3 }) {
+  // 塑膠殼稍微朝線的方向傾斜，看起來像真的插在板子上被線拉著
+  const quat = useMemo(() => new THREE.Quaternion().setFromUnitVectors(UP, dir), [dir]);
+  return (
+    <group position={at} quaternion={quat}>
+      <mesh position={[0, -DUP.pin / 2, 0]}>
+        <boxGeometry args={[0.012, DUP.pin, 0.012]} />
+        <meshStandardMaterial color="#d9c27a" metalness={0.9} roughness={0.3} />
+      </mesh>
+      <mesh position={[0, DUP.len / 2, 0]} castShadow>
+        <boxGeometry args={[DUP.w, DUP.len, DUP.w]} />
+        <meshStandardMaterial color="#141414" roughness={0.6} />
+      </mesh>
+      {/* 殼上的卡榫小窗 */}
+      <mesh position={[DUP.w / 2 + 0.0005, DUP.len * 0.35, 0]}>
+        <boxGeometry args={[0.001, DUP.len * 0.25, DUP.w * 0.5]} />
+        <meshStandardMaterial color="#6a6a6a" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
 export function Wire3D({ part, selected }: { part: BoardPart; selected: boolean }) {
-  const pts = useMemo(() => {
+  const g = useMemo(() => {
     const [A, B] = part.pins.map(holePos);
-    const a0 = A.clone().setY(A.y - (part.pins[0].startsWith('p:') ? 0 : 0.02));
-    const b0 = B.clone().setY(B.y - (part.pins[1].startsWith('p:') ? 0 : 0.02));
-    const h = 0.04 + Math.hypot(B.x - A.x, B.z - A.z) * 0.12;
-    const mid = A.clone().add(B).multiplyScalar(0.5);
-    return [a0, A.clone().setY(A.y + h), mid.setY(Math.max(A.y, B.y) + h * 1.3), B.clone().setY(B.y + h), b0];
+    const d = Math.hypot(B.x - A.x, B.z - A.z);
+    const flat = new THREE.Vector3(B.x - A.x, 0, B.z - A.z).normalize();
+    // 塑膠殼往對方傾斜 12°
+    const tilt = (s: number) => new THREE.Vector3(0, 1, 0).addScaledVector(flat, s * 0.2).normalize();
+    const dA = tilt(1), dB = tilt(-1);
+    const topA = A.clone().addScaledVector(dA, DUP.len), topB = B.clone().addScaledVector(dB, DUP.len);
+    const h = 0.12 + d * 0.22; // 杜邦線比較長、比較軟，拱得比較高
+    const mid = topA.clone().add(topB).multiplyScalar(0.5);
+    mid.y = Math.max(topA.y, topB.y) + h;
+    const pts = [
+      topA, topA.clone().addScaledVector(dA, 0.08),
+      topA.clone().lerp(mid, 0.55).setY(mid.y - h * 0.15), mid,
+      topB.clone().lerp(mid, 0.55).setY(mid.y - h * 0.15),
+      topB.clone().addScaledVector(dB, 0.08), topB,
+    ];
+    return { A, B, dA, dB, pts };
   }, [part.pins]);
-  const geo = useMemo(() => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), 60, 0.012, 8, false), [pts]);
+  const geo = useMemo(() => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.pts, false, 'centripetal'), 80, 0.011, 8, false), [g]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
-    <mesh geometry={geo} castShadow {...usePartEvents(part)}>
-      <meshStandardMaterial color={part.color} roughness={0.5} emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
-    </mesh>
+    <group {...usePartEvents(part)}>
+      <mesh geometry={geo} castShadow>
+        <meshStandardMaterial color={part.color} roughness={0.45}
+          emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
+      </mesh>
+      <DupontEnd at={g.A} dir={g.dA} />
+      <DupontEnd at={g.B} dir={g.dB} />
+    </group>
   );
 }
 
@@ -275,7 +364,7 @@ export function BoardMarkers() {
             <coneGeometry args={[0.018, 0.1, 12]} />
             <meshStandardMaterial color="#d42a2a" />
           </mesh>
-          <Html position={[0, 0.16, 0]} center style={{ pointerEvents: 'none' }}>
+          <Html zIndexRange={[10, 0]} position={[0, 0.16, 0]} center style={{ pointerEvents: 'none' }}>
             <div style={{
               whiteSpace: 'nowrap', background: '#101418', color: '#7dffb0', fontFamily: 'Consolas, monospace',
               fontSize: 13, padding: '3px 8px', borderRadius: 6, border: '1px solid #2c5a3c',
@@ -298,6 +387,7 @@ export function BoardParts3D() {
         const sel = p.id === selectedId;
         if (p.kind === 'resistor') return <Resistor3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'diode') return <Diode3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'led') return <Led3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ldo') return <Ldo3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}

@@ -1,0 +1,127 @@
+// 專案內容 ↔ 各 store：存檔時收集、開檔時「逐欄驗證後」才寫回（別人給的 .rc 檔也不會塞進奇怪的資料）
+import { useWaveLab } from '../waveStore.js';
+import { usePsuLab } from '../psuStore.js';
+import { useBoard } from '../boardStore.js';
+import { useDev, type DevConf } from '../devboards/devStore.js';
+import { DEV_KINDS, DEV_BOARDS, type DevKind } from '../devboards/boardDefs.js';
+import { isValidHole } from '../boardModel.js';
+import { LOAD_STEPS } from '../psu.js';
+import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
+import {
+  DIODE_MODELS, LED_COLORS, WIRE_COLORS, RESISTOR_VALUES, type BoardPart, type PartKind,
+} from '../boardParts.js';
+
+export const DOC_FORMAT = 'realcad-lab';
+export const DOC_VERSION = 1;
+
+export interface LabDoc {
+  format: typeof DOC_FORMAT;
+  version: number;
+  name: string;
+  savedAt: string;
+  gen: unknown; scope: unknown; psu: unknown;
+  load: { idx: number; burnt: boolean };
+  board: { parts: BoardPart[]; dmm: string | null };
+  dev: Record<DevKind, DevConf>;
+}
+
+export function collectDoc(name: string): LabDoc {
+  const w = useWaveLab.getState(), p = usePsuLab.getState(), b = useBoard.getState(), d = useDev.getState();
+  return {
+    format: DOC_FORMAT, version: DOC_VERSION, name, savedAt: new Date().toISOString(),
+    gen: w.gen, scope: w.scope, psu: p.psu,
+    load: { idx: p.loadIdx, burnt: p.burnt },
+    board: { parts: b.parts, dmm: b.dmm },
+    dev: d.conf,
+  };
+}
+
+// ---- 驗證小工具 ----
+type Obj = Record<string, unknown>;
+const obj = (v: unknown): Obj => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : {});
+const num = (v: unknown, lo: number, hi: number, dflt: number) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt);
+const int = (v: unknown, lo: number, hi: number, dflt: number) => Math.round(num(v, lo, hi, dflt));
+const bool = (v: unknown, dflt: boolean) => (typeof v === 'boolean' ? v : dflt);
+const str = (v: unknown, max: number, dflt = '') => (typeof v === 'string' ? v.slice(0, max) : dflt);
+const oneOf = <T extends string>(v: unknown, list: readonly T[], dflt: T): T => (list.includes(v as T) ? (v as T) : dflt);
+
+const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3 };
+
+function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[] {
+  if (!Array.isArray(raw)) return [];
+  const out: BoardPart[] = [];
+  const ids = new Set<string>();
+  const used = new Set<string>();
+  for (const r of raw.slice(0, 2000)) {
+    const o = obj(r);
+    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire'] as const, 'wire');
+    if (o.kind !== kind) continue;
+    const pins = Array.isArray(o.pins) ? o.pins.map((x) => str(x, 40)) : [];
+    if (pins.length !== PIN_COUNT[kind] || !pins.every(isValidHole)) continue;
+    // 開發板沒放上桌就不能接線到它的排針；每個孔只能插一隻腳（接線柱除外）
+    if (pins.some((h) => h.startsWith('h:') && !present[h.split(':')[1] as DevKind])) continue;
+    if (pins.some((h) => !h.startsWith('p:') && used.has(h))) continue;
+    let id = str(o.id, 64) || `${kind}-${out.length}`;
+    while (ids.has(id)) id += '_';
+    const p: BoardPart = { id, kind, pins, gen: 0, burnt: bool(o.burnt, false) };
+    if (kind === 'resistor') p.value = RESISTOR_VALUES.includes(o.value as number) ? (o.value as number) : num(o.value, 1, 1e7, 330);
+    if (kind === 'diode') p.model = oneOf(o.model, DIODE_MODELS, '1N4007');
+    if (kind === 'led') p.ledColor = oneOf(o.ledColor, LED_COLORS, 'red');
+    if (kind === 'wire') p.color = typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : WIRE_COLORS[0];
+    ids.add(id);
+    pins.forEach((h) => used.add(h));
+    out.push(p);
+  }
+  return out;
+}
+
+/** 驗證並套用；回傳專案名稱 */
+export function applyDoc(raw: unknown): string {
+  const d = obj(raw);
+  if (d.format !== DOC_FORMAT) throw new Error('檔案內容不是 RealCad Lab 專案');
+
+  // 函數波產生器 / 示波器（setGen 會自己夾限範圍）
+  const g = obj(d.gen);
+  const w = useWaveLab.getState();
+  w.setGen({
+    frequency: num(g.frequency, 0.1, 10e6, 1000), amplitude: num(g.amplitude, 0.002, 20, 4),
+    offset: num(g.offset, -10, 10, 0), duty: num(g.duty, 1, 99, 25),
+    output: bool(g.output, true), power: bool(g.power, true),
+  });
+  w.setWaveform(oneOf(g.waveform, ['sine', 'square', 'triangle', 'ramp', 'pulse', 'noise'] as Waveform[], 'sine'));
+  const s = obj(d.scope);
+  w.setScope({
+    timeDivIdx: int(s.timeDivIdx, 0, TIME_DIVS.length - 1, w.scope.timeDivIdx),
+    voltDivIdx: int(s.voltDivIdx, 0, VOLT_DIVS.length - 1, w.scope.voltDivIdx),
+    position: num(s.position, -4, 4, 0), trigLevel: num(s.trigLevel, -30, 30, 0),
+    running: bool(s.running, true), coupling: oneOf(s.coupling, ['DC', 'AC'] as const, 'DC'),
+    ch2On: bool(s.ch2On, true), ch2VoltDivIdx: int(s.ch2VoltDivIdx, 0, VOLT_DIVS.length - 1, w.scope.ch2VoltDivIdx),
+    ch2Position: num(s.ch2Position, -4, 4, -3), trigSource: oneOf(s.trigSource, ['CH1', 'CH2'] as const, 'CH1'),
+  });
+
+  // 電源與負載
+  const ps = obj(d.psu), load = obj(d.load);
+  const p = usePsuLab.getState();
+  p.setPsu({ vSet: num(ps.vSet, 0, 30, 5), iSet: num(ps.iSet, 0, 5, 1), output: bool(ps.output, false), power: bool(ps.power, true) });
+  p.setLoadIdx(int(load.idx, 0, LOAD_STEPS.length - 1, LOAD_STEPS.indexOf(10)));
+  p.replaceResistor();
+  if (bool(load.burnt, false)) usePsuLab.setState({ burnt: true });
+
+  // 開發板（先放板子，接到排針的線才驗證得過）
+  const dv = obj(d.dev);
+  const conf = Object.fromEntries(DEV_KINDS.map((k) => {
+    const c = obj(dv[k]);
+    return [k, { present: bool(c.present, false), usb: bool(c.usb, true), code: str(c.code, 100_000, DEV_BOARDS[k].example) }];
+  })) as Record<DevKind, DevConf>;
+  useDev.getState().loadConf(conf);
+
+  // 麵包板
+  const b = obj(d.board);
+  const present = Object.fromEntries(DEV_KINDS.map((k) => [k, conf[k].present])) as Record<DevKind, boolean>;
+  const parts = cleanParts(b.parts, present);
+  useBoard.getState().loadParts(parts);
+  const dmm = typeof b.dmm === 'string' && isValidHole(b.dmm) ? b.dmm : null;
+  useBoard.setState({ dmm, tool: 'select', temps: {}, tsd: {}, message: '' });
+
+  return str(d.name, 100, '未命名專案') || '未命名專案';
+}

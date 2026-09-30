@@ -10,6 +10,8 @@ import { POST_XS, POST_Z, postKey, holeKeyOf, type PostName } from './boardModel
 import { useBoard } from './boardStore.js';
 import { useBench } from './bench.js';
 import { BoardParts3D, BoardThermal } from './BoardParts3D.js';
+import { DevBoards3D } from './devboards/DevBoard3D.js';
+import { DevRuntime } from './devboards/DevRuntime.js';
 import {
   P, ROWS, STRIPS, STRIP_LEN, STRIP_Z, STRIP_H, PLATE, TOP_Y, TERM_W, BUS_W, COLS,
   termColX, rowZ, BUS_SLOTS, busZ, busRailX, hitHole, describeHit, type HoleHit,
@@ -83,7 +85,7 @@ function BindingPost({ name, color }: { name: PostName; color: string }) {
       onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
     >
       {hover && (
-        <Html position={[0, 0.3, 0]} center style={{ pointerEvents: 'none' }}>
+        <Html zIndexRange={[10, 0]} position={[0, 0.3, 0]} center style={{ pointerEvents: 'none' }}>
           <div style={tipStyle}>{name} 接線柱{name === 'Va' ? '（接電源 +）' : name === 'GND' ? '（接電源 −，0 V）' : '（未接電源，可接跳線）'}</div>
         </Html>
       )}
@@ -199,6 +201,8 @@ export function LabBreadboard() {
       {POSTS.map(([name, color]) => <BindingPost key={name} name={name} color={color} />)}
       <BoardParts3D />
       <BoardThermal />
+      <DevBoards3D />
+      <DevRuntime />
 
       {hl && hover && (
         <>
@@ -210,7 +214,7 @@ export function LabBreadboard() {
             <ringGeometry args={[P * 0.32, P * 0.5, 20]} />
             <meshBasicMaterial color="#ffffff" toneMapped={false} />
           </mesh>
-          <Html position={[hl.hx, TOP_Y + 0.05, hl.hz]} center style={{ pointerEvents: 'none', transform: 'translateY(-26px)' }}>
+          <Html zIndexRange={[10, 0]} position={[hl.hx, TOP_Y + 0.05, hl.hz]} center style={{ pointerEvents: 'none', transform: 'translateY(-26px)' }}>
             <div style={tipStyle}>
               {describeHit(hover)}
               {hoverV !== null && <span style={{ color: '#7dffb0' }}>　{hoverV.toFixed(3)} V</span>}
