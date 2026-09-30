@@ -5,7 +5,7 @@ import { useProject, undo, redo, startTracking } from './projectStore.js';
 import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
-import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink } from '../boardDemo.js';
+import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadFpgaCounter } from '../boardDemo.js';
 import { T } from '../panelUi.js';
 
 interface Item { label: string; keys?: string; onClick?: () => void; disabled?: boolean; checked?: boolean; header?: boolean }
@@ -15,7 +15,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const MOD = isMac ? '⌘' : 'Ctrl+';
 
 const VIEW_ITEMS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['breadboard', '麵包板'], ['devboards', '開發板區'],
+  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['breadboard', '麵包板'], ['devboards', '開發板區'], ['fpga', 'FPGA 實驗板'],
 ];
 const DOCK_ITEMS: [DockTab, string][] = [
   ['generator', '函數波產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['nodes', '電路節點'], ['code', '程式碼'], ['serial', '序列埠'],
@@ -66,6 +66,7 @@ export function MenuBar() {
       { label: 'Arduino Uno：LED 閃爍', onClick: () => { loadUnoBlink(); ui.focus('devboards'); } },
       { label: 'Raspberry Pi 5：MicroPython LED 閃爍', onClick: () => { loadPi5Blink(); ui.focus('devboards'); } },
       { label: '錯誤示範：5 V 接到 ESP32 GPIO', onClick: () => { loadEsp32Mistake(); ui.focus('devboards'); } },
+      { label: 'FLEX 10K FPGA：計數器 + 七段顯示器', onClick: () => { loadFpgaCounter(); ui.focus('fpga'); } },
     ] },
     { name: '編輯', items: [
       { label: '復原', keys: `${MOD}Z`, onClick: undo, disabled: !undoN },

@@ -7,8 +7,9 @@ import { useBoard } from '../boardStore.js';
 import { useBench } from '../bench.js';
 import { useLabUi } from '../labUi.js';
 import { Section, chip, row, help, warn, T } from '../panelUi.js';
+import { FpgaCard, FpgaWorkbench } from './fpga/FpgaPanels.js';
 
-const ICON: Record<DevKind, string> = { uno: '∞', esp32: '📶', stm32: '▣', pi5: 'π' };
+const ICON: Record<DevKind, string> = { uno: '∞', esp32: '📶', stm32: '▣', pi5: 'π', fpga: '⧉' };
 const STATUS: Record<string, [string, string]> = {
   off: ['未上電', '#7a7ab0'], running: ['執行中', '#3cff7a'], sleeping: ['執行中', '#3cff7a'],
   done: ['程式結束', '#8fb4d0'], stopped: ['已停止', '#ffb020'], error: ['錯誤', '#ff4d3a'],
@@ -29,13 +30,13 @@ export function DevLibrary() {
             background: selected === k ? '#0b3550' : 'transparent', border: `1px solid ${selected === k ? T.accent : 'transparent'}`,
           }}>
             <span style={{ width: 28, textAlign: 'center', color: T.accent, fontWeight: 700 }}>{ICON[k]}</span>
-            <button onClick={() => { if (on) { select(k); useBoard.getState().selectPart(null); useLabUi.getState().focus('devboards'); } }}
+            <button onClick={() => { if (on) { select(k); useBoard.getState().selectPart(null); useLabUi.getState().focus(k === 'fpga' ? 'fpga' : 'devboards'); } }}
               style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: T.text, cursor: on ? 'pointer' : 'default', padding: 0, fontFamily: T.font }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{d.name}</div>
               <div style={{ fontSize: 11, color: T.muted }}>{d.mcu}</div>
             </button>
             <button style={{ ...chip(on, '#5a2030'), flex: 'none', padding: '3px 8px', fontSize: 12 }}
-              onClick={() => { setPresent(k, !on); if (!on) useLabUi.getState().focus('devboards'); }}>
+              onClick={() => { setPresent(k, !on); if (!on) useLabUi.getState().focus(k === 'fpga' ? 'fpga' : 'devboards'); }}>
               {on ? '移除' : '加入'}
             </button>
           </div>
@@ -46,20 +47,16 @@ export function DevLibrary() {
 }
 
 export function DevBoardCard({ kind }: { kind: DevKind }) {
+  return kind === 'fpga' ? <FpgaCard /> : <McuBoardCard kind={kind} />;
+}
+
+function McuBoardCard({ kind }: { kind: DevKind }) {
   const d = DEV_BOARDS[kind];
   const conf = useDev((s) => s.conf[kind]);
   const rt = useDev((s) => s.rt[kind]);
   const powered = useDev((s) => isPowered(s, kind));
-  const parts = useBoard((s) => s.parts);
-  const bench = useBench();
   const s = useDev.getState();
   const [label, color] = rt.tripped ? ['USB 保險絲跳脫', '#ff4d3a'] : STATUS[rt.status] ?? ['—', T.muted];
-
-  // 表列有在用的腳：程式設定過、或有接杜邦線
-  const wired = new Set(parts.flatMap((p) => p.pins).filter((h) => h.startsWith(`h:${kind}:`)).map((h) => h.split(':')[2]));
-  const gnd = d.pins.find((p) => p.kind === 'GND')!.id;
-  const gV = bench.sol.nodeV[bench.netOfHole(`h:${kind}:${gnd}`)] ?? 0;
-  const used = d.pins.filter((p) => rt.pins[p.id] || wired.has(p.id) || rt.dead.includes(p.id));
 
   return (
     <Section title={d.name} right={<span style={{ fontSize: 12, color, fontWeight: 700 }}>● {label}</span>}>
@@ -75,6 +72,27 @@ export function DevBoardCard({ kind }: { kind: DevKind }) {
       </div>
       {rt.compileError && <div style={warn}>編譯錯誤（第 {rt.compileError.line} 行）：{rt.compileError.msg}</div>}
       {rt.runtimeError && <div style={warn}>執行錯誤（第 {rt.runtimeError.line} 行）：{rt.runtimeError.msg}</div>}
+      <BoardHealth kind={kind} />
+    </Section>
+  );
+}
+
+/** 接線問題清單、燒毀修復、有在用的腳位表（MCU 與 FPGA 共用） */
+export function BoardHealth({ kind }: { kind: DevKind }) {
+  const d = DEV_BOARDS[kind];
+  const rt = useDev((s) => s.rt[kind]);
+  const parts = useBoard((s) => s.parts);
+  const bench = useBench();
+  const s = useDev.getState();
+
+  // 表列有在用的腳：程式設定過、或有接杜邦線
+  const wired = new Set(parts.flatMap((p) => p.pins).filter((h) => h.startsWith(`h:${kind}:`)).map((h) => h.split(':')[2]));
+  const gnd = d.pins.find((p) => p.kind === 'GND')!.id;
+  const gV = bench.sol.nodeV[bench.netOfHole(`h:${kind}:${gnd}`)] ?? 0;
+  const used = d.pins.filter((p) => rt.pins[p.id] || wired.has(p.id) || rt.dead.includes(p.id));
+
+  return (
+    <>
       {rt.issues.map((i) => (
         <div key={i.key} style={{ ...warn, ...(i.severity === 'warn' ? { color: '#ffd9a0', background: 'rgba(210,150,40,0.12)', borderColor: '#6b5a2a' } : {}) }}>
           {i.severity === 'error' ? '⚠ ERROR：' : '注意：'}{i.msg}
@@ -107,12 +125,12 @@ export function DevBoardCard({ kind }: { kind: DevKind }) {
         </table>
       )}
       <button style={chip(false, '', '#3a1a2a')} onClick={() => s.setPresent(kind, false)}>從實驗桌移除</button>
-    </Section>
+    </>
   );
 }
 const td: CSSProperties = { padding: '2px 6px', borderBottom: `1px solid ${T.border}`, whiteSpace: 'nowrap' };
 
-function BoardTabs() {
+export function BoardTabs() {
   const conf = useDev((s) => s.conf);
   const tab = useDev((s) => s.codeTab);
   const present = DEV_KINDS.filter((k) => conf[k].present);
@@ -128,12 +146,18 @@ function BoardTabs() {
 function NoBoards() {
   return (
     <Section title="還沒有開發板">
-      <p style={help}>從左側元件庫的「開發板」加入 Arduino Uno、ESP32、STM32 Blue Pill 或 Raspberry Pi 5。</p>
+      <p style={help}>從左側元件庫的「開發板」加入 Arduino Uno、ESP32、STM32 Blue Pill、Raspberry Pi 5 或 FLEX 10K FPGA 實驗板。</p>
     </Section>
   );
 }
 
 export function CodePanel() {
+  const tab = useDev((s) => s.codeTab);
+  const fpga = useDev((s) => s.conf.fpga.present);
+  return tab === 'fpga' && fpga ? <FpgaWorkbench /> : <McuCodePanel />;
+}
+
+function McuCodePanel() {
   const conf = useDev((s) => s.conf);
   const tab = useDev((s) => s.codeTab);
   const rt = useDev((s) => s.rt[tab]);

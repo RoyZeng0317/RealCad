@@ -4,6 +4,9 @@ import { usePsuLab } from '../psuStore.js';
 import { useBoard } from '../boardStore.js';
 import { useDev, type DevConf } from '../devboards/devStore.js';
 import { DEV_KINDS, DEV_BOARDS, type DevKind } from '../devboards/boardDefs.js';
+import { useFpga, exampleConf, MAX_FILE, type FpgaConf } from '../devboards/fpga/fpgaStore.js';
+import { SLOW_CLOCKS } from '../devboards/fpga/fpgaBoard.js';
+import type { FpgaFile } from '../devboards/fpga/fpgaBuild.js';
 import { isValidHole } from '../boardModel.js';
 import { LOAD_STEPS } from '../psu.js';
 import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
@@ -23,6 +26,7 @@ export interface LabDoc {
   load: { idx: number; burnt: boolean };
   board: { parts: BoardPart[]; dmm: string | null };
   dev: Record<DevKind, DevConf>;
+  fpga?: FpgaConf;
 }
 
 export function collectDoc(name: string): LabDoc {
@@ -33,6 +37,7 @@ export function collectDoc(name: string): LabDoc {
     load: { idx: p.loadIdx, burnt: p.burnt },
     board: { parts: b.parts, dmm: b.dmm },
     dev: d.conf,
+    fpga: (({ files, active, top, slowHz, sw, epc }) => ({ files, active, top, slowHz, sw, epc }))(useFpga.getState()),
   };
 }
 
@@ -75,6 +80,33 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
   return out;
 }
 
+/** FPGA 專案檔：檔名只留安全字元，.sof / .pof 只存大小與型號（內容本來就沒有讀進來） */
+function cleanFiles(raw: unknown): FpgaFile[] {
+  if (!Array.isArray(raw)) return [];
+  const out: FpgaFile[] = [];
+  for (const r of raw.slice(0, 64)) {
+    const o = obj(r);
+    const name = str(o.name, 120).replace(/[^\w.\-\u4e00-\u9fff ]/g, '_');
+    if (!name || out.some((f) => f.name === name)) continue;
+    const text = typeof o.text === 'string' ? o.text.slice(0, MAX_FILE) : null;
+    out.push({ name, text, size: int(o.size, 0, 1e9, text?.length ?? 0), device: typeof o.device === 'string' ? str(o.device, 40) : null });
+  }
+  return out;
+}
+function cleanFpga(raw: unknown): FpgaConf {
+  if (raw === undefined) return exampleConf();
+  const o = obj(raw);
+  const files = cleanFiles(o.files);
+  const e = o.epc === null ? null : obj(o.epc);
+  const epcFiles = e ? cleanFiles(e.files) : [];
+  return {
+    files, active: files.some((f) => f.name === o.active) ? (o.active as string) : files[0]?.name ?? '',
+    top: str(o.top, 80).replace(/[^\w$]/g, ''), slowHz: SLOW_CLOCKS.includes(o.slowHz as number) ? (o.slowHz as number) : 2,
+    sw: int(o.sw, 0, 255, 0),
+    epc: e && epcFiles.length ? { files: epcFiles, top: str(e.top, 80).replace(/[^\w$]/g, ''), name: str(e.name, 80) || 'design' } : null,
+  };
+}
+
 /** 驗證並套用；回傳專案名稱 */
 export function applyDoc(raw: unknown): string {
   const d = obj(raw);
@@ -114,6 +146,7 @@ export function applyDoc(raw: unknown): string {
     return [k, { present: bool(c.present, false), usb: bool(c.usb, true), code: str(c.code, 100_000, DEV_BOARDS[k].example) }];
   })) as Record<DevKind, DevConf>;
   useDev.getState().loadConf(conf);
+  useFpga.getState().loadConf(cleanFpga(d.fpga));
 
   // 麵包板
   const b = obj(d.board);

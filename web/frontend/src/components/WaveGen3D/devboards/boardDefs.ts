@@ -1,9 +1,10 @@
-// 四塊開發板的腳位、尺寸與電氣規格（依真實板子的排針位置，單位：孔距 P = 2.54 mm）
+// 開發板（四塊微控制器 + Altera FLEX 10K FPGA 實驗板）的腳位、尺寸與電氣規格（依真實板子的排針位置，單位：孔距 P = 2.54 mm）
 import { P } from '../breadboardGrid.js';
 import type { Language } from './compile.js';
+import { fpgaHeaderPins } from './fpga/fpgaBoard.js';
 
-export type DevKind = 'uno' | 'esp32' | 'stm32' | 'pi5';
-export const DEV_KINDS: DevKind[] = ['uno', 'esp32', 'stm32', 'pi5'];
+export type DevKind = 'uno' | 'esp32' | 'stm32' | 'pi5' | 'fpga';
+export const DEV_KINDS: DevKind[] = ['uno', 'esp32', 'stm32', 'pi5', 'fpga'];
 
 export type PinKind = 'gpio' | '5V' | '3V3' | 'GND' | 'NC';
 
@@ -40,11 +41,12 @@ export interface DevBoardDef {
   lim5V: number; lim3V3: number; // 5 V（USB）/ 3.3 V 穩壓器可供電流 A
   intBits: 16 | 32;
   lang: string;
-  language: Language; // c = Arduino 風格 C、python = MicroPython
+  language: Language; // c = Arduino 風格 C、python = MicroPython、verilog = FPGA（Quartus 專案，另外的流程）
   consts: Record<string, number>;
   led?: { gpio: number; activeLow?: boolean; color: string; label: string };
   pins: PinDef[];
   example: string;
+  sensor?: { x: number; z: number; w: number; d: number }; // 排針感應區（沒給就是整塊板子；FPGA 板上還有開關按鍵要點）
 }
 
 const pin = (id: string, label: string, kind: PinKind, x: number, z: number, extra: Partial<PinDef> = {}): PinDef =>
@@ -226,6 +228,15 @@ while True:
     count += 1
     print(f"blink {count}")
 `,
+  },
+  fpga: {
+    kind: 'fpga', name: 'FLEX 10K FPGA 實驗板', mcu: 'Altera EPF10K50EQC240-1・3.3 V I/O・50 MHz', size: { w: 1.8, d: 2.2 }, pcb: '#1d5c3a', female: false,
+    slot: { x: 6.25, z: -0.2 }, vcc: 3.3, rOut: 25, iMax: 0.024, vih: 2.0, vil: 0.8, pullR: 50000, adcBits: 0, adcRef: 0,
+    lim5V: 1.0, lim3V3: 0.5, intBits: 32, lang: 'Verilog HDL（Quartus II 專案）', language: 'verilog',
+    consts: {},
+    pins: fpgaHeaderPins(),
+    example: '',
+    sensor: { x: 0.745, z: 0, w: 0.3, d: 0.98 },
   },
 };
 

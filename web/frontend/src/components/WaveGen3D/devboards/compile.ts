@@ -3,12 +3,13 @@ import { SketchError } from './sketchLang.js';
 import { parseC, startC, type Hal } from './sketchRun.js';
 import { compilePython, PyInterp } from './pyRun.js';
 
-export type Language = 'c' | 'python';
+export type Language = 'c' | 'python' | 'verilog';
 export interface Compiled { start: (hal: Hal) => Generator<number, void, void> }
 export type CompileResult = { ok: Compiled; error?: undefined } | { ok?: undefined; error: { msg: string; line: number } };
 
 export function compile(src: string, lang: Language): CompileResult {
   try {
+    if (lang === 'verilog') throw new SketchError('FPGA 請用「Quartus 專案」面板編譯並用 Programmer 燒錄', 0);
     if (lang === 'python') {
       // 常見誤用：把 C 程式貼到 Pi 5
       if (/^\s*#include\s*</m.test(src) || /\bint\s+main\s*\(/.test(src)) {

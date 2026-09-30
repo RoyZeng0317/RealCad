@@ -5,6 +5,7 @@ import { usePsuLab } from './psuStore.js';
 import { LOAD_STEPS } from './psu.js';
 import { useDev } from './devboards/devStore.js';
 import { DEV_BOARDS } from './devboards/boardDefs.js';
+import { useFpga } from './devboards/fpga/fpgaStore.js';
 
 export function loadDemoCircuit() {
   const parts: BoardPart[] = [
@@ -88,4 +89,25 @@ export function loadPi5Blink() {
   useBoard.setState({ dmm: 't:1:26:5', tool: 'select', selectedId: 'ex-led' });
   dev.select('pi5');
   dev.reboot('pi5');
+}
+
+/** 範例：FLEX 10K FPGA 計數器（編譯 + JTAG 燒錄），J1 IO0 → 330 Ω → 麵包板上的綠色 LED 跟著計數閃 */
+export function loadFpgaCounter() {
+  const dev = useDev.getState();
+  (['uno', 'esp32', 'stm32', 'pi5'] as const).forEach((k) => dev.conf[k].present && dev.setPresent(k, false));
+  if (!dev.conf.fpga.present) dev.setPresent('fpga', true);
+  else dev.repair('fpga');
+  if (!useDev.getState().conf.fpga.usb) dev.setUsb('fpga', true);
+  useBoard.getState().loadParts([
+    { id: 'fx-w1', kind: 'wire', pins: ['h:fpga:IO0', 't:1:8:9'], color: '#2a7aff', gen: 0 },
+    { id: 'fx-r1', kind: 'resistor', pins: ['t:1:8:7', 't:1:14:7'], value: 330, gen: 0 },
+    { id: 'fx-led', kind: 'led', pins: ['t:1:14:6', 'b:2:1:14'], ledColor: 'green', gen: 0 },
+    { id: 'fx-w2', kind: 'wire', pins: ['h:fpga:GND_39', 'b:2:1:2'], color: '#1b1d20', gen: 0 },
+  ]);
+  useBoard.setState({ dmm: 't:1:14:5', tool: 'select', selectedId: 'fx-led' });
+  const f = useFpga.getState();
+  f.loadExample();
+  f.setProg({ mode: 'jtag', source: 'build' });
+  f.compile();
+  f.program(true);
 }
