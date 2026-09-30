@@ -43,10 +43,10 @@
 - 電阻負載：紅黑測試線接到 25 W 鋁殼功率電阻（1 Ω–1 kΩ 可調／開路），依功率發熱發光；超過 350 °C 燒斷變開路，可在面板「更換電阻」
 - 大型麵包板 RB-2（仿 JE25）：2 條 63 列端子排 + 3 條雙軌電源排 + Va/Vb/GND 接線柱，滑鼠移到孔上會標出相通的孔
 - 麵包板電路模擬（瀏覽器內即時運算，不需後端）：在「麵包板」分頁選工具點孔放零件
-  - 零件：色碼電阻（E12 10 Ω–1 MΩ，1/4 W）、1N4001–1N4007（依型號 PIV 50–1000 V）、LT1117-3.3（TO-220，1 GND／2 OUT／3 IN）、杜邦線（公對公，黑色方形塑膠殼）
+  - 零件：色碼電阻（1/4 W；數值框可直接輸入 0.1 Ω–10 MΩ，例如 330、4.7k、4k7、1M，也可從 E12 清單挑；放好的電阻選取後也能改值）、1N4001–1N4007（依型號 PIV 50–1000 V）、LT1117-3.3（TO-220，1 GND／2 OUT／3 IN）、杜邦線（公對公，黑色方形塑膠殼）
   - 電源供應器 + 接麵包板 Va、− 接 GND（與負載電阻並聯，負載可調成開路）
   - 求解器：`circuit.ts`（MNA + 牛頓法），含電源 CV/CC、二極體 Shockley 模型與逆向崩潰、LT1117 穩壓／壓降不足／1 A 限流／熱關斷
-  - 三用電表工具量任一孔對地電壓；選取零件看電壓、電流、功率、溫度；電阻過功率會燒斷、二極體燒毀變短路、LT1117 輸入超過 15 V 損壞
+  - 三用電表有紅、黑兩支探棒（輪流點孔、接線柱或開發板排針放置，黑棒預設插在 GND），讀值 = 紅棒 − 黑棒，可以量任兩點之間的電壓；選取零件看電壓、電流、功率、溫度；電阻過功率會燒斷、二極體燒毀變短路、LT1117 輸入超過 15 V 損壞
   - 範例（檔案選單或左側元件庫）：3.3 V 穩壓電路（7 V → 1N4007 → LT1117-3.3 → 330 Ω，輸出 3.300 V）、Arduino Uno LED 閃爍、Raspberry Pi 5 MicroPython LED 閃爍、錯誤示範（5 V 接到 ESP32 GPIO）、FLEX 10K FPGA 計數器（七段顯示器 + J1 IO0 接麵包板 LED）
 - 操作：3D 面板上的按鍵可直接點；旋鈕按住上下拖曳或滾輪轉動（Shift 微調）；右側 HTML 面板與 3D 面板共用同一份狀態
 - 程式碼：`web/frontend/src/components/WaveGen3D/`（依功能拆分：`waveform.ts` 波形數學、`waveStore.ts` 狀態、`parts.tsx` 旋鈕/按鍵、`FunctionGenerator3D.tsx`、`Oscilloscope3D.tsx`、`BncCable.tsx`、`BananaLead.tsx`、`BoardLeads.tsx`、`ScopeProbe.tsx`、`psu.ts`／`psuStore.ts`／`psuDisplay.ts`／`PowerSupply3D.tsx`／`PowerLoad3D.tsx`／`PsuPanel.tsx` 電源與負載、`breadboardGrid.ts`／`boardModel.ts`／`boardParts.ts`／`boardStore.ts`／`circuit.ts`／`bench.ts`／`BoardParts3D.tsx`／`BoardPanel.tsx` 麵包板與電路模擬、`LabBench.tsx` 場景），頁面入口 `web/frontend/src/pages/LabWorkspacePage.tsx`（工作區元件：`LabToolbar.tsx`、`LabSidebars.tsx`、`LabDock.tsx`、`GenPanel.tsx`、`ScopePanel.tsx`、`NodesPanel.tsx`、`labUi.ts`）

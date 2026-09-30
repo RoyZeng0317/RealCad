@@ -43,6 +43,23 @@ export const RESISTOR_VALUES: number[] = [1, 2, 3, 4, 5].flatMap((e) =>
 ).concat([1e6]);
 
 export const RESISTOR_RATING = 0.25; // W（1/4 W 碳膜電阻）
+export const R_MIN = 0.1, R_MAX = 10e6; // 可輸入的電阻範圍
+
+/**
+ * 解析使用者輸入的電阻值：330、4.7k、4k7、2.2 kΩ、1M、0.5、1R5（= 1.5 Ω）；大小寫都可以
+ * 回傳 Ω，看不懂或超出範圍回傳 null
+ */
+export function parseOhm(text: string): number | null {
+  const t = text.trim().replace(/\s+/g, '').replace(/(ohms?|Ω|歐姆|欧姆)$/i, '');
+  const mult: Record<string, number> = { r: 1, k: 1e3, m: 1e6 };
+  let v: number;
+  let m = /^(\d+(?:\.\d+)?)([rkm])?$/i.exec(t);
+  if (m) v = Number(m[1]) * (m[2] ? mult[m[2].toLowerCase()] : 1);
+  else if ((m = /^(\d+)([rkm])(\d+)$/i.exec(t))) v = Number(`${m[1]}.${m[3]}`) * mult[m[2].toLowerCase()]; // 4k7 寫法
+  else return null;
+  // M 在電子業是 mega；避免把 1m 當成 milli
+  return isFinite(v) && v >= R_MIN && v <= R_MAX ? Number(v.toPrecision(6)) : null;
+}
 
 export const WIRE_COLORS = ['#d42a2a', '#1b1d20', '#2a6fd4', '#2aa84a', '#e0b010', '#e07a1a', '#f2f2f2'];
 

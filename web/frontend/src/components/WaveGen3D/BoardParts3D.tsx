@@ -8,7 +8,7 @@ import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { BREADBOARD } from './layout.js';
 import { useDev } from './devboards/devStore.js';
-import { getBench } from './bench.js';
+import { getBench, meterV } from './bench.js';
 import { holePos, type HoleKey } from './boardModel.js';
 import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
@@ -382,13 +382,30 @@ export function Wire3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   );
 }
 
-/** 放置中：第一點的黃色標記；三用電表：紅棒位置與讀值 */
+/** 三用電表探棒：插在孔（或接線柱、排針）上的彩色探棒尖 */
+function Probe({ at, color }: { at: HoleKey; color: string }) {
+  return (
+    <group position={holePos(at)}>
+      <mesh position={[0, 0.09, 0]} rotation={[Math.PI, 0, 0]} raycast={() => null}>
+        <coneGeometry args={[0.018, 0.1, 12]} />
+        <meshStandardMaterial color={color} />
+      </mesh>
+      <mesh position={[0, 0.19, 0]} raycast={() => null}>
+        <cylinderGeometry args={[0.02, 0.02, 0.1, 12]} />
+        <meshStandardMaterial color={color} roughness={0.5} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 放置中：第一點的黃色標記；三用電表：紅棒、黑棒與讀值 */
 export function BoardMarkers() {
   const pending = useBoard((s) => s.pending);
   const dmm = useBoard((s) => s.dmm);
+  const black = useBoard((s) => s.dmmBlack);
   useBoard((s) => s.parts);
   const bench = getBench();
-  const v = dmm ? bench.holeV(dmm) : null;
+  const v = meterV(bench, dmm, black);
   return (
     <>
       {pending && (
@@ -397,18 +414,16 @@ export function BoardMarkers() {
           <meshBasicMaterial color="#ffd21f" toneMapped={false} />
         </mesh>
       )}
+      {black && <Probe at={black} color="#17181b" />}
+      {dmm && <Probe at={dmm} color="#d42a2a" />}
       {dmm && (
         <group position={holePos(dmm)}>
-          <mesh position={[0, 0.09, 0]} rotation={[Math.PI, 0, 0]} raycast={() => null}>
-            <coneGeometry args={[0.018, 0.1, 12]} />
-            <meshStandardMaterial color="#d42a2a" />
-          </mesh>
-          <Html zIndexRange={[10, 0]} position={[0, 0.16, 0]} center style={{ pointerEvents: 'none' }}>
+          <Html zIndexRange={[10, 0]} position={[0, 0.3, 0]} center style={{ pointerEvents: 'none' }}>
             <div style={{
               whiteSpace: 'nowrap', background: '#101418', color: '#7dffb0', fontFamily: 'Consolas, monospace',
               fontSize: 13, padding: '3px 8px', borderRadius: 6, border: '1px solid #2c5a3c',
             }}>
-              DMM {v === null ? '-- (未接)' : `${v.toFixed(3)} V`}
+              DMM {v === null ? (black ? '-- (未接)' : '-- (黑棒未插)') : `${v.toFixed(3)} V`}
             </div>
           </Html>
         </group>

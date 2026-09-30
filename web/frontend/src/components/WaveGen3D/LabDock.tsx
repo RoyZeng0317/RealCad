@@ -3,7 +3,7 @@ import { useCallback, useRef, useState, type CSSProperties } from 'react';
 import { useLabUi, type DockTab } from './labUi.js';
 import { useWaveLab } from './waveStore.js';
 import { useBoard } from './boardStore.js';
-import { useBench } from './bench.js';
+import { useBench, meterV } from './bench.js';
 import { formatSI } from './waveform.js';
 import { GeneratorControls } from './GenPanel.js';
 import { ScopeControls } from './ScopePanel.js';
@@ -71,8 +71,9 @@ export function LabStatusBar() {
   const scope = useWaveLab((s) => s.scope);
   const tool = useBoard((s) => s.tool);
   const dmm = useBoard((s) => s.dmm);
+  const dmmBlack = useBoard((s) => s.dmmBlack);
   const bench = useBench();
-  const dmmV = dmm ? bench.holeV(dmm) : null;
+  const dmmV = meterV(bench, dmm, dmmBlack);
   const items = [
     `FG ${gen.power && gen.output ? `${gen.waveform.toUpperCase()} ${formatSI(gen.frequency, 'Hz', 4)} ${gen.amplitude.toFixed(2)} Vpp` : 'OFF'}`,
     `示波器 ${scope.running ? 'RUN' : 'STOP'}・觸發 ${scope.trigSource}`,
