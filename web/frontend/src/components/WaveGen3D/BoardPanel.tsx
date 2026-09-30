@@ -25,7 +25,26 @@ export const TOOL_NAME: Record<Tool, string> = {
   select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
 };
 
-/** Esc 取消放置、Delete 刪除選取的零件 */
+/**
+ * 單鍵快捷鍵對應的字母。先看 e.key（一般英文輸入）；中文輸入法開著時 e.key 會變成 "Process"（keyCode 229），
+ * 這時改看實體按鍵位置 e.code（KeyS / KeyW / KeyX），所以英文鍵盤、中文輸入法的英文或中文模式都能用。
+ */
+export function shortcutLetter(e: KeyboardEvent): string {
+  if (e.key && e.key.length === 1 && /[a-z]/i.test(e.key)) return e.key.toLowerCase();
+  const m = /^Key([A-Z])$/.exec(e.code ?? '');
+  if (m) return m[1].toLowerCase();
+  if (e.keyCode >= 65 && e.keyCode <= 90) return String.fromCharCode(e.keyCode).toLowerCase();
+  return '';
+}
+
+/** 工具列與快捷鍵共用的動作 */
+export const boardActions = {
+  select: () => useBoard.getState().setTool('select'),
+  wire: () => useBoard.getState().setTool('wire'),
+  remove: () => { const s = useBoard.getState(); if (s.selectedId) s.removePart(s.selectedId); },
+};
+
+/** S 選取、W 杜邦線、X / Delete 刪除選取的零件、Esc 取消 */
 export function useBoardKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -33,15 +52,16 @@ export function useBoardKeys() {
       if (el?.tagName === 'INPUT' || el?.tagName === 'SELECT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const st = useBoard.getState();
-      const key = e.key.toLowerCase();
-      if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); }
-      // 單鍵快捷鍵：S 選取、W 杜邦線、X 刪除選取的零件
-      else if (key === 's') st.setTool('select');
-      else if (key === 'w') st.setTool('wire');
-      else if ((key === 'x' || e.key === 'Delete' || e.key === 'Backspace') && st.selectedId) { e.preventDefault(); st.removePart(st.selectedId); }
+      if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { if (st.selectedId) { e.preventDefault(); boardActions.remove(); } return; }
+      const k = shortcutLetter(e);
+      if (k === 's') { e.preventDefault(); boardActions.select(); }
+      else if (k === 'w') { e.preventDefault(); boardActions.wire(); }
+      else if (k === 'x') { e.preventDefault(); boardActions.remove(); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // capture 階段：就算焦點在按鈕或 3D 畫面上也收得到
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 }
 
