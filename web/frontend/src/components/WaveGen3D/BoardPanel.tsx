@@ -1,6 +1,7 @@
 // 麵包板操作介面：左側元件庫（零件/工具/範例）、右側檢視器（三用電表、選取零件的工作點）
 import { useEffect, type CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
+import { LEAD_TAG } from './LeadControls.js';
 import { ChipCard } from './chips/ChipPanels.js';
 import { ResistorInput } from './ResistorInput.js';
 import { loadAtmegaDemo } from './chips/chipDemo.js';
@@ -26,9 +27,9 @@ export const TOOL_HINT: Record<Tool, string> = {
   atmega: '點一個端子排的孔：第 1 腳（RESET，缺口那端）放在那一列，14 隻腳沿 e 欄往下、另 14 隻在 f 欄（跨在中間的溝上）。',
   ch340: '點一個端子排的孔：第 1 腳（GND）放在那一列，8 隻腳沿 e 欄往下、另 8 隻在 f 欄；Micro USB 線已接到電腦。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
-  fg: '函數產生器輸出線：先點紅色 +（訊號）要插的孔，再點黑色 −（地）要插的孔。產生器輸出內阻 50 Ω。',
-  ch1: '示波器 CH1 探棒：先點探針要勾的孔（量這一點），再點接地夾要夾的孔（通常是 GND）。',
-  ch2: '示波器 CH2 探棒：先點探針要勾的孔（量這一點），再點接地夾要夾的孔（通常是 GND）。',
+  fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
+  ch1: '示波器 CH1 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
+  ch2: '示波器 CH2 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
@@ -216,11 +217,15 @@ export function PartLibrary() {
 
 /** 右側檢視器上方：目前工具提示、放置中的第一點、錯誤訊息 */
 export function ToolStatus() {
-  const { tool, pending, message } = useBoard();
+  const { tool, pending, message, leadEnd } = useBoard();
+  const lead = tool === 'fg' || tool === 'ch1' || tool === 'ch2' ? LEAD_TAG[tool] : null;
   return (
     <Section title={`工具：${TOOL_NAME[tool]}`}>
       <p style={help}>{TOOL_HINT[tool]}</p>
-      {pending && <p style={{ ...help, color: T.value }}>已選第一點 {holeName(pending)}，請點第二點（Esc 取消）</p>}
+      {lead && leadEnd !== null && <p style={{ ...help, color: T.value }}>請點要把 {lead} {leadEnd === 0 ? '+ 端' : '− 端'}改接到的孔（Esc 取消）</p>}
+      {lead && leadEnd === null && !pending && <p style={{ ...help, color: T.value }}>第 1 步：點 {lead} 的 + 端（{tool === 'fg' ? '紅線' : '探針'}）要接的孔</p>}
+      {lead && leadEnd === null && pending && <p style={{ ...help, color: T.value }}>+ 端已接在 {holeName(pending)}；第 2 步：點 {lead} 的 − 端（{tool === 'fg' ? '黑線' : '接地夾'}）要接的孔（Esc 取消）</p>}
+      {!lead && pending && <p style={{ ...help, color: T.value }}>已選第一點 {holeName(pending)}，請點第二點（Esc 取消）</p>}
       {message && <div style={warn}>{message}</div>}
     </Section>
   );

@@ -122,9 +122,10 @@ export function loadRectifierDemo() {
   ]);
   useBoard.setState({ tool: 'select', selectedId: null, dmm: 't:1:26:4', dmmBlack: 'p:GND' });
   const b = useBoard.getState();
-  b.setLead('fg', ['t:1:20:0', 'b:1:1:20']);
-  b.setLead('ch1', ['t:1:20:1', 'b:1:1:21']);
-  b.setLead('ch2', ['t:1:26:1', 'b:1:1:27']);
+  // 三組線的接地端分散在電源軌不同位置，3D 標籤才不會疊在一起
+  b.setLead('fg', ['t:1:20:0', 'b:1:1:8']);
+  b.setLead('ch1', ['t:1:20:4', 'b:1:1:14']);
+  b.setLead('ch2', ['t:1:26:1', 'b:1:1:38']);
   const w = useWaveLab.getState();
   w.setWaveform('sine');
   w.setGen({ frequency: 1000, amplitude: 10, offset: 0, power: true, output: true });

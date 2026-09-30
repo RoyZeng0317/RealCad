@@ -20,6 +20,7 @@ interface BoardState {
   dmmBlack: HoleKey | null; // 三用電表黑棒位置（預設插在 GND 接線柱）
   probeSide: 'red' | 'black'; // 三用電表工具下一次點擊要放哪一支探棒
   leads: Leads; // null = 沒接到麵包板（產生器直接接示波器 CH1、CH2 探棒夾在電源負載上）
+  leadEnd: 0 | 1 | null; // 只重接某一端：0 = + 端、1 = − 端；null = 兩端依序接
   resistorValue: number;
   diodeModel: DiodeModel;
   ledColor: LedColor;
@@ -42,6 +43,8 @@ interface BoardState {
   loadParts: (parts: BoardPart[]) => void;
   setMessage: (m: string) => void;
   setLead: (k: LeadKind, pins: [HoleKey, HoleKey] | null) => void;
+  /** 開始接線：end 省略 = 先點 + 端再點 − 端；0 / 1 = 只重接那一端 */
+  startLead: (k: LeadKind, end?: 0 | 1) => void;
   setHoverHole: (k: HoleKey | null) => void;
   startDrag: (id: string, grab: number) => void;
   markDragMoved: () => void;
@@ -113,6 +116,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   dmmBlack: 'p:GND',
   probeSide: 'red',
   leads: { fg: null, ch1: null, ch2: null },
+  leadEnd: null,
   resistorValue: 330,
   diodeModel: '1N4007',
   ledColor: 'red',
@@ -124,10 +128,11 @@ export const useBoard = create<BoardState>((set, get) => ({
   hoverHole: null,
   drag: null,
 
-  setTool: (tool) => set({ tool, pending: null, message: '' }),
+  setTool: (tool) => set({ tool, pending: null, message: '', leadEnd: null }),
   setParam: (patch) => set(patch),
   setMessage: (message) => set({ message }),
   setLead: (k, pins) => set((s) => ({ leads: { ...s.leads, [k]: pins } })),
+  startLead: (k, end) => set((s) => ({ tool: k, pending: null, message: '', leadEnd: end !== undefined && s.leads[k] ? end : null })),
   setHoverHole: (hoverHole) => {
     const s = get();
     if (s.hoverHole === hoverHole) return;
@@ -167,8 +172,15 @@ export const useBoard = create<BoardState>((set, get) => ({
       set(s.probeSide === 'red' ? { dmm: k, probeSide: 'black', message: '' } : { dmmBlack: k, probeSide: 'red', message: '' });
       return;
     }
-    // 儀器的線：第一下是訊號端（紅 / 探針），第二下是接地端（黑 / 接地夾）；夾在孔上，不佔用孔
+    // 儀器的線：第一下是 + 端（紅線 / 探針），第二下是 − 端（黑線 / 接地夾）；夾在孔上，不佔用孔
     if (s.tool === 'fg' || s.tool === 'ch1' || s.tool === 'ch2') {
+      const cur = s.leads[s.tool];
+      if (s.leadEnd !== null && cur) {
+        const pins: [HoleKey, HoleKey] = s.leadEnd === 0 ? [k, cur[1]] : [cur[0], k];
+        if (pins[0] === pins[1]) { set({ message: '+ 端和 − 端不能夾在同一個孔' }); return; }
+        set({ leads: { ...s.leads, [s.tool]: pins }, tool: 'select', leadEnd: null, message: '' });
+        return;
+      }
       if (!s.pending) { set({ pending: k, message: '' }); return; }
       if (s.pending === k) { set({ pending: null }); return; }
       set({ leads: { ...s.leads, [s.tool]: [s.pending, k] }, pending: null, tool: 'select', message: '' });

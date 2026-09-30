@@ -1,6 +1,7 @@
 // 儀器接到麵包板的線：函數產生器 BNC → 紅 / 黑鱷魚夾線、示波器 CH1 / CH2 探棒（探針勾在孔上 + 接地夾）
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { Html } from '@react-three/drei';
 import { GEN, SCOPE, panelToWorld, boardToWorld } from './layout.js';
 import { useBoard, type LeadKind } from './boardStore.js';
 import { holePos, type HoleKey } from './boardModel.js';
@@ -17,6 +18,18 @@ function Tube({ pts, r, color }: { pts: THREE.Vector3[]; r: number; color: strin
     <mesh geometry={geo} castShadow raycast={() => null}>
       <meshStandardMaterial color={color} roughness={0.55} />
     </mesh>
+  );
+}
+
+/** 端點標籤：CH1 +、CH1 −、FG + … 浮在夾子上方，一眼看出正負極與通道 */
+function Tag({ p, text, color, y = 0.2 }: { p: THREE.Vector3; text: string; color: string; y?: number }) {
+  return (
+    <Html zIndexRange={[10, 0]} position={[p.x, p.y + y, p.z]} center style={{ pointerEvents: 'none' }}>
+      <div style={{
+        whiteSpace: 'nowrap', background: 'rgba(10,10,26,0.9)', color, fontSize: 12, fontWeight: 800,
+        fontFamily: 'Consolas, monospace', padding: '1px 6px', borderRadius: 5, border: `1px solid ${color}`,
+      }}>{text}</div>
+    </Html>
   );
 }
 
@@ -67,6 +80,8 @@ function GenLead({ pins }: { pins: [HoleKey, HoleKey] }) {
       <Tube pts={g.blk} r={0.012} color="#1c1e21" />
       <Clip p={g.p} color="#c8201c" />
       <Clip p={g.n} color="#1c1e21" />
+      <Tag p={g.p} text="FG +" color="#ff6a5a" />
+      <Tag p={g.n} text="FG −" color="#c8c8c8" />
     </group>
   );
 }
@@ -104,6 +119,8 @@ function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2'; pins: [HoleKey, HoleKey] }
       </mesh>
       <Tube pts={g.ground} r={0.008} color="#1c1e21" />
       <Clip p={g.gnd} color="#1c1e21" />
+      <Tag p={tip} text={`${ch.toUpperCase()} +`} color={color} y={ch === 'ch1' ? 0.46 : 0.36} />
+      <Tag p={g.gnd} text={`${ch.toUpperCase()} −`} color="#c8c8c8" />
     </group>
   );
 }
