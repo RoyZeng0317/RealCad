@@ -6,6 +6,9 @@ import { usePsuLab } from './psuStore.js';
 import { useLabUi } from './labUi.js';
 import { T } from './panelUi.js';
 import { MenuBar, ProjectTitle } from './project/MenuBar.js';
+import { useBoard } from './boardStore.js';
+import { boardActions } from './BoardPanel.js';
+import { useProject, undo, redo } from './project/projectStore.js';
 
 const VIEWS: [ViewPreset, string][] = [
   ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'], ['devboards', '開發板'],
@@ -18,6 +21,10 @@ export function LabToolbar() {
   const scope = useWaveLab((s) => s.scope);
   const psu = usePsuLab((s) => s.psu);
   const { focus, toggleLeft, toggleRight, leftOpen, rightOpen } = useLabUi();
+  const tool = useBoard((s) => s.tool);
+  const selectedId = useBoard((s) => s.selectedId);
+  const undoN = useProject((s) => s.undo.length);
+  const redoN = useProject((s) => s.redo.length);
 
   return (
     <div style={bar}>
@@ -34,6 +41,15 @@ export function LabToolbar() {
         {VIEWS.map(([v, name]) => (
           <button key={v} style={btn(view === v)} onClick={() => focus(v)}>{name}</button>
         ))}
+      </div>
+      <div style={sep} />
+      {/* 編輯工具：跟快捷鍵 S / W / X 相同 */}
+      <div style={group}>
+        <button style={btn(tool === 'select')} onClick={boardActions.select} title="選取／拖曳零件（S）">↖ 選取<Key k="S" /></button>
+        <button style={btn(tool === 'wire')} onClick={boardActions.wire} title="杜邦線（W）">〰 杜邦線<Key k="W" /></button>
+        <button style={{ ...btn(false), opacity: selectedId ? 1 : 0.4 }} disabled={!selectedId} onClick={boardActions.remove} title="刪除選取的零件（X）">✕ 刪除<Key k="X" /></button>
+        <button style={{ ...btn(false), opacity: undoN ? 1 : 0.4 }} disabled={!undoN} onClick={undo} title="復原（Ctrl+Z）">↶</button>
+        <button style={{ ...btn(false), opacity: redoN ? 1 : 0.4 }} disabled={!redoN} onClick={redo} title="重做（Ctrl+Y）">↷</button>
       </div>
       <div style={sep} />
       <div style={group}>
@@ -57,15 +73,25 @@ export function LabToolbar() {
   );
 }
 
+/** 按鈕上的快捷鍵提示 */
+function Key({ k }: { k: string }) {
+  return (
+    <span style={{
+      marginLeft: 6, padding: '0 5px', borderRadius: 4, border: '1px solid #3a3a6a', fontSize: 11,
+      fontFamily: T.mono, color: T.muted, lineHeight: '16px', display: 'inline-block',
+    }}>{k}</span>
+  );
+}
+
 const bar: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: T.bg, position: 'relative', zIndex: 20,
+  display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', background: T.bg, position: 'relative', zIndex: 20,
   borderBottom: `1px solid ${T.border}`, flexShrink: 0, fontFamily: T.font, flexWrap: 'wrap',
 };
 const brand: CSSProperties = { display: 'flex', flexDirection: 'column', lineHeight: 1.2, whiteSpace: 'nowrap', marginLeft: 4 };
 const sep: CSSProperties = { width: 1, alignSelf: 'stretch', background: T.border, margin: '0 4px', flexShrink: 0 };
 const group: CSSProperties = { display: 'flex', gap: 4, flexShrink: 0 };
 const btn = (active: boolean): CSSProperties => ({
-  padding: '6px 12px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13, fontFamily: T.font,
+  padding: '5px 9px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 13, fontFamily: T.font,
   background: active ? '#0b3550' : 'transparent', color: active ? T.accent : '#b0b0d8',
   border: `1px solid ${active ? T.accent : '#2a2a5a'}`,
 });
