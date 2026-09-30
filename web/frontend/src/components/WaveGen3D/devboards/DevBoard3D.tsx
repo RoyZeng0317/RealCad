@@ -264,7 +264,6 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
     const p = nearest(e);
     const tool = useBoard.getState().tool;
     if (p && tool !== 'select') useBoard.getState().clickHole(`h:${kind}:${p.id}`);
-    else if (tool === 'erase') useDev.getState().setPresent(kind, false);
     else selectBoard();
   };
 
@@ -282,8 +281,7 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
         onClick={d.sensor ? (e) => {
           if (e.delta > 4) return;
           e.stopPropagation();
-          if (useBoard.getState().tool === 'erase') useDev.getState().setPresent(kind, false);
-          else selectBoard();
+          selectBoard();
         } : undefined}>
         <meshStandardMaterial color={d.pcb} roughness={0.6} emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.25 : 0} />
       </RoundedBox>
