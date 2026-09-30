@@ -50,7 +50,18 @@ let cache: { key: unknown[]; bench: Bench } | null = null;
 export interface FgSource { p: HoleKey; n: HoleKey; v: number }
 export const FG_ROUT = 50; // 產生器輸出內阻 Ω
 
-export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null): Bench {
+/**
+ * 儀器的地（大地）：函數產生器 BNC 外殼（黑線 −）與示波器探棒接地夾，在真實實驗室裡都經過儀器外殼、電源線接到同一個大地。
+ * 所以產生器 − 與示波器 − 夾在不同地方時，電流可以經由大地流回產生器（這也是「接地夾夾錯地方會短路」的原因）。
+ * 電源供應器輸出是浮接的，只經過漏電跟大地相連。
+ */
+export function earthHoles(): HoleKey[] {
+  const { leads } = useBoard.getState();
+  return [leads.fg?.[1], leads.ch1?.[1], leads.ch2?.[1]].filter((h): h is HoleKey => !!h);
+}
+const EARTH = 'EARTH';
+
+export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []): Bench {
   const merged = mergeNets(parts);
   const net = merged.hole;
   const VA = net(postKey('Va')), GND = net(postKey('GND'));
@@ -80,9 +91,12 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
   els.push(...devElements(dev, merged.net, GND));
   els.push(...chipElements(parts, chips, net));
   if (fg) {
-    // 產生器外殼接地：黑線那端經 1 MΩ 漏電到實驗桌地，沒接 GND 也不會讓電路浮接無解
     els.push({ kind: 'src', id: 'fg', p: net(fg.p), n: net(fg.n), v: fg.v, r: FG_ROUT });
-    els.push({ kind: 'res', id: 'fg:leak', a: net(fg.n), b: GND, r: 1e6 });
+  }
+  if (earth.length) {
+    // 產生器 − 與示波器接地夾都接大地；大地經漏電跟電源供應器的 GND 相連（浮接電源）
+    earth.forEach((h, i) => els.push({ kind: 'res', id: `earth:${i}`, a: net(h), b: EARTH, r: 0.05 }));
+    els.push({ kind: 'res', id: 'earth:leak', a: EARTH, b: GND, r: 1e6 });
   }
   const sol = solveCircuit(els, GND);
   const di = devIssues(dev, sol, merged.net);
@@ -127,10 +141,10 @@ export function getBench(): Bench {
   const ds = useDev.getState();
   // 只有會影響電路的開發板狀態才放進快取 key（序列埠輸出改變不用重算電路）
   const cs = useChips.getState();
-  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec, bs.leads.fg, bs.leads.fg ? wl.gen : null,
+  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec, bs.leads, bs.leads.fg ? wl.gen : null,
     ...DEV_KINDS.flatMap((k) => [ds.rt[k].pins, ds.rt[k].dead, ds.rt[k].tripped])];
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.bench;
-  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fgDc());
+  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fgDc(), earthHoles());
   cache = { key, bench };
   return bench;
 }

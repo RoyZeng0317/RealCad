@@ -7,7 +7,7 @@ import { usePsuLab, loadResistance } from './psuStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useDev } from './devboards/devStore.js';
 import { useChips } from './chips/chipStore.js';
-import { computeBench, getBench, fgDc, meterV, type Bench } from './bench.js';
+import { computeBench, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
 import { waveRange, sampleWave } from './waveform.js';
 import type { HoleKey } from './boardModel.js';
 
@@ -33,7 +33,7 @@ const pairCache = new Map<string, Transfer>();
 function getSweep() {
   const bs = useBoard.getState(), ps = usePsuLab.getState(), ds = useDev.getState(), cs = useChips.getState();
   const gen = useWaveLab.getState().gen;
-  const key = [getBench(), bs.leads.fg, gen];
+  const key = [getBench(), bs.leads, gen];
   if (!sweep || !sweep.key.every((v, i) => v === key[i])) {
     const fg = fgDc();
     let xs: number[] = [], benches: Bench[] = [];
@@ -41,7 +41,8 @@ function getSweep() {
       const [lo, hi] = waveRange(gen);
       const n = hi - lo < 1e-9 ? 1 : STEPS;
       xs = Array.from({ length: n }, (_, i) => (n === 1 ? lo : lo + ((hi - lo) * i) / (n - 1)));
-      benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }));
+      const earth = earthHoles();
+      benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }, earth));
     }
     sweep = { key, xs, benches };
     pairCache.clear();
