@@ -2,12 +2,13 @@
 import { useEffect, type CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
 import { ChipCard } from './chips/ChipPanels.js';
+import { ResistorInput } from './ResistorInput.js';
 import { loadAtmegaDemo } from './chips/chipDemo.js';
-import { useBench } from './bench.js';
+import { useBench, meterV } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
-  DIODE_MODELS, DIODE_PIV, RESISTOR_VALUES, RESISTOR_RATING, WIRE_COLORS, THERMAL, LDO_VIN_MAX,
-  fmtOhm, partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
+  DIODE_MODELS, DIODE_PIV, RESISTOR_RATING, WIRE_COLORS, THERMAL, LDO_VIN_MAX,
+  partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink } from './boardDemo.js';
 import { useLabUi } from './labUi.js';
@@ -16,7 +17,7 @@ import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.
 export const TOOL_HINT: Record<Tool, string> = {
   erase: '刪除模式：直接用滑鼠點要刪除的零件或杜邦線（可以連續刪）。按 S 或再按一次刪除回到選取，刪錯可用 Ctrl+Z 復原。',
   select: '點零件看電壓、電流、功率與溫度；按住零件拖曳可以移到別的孔（杜邦線是拖其中一端）；Delete 刪除選取的零件，按 X（刪除）進入刪除模式直接點零件刪除。',
-  probe: '點任一個孔：紅棒放在那裡，黑棒固定接 GND，讀出該點對地電壓。',
+  probe: '紅棒、黑棒輪流放：點孔（或接線柱、開發板排針）插上探棒，讀值 = 紅棒電壓 − 黑棒電壓。黑棒預設插在 GND 接線柱。',
   wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
   diode: '先點陽極（A）的孔，再點陰極（K，有銀色環那端）的孔。',
@@ -86,7 +87,7 @@ const PART_ITEMS: LibItem[] = [
 ];
 const TOOL_ITEMS: LibItem[] = [
   { tool: 'select', name: '選取（S）', sub: '拖曳移動零件・X 刪除', icon: '↖' },
-  { tool: 'probe', name: '三用電表', sub: 'DC V・黑棒接 GND', icon: 'V' },
+  { tool: 'probe', name: '三用電表', sub: 'DC V・紅棒 / 黑棒兩支探棒', icon: 'V' },
 ];
 
 function LibRow({ item }: { item: LibItem }) {
@@ -115,9 +116,7 @@ function LibRow({ item }: { item: LibItem }) {
 function ToolParams() {
   const s = useBoard();
   if (s.tool === 'resistor') return (
-    <select style={selectStyle} value={s.resistorValue} onChange={(e) => s.setParam({ resistorValue: Number(e.target.value) })}>
-      {RESISTOR_VALUES.map((v) => <option key={v} value={v}>{fmtOhm(v)}</option>)}
-    </select>
+    <ResistorInput id="place-r" value={s.resistorValue} onChange={(r) => s.setParam({ resistorValue: r })} />
   );
   if (s.tool === 'diode') return (
     <select style={selectStyle} value={s.diodeModel} onChange={(e) => s.setParam({ diodeModel: e.target.value as typeof s.diodeModel })}>
@@ -142,6 +141,12 @@ function ToolParams() {
           border: s.wireColor === c ? `2px solid ${T.accent}` : '1px solid #2a2a5a',
         }} />
       ))}
+    </div>
+  );
+  if (s.tool === 'probe') return (
+    <div style={row}>
+      <button style={chip(s.probeSide === 'red', '#8a1f24')} onClick={() => s.setParam({ probeSide: 'red' })}>下一次放紅棒</button>
+      <button style={chip(s.probeSide === 'black', '#3a3a44')} onClick={() => s.setParam({ probeSide: 'black' })}>下一次放黑棒</button>
     </div>
   );
   if (s.tool === 'ldo') return (
@@ -201,14 +206,24 @@ export function ToolStatus() {
 
 export function DmmCard() {
   const dmm = useBoard((s) => s.dmm);
+  const black = useBoard((s) => s.dmmBlack);
   const bench = useBench();
-  const v = dmm ? bench.holeV(dmm) : null;
+  const v = meterV(bench, dmm, black);
+  const small = { ...chip(false), flex: 'none', padding: '1px 8px', fontSize: 11 };
+  const where = (h: string | null) => (h ? holeName(h) : '未插');
   return (
-    <Section title="三用電表（DC V）" right={dmm ? (
-      <button style={{ ...chip(false), flex: 'none', padding: '1px 8px', fontSize: 11 }} onClick={() => useBoard.setState({ dmm: null })}>移除</button>
+    <Section title="三用電表（DC V）" right={dmm || black ? (
+      <button style={small} onClick={() => useBoard.setState({ dmm: null, dmmBlack: null, probeSide: 'red' })}>拔掉探棒</button>
     ) : undefined}>
-      <div style={dmmBox}>{dmm ? (v === null ? '----' : `${v.toFixed(3)} V`) : '— — —'}</div>
-      <p style={help}>{dmm ? `紅棒：${holeName(dmm)}　黑棒：GND` : '左側選「三用電表」後點麵包板上的孔'}</p>
+      <div style={dmmBox}>{dmm && black ? (v === null ? '----' : `${v.toFixed(3)} V`) : '— — —'}</div>
+      <div style={{ ...help, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span><b style={{ color: '#ff5a4a' }}>● 紅棒</b>：{where(dmm)}</span>
+        <span><b style={{ color: '#c8c8c8' }}>● 黑棒</b>：{where(black)}
+          {black !== 'p:GND' && <button style={{ ...small, marginLeft: 6 }} onClick={() => useBoard.setState({ dmmBlack: 'p:GND' })}>插回 GND</button>}
+        </span>
+        {dmm && black && v === null && <span style={{ color: '#ffd9a0' }}>探棒插的點沒有接到電路（讀不到電壓）</span>}
+        {(!dmm || !black) && <span>左側選「三用電表」後點孔：{!dmm ? '先放紅棒' : '再放黑棒'}</span>}
+      </div>
     </Section>
   );
 }
@@ -279,6 +294,10 @@ function SimplePartCard({ part }: { part: BoardPart }) {
         <div style={help}>
           腳位：1 GND {holeName(part.pins[0])}・2 OUT {holeName(part.pins[1])}・3 IN {holeName(part.pins[2])}
         </div>
+      )}
+      {part.kind === 'resistor' && (
+        <ResistorInput id={`r-${part.id}`} value={part.value!}
+          onChange={(r) => useBoard.setState((st) => ({ parts: st.parts.map((q) => (q.id === part.id ? { ...q, value: r } : q)) }))} />
       )}
       {part.kind !== 'wire' && part.kind !== 'ldo' && (
         <div style={help}>

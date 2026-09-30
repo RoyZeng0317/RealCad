@@ -12,7 +12,9 @@ interface BoardState {
   tool: Tool;
   pending: HoleKey | null; // 兩點放置的第一點
   selectedId: string | null;
-  dmm: HoleKey | null; // 三用電表紅棒位置（黑棒固定接 GND）
+  dmm: HoleKey | null; // 三用電表紅棒位置
+  dmmBlack: HoleKey | null; // 三用電表黑棒位置（預設插在 GND 接線柱）
+  probeSide: 'red' | 'black'; // 三用電表工具下一次點擊要放哪一支探棒
   resistorValue: number;
   diodeModel: DiodeModel;
   ledColor: LedColor;
@@ -25,7 +27,7 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -102,6 +104,8 @@ export const useBoard = create<BoardState>((set, get) => ({
   pending: null,
   selectedId: null,
   dmm: null,
+  dmmBlack: 'p:GND',
+  probeSide: 'red',
   resistorValue: 330,
   diodeModel: '1N4007',
   ledColor: 'red',
@@ -150,7 +154,11 @@ export const useBoard = create<BoardState>((set, get) => ({
       set({ selectedId: id });
       return;
     }
-    if (s.tool === 'probe') { set({ dmm: k, message: '' }); return; }
+    // 三用電表：紅棒、黑棒輪流放（也可以在左側指定下一次放哪一支）
+    if (s.tool === 'probe') {
+      set(s.probeSide === 'red' ? { dmm: k, probeSide: 'black', message: '' } : { dmmBlack: k, probeSide: 'red', message: '' });
+      return;
+    }
     // 刪除模式：點到的孔插著哪個零件（或杜邦線）就刪掉它
     if (s.tool === 'erase') {
       const id = occupied(s.parts).get(k);
@@ -207,6 +215,6 @@ export const useBoard = create<BoardState>((set, get) => ({
     tsd,
     parts: burnt.length ? s.parts.map((p) => (burnt.includes(p.id) ? { ...p, burnt: true } : p)) : s.parts,
   })),
-  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, temps: {}, tsd: {} }),
+  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, dmmBlack: 'p:GND', probeSide: 'red', temps: {}, tsd: {} }),
   loadParts: (parts) => set({ parts, selectedId: null, pending: null }),
 }));

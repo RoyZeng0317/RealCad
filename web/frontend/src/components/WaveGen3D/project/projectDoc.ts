@@ -12,7 +12,7 @@ import { useChips } from '../chips/chipStore.js';
 import { LOAD_STEPS } from '../psu.js';
 import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
 import {
-  DIODE_MODELS, LED_COLORS, WIRE_COLORS, RESISTOR_VALUES, type BoardPart, type PartKind,
+  DIODE_MODELS, LED_COLORS, WIRE_COLORS, RESISTOR_VALUES, R_MIN, R_MAX, type BoardPart, type PartKind,
 } from '../boardParts.js';
 
 export const DOC_FORMAT = 'realcad-lab';
@@ -25,7 +25,7 @@ export interface LabDoc {
   savedAt: string;
   gen: unknown; scope: unknown; psu: unknown;
   load: { idx: number; burnt: boolean };
-  board: { parts: BoardPart[]; dmm: string | null };
+  board: { parts: BoardPart[]; dmm: string | null; dmmBlack?: string | null };
   dev: Record<DevKind, DevConf>;
   fpga?: FpgaConf;
 }
@@ -36,7 +36,7 @@ export function collectDoc(name: string): LabDoc {
     format: DOC_FORMAT, version: DOC_VERSION, name, savedAt: new Date().toISOString(),
     gen: w.gen, scope: w.scope, psu: p.psu,
     load: { idx: p.loadIdx, burnt: p.burnt },
-    board: { parts: b.parts, dmm: b.dmm },
+    board: { parts: b.parts, dmm: b.dmm, dmmBlack: b.dmmBlack },
     dev: d.conf,
     fpga: (({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }) =>
       ({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }))(useFpga.getState()),
@@ -71,7 +71,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
     let id = str(o.id, 64) || `${kind}-${out.length}`;
     while (ids.has(id)) id += '_';
     const p: BoardPart = { id, kind, pins, gen: 0, burnt: bool(o.burnt, false) };
-    if (kind === 'resistor') p.value = RESISTOR_VALUES.includes(o.value as number) ? (o.value as number) : num(o.value, 1, 1e7, 330);
+    if (kind === 'resistor') p.value = RESISTOR_VALUES.includes(o.value as number) ? (o.value as number) : num(o.value, R_MIN, R_MAX, 330);
     if (kind === 'diode') p.model = oneOf(o.model, DIODE_MODELS, '1N4007');
     if (kind === 'led') p.ledColor = oneOf(o.ledColor, LED_COLORS, 'red');
     if (kind === 'atmega') { p.code = str(o.code, 100_000, ''); p.flash = str(o.flash, 100_000, ''); }
@@ -159,7 +159,9 @@ export function applyDoc(raw: unknown): string {
   useChips.setState({ rt: {}, tab: null }); // 麵包板 IC 的執行狀態從頭開始（Flash 內容跟著零件存在專案裡）
   useBoard.getState().loadParts(parts);
   const dmm = typeof b.dmm === 'string' && isValidHole(b.dmm) ? b.dmm : null;
-  useBoard.setState({ dmm, tool: 'select', temps: {}, tsd: {}, message: '' });
+  // 舊檔沒有黑棒位置：當時黑棒固定接 GND
+  const dmmBlack = b.dmmBlack === null ? null : typeof b.dmmBlack === 'string' && isValidHole(b.dmmBlack) ? b.dmmBlack : 'p:GND';
+  useBoard.setState({ dmm, dmmBlack, probeSide: 'red', tool: 'select', temps: {}, tsd: {}, message: '' });
 
   return str(d.name, 100, '未命名專案') || '未命名專案';
 }

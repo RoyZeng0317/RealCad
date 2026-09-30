@@ -95,6 +95,13 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
   };
 }
 
+/** 三用電表讀值 = 紅棒電壓 − 黑棒電壓；任一支探棒沒插、或插的點沒有接到電路就回傳 null */
+export function meterV(b: Bench, red: HoleKey | null, black: HoleKey | null): number | null {
+  if (!red || !black) return null;
+  const r = b.holeV(red), k = b.holeV(black);
+  return r === null || k === null ? null : r - k;
+}
+
 export function getBench(): Bench {
   const ps = usePsuLab.getState();
   const bs = useBoard.getState();
