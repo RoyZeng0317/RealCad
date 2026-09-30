@@ -115,7 +115,15 @@ export function startTracking(): () => void {
     });
   };
   const unsubs = [
-    useBoard.subscribe((s, p) => { if (s.parts !== p.parts) onLayout(); if (s.dmm !== p.dmm) markDirty(); }),
+    useBoard.subscribe((s, p) => {
+      if (s.parts !== p.parts) {
+        onLayout();
+        // ATmega 的程式碼 / Flash 改變不算擺放變化（不進復原堆疊），但要標記未儲存
+        const code = (x: typeof s.parts) => x.map((q) => (q.code ?? '') + '\u0000' + (q.flash ?? '')).join('\u0001');
+        if (code(s.parts) !== code(p.parts)) markDirty();
+      }
+      if (s.dmm !== p.dmm) markDirty();
+    }),
     useDev.subscribe((s, p) => {
       if (s.conf === p.conf) return;
       if (DEV_KINDS.some((k) => s.conf[k].present !== p.conf[k].present || s.conf[k].usb !== p.conf[k].usb)) onLayout();

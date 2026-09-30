@@ -6,6 +6,7 @@ import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadFpgaCounter } from '../boardDemo.js';
+import { loadAtmegaDemo } from '../chips/chipDemo.js';
 import { T } from '../panelUi.js';
 
 interface Item { label: string; keys?: string; onClick?: () => void; disabled?: boolean; checked?: boolean; header?: boolean }
@@ -67,6 +68,7 @@ export function MenuBar() {
       { label: 'Raspberry Pi 5：MicroPython LED 閃爍', onClick: () => { loadPi5Blink(); ui.focus('devboards'); } },
       { label: '錯誤示範：5 V 接到 ESP32 GPIO', onClick: () => { loadEsp32Mistake(); ui.focus('devboards'); } },
       { label: 'FLEX 10K FPGA：計數器 + 七段顯示器', onClick: () => { loadFpgaCounter(); ui.focus('fpga'); } },
+      { label: '麵包板 Arduino：ATmega328P + CH340 上傳 Blink', onClick: () => { loadAtmegaDemo(); ui.focus('breadboard'); } },
     ] },
     { name: '編輯', items: [
       { label: '復原', keys: `${MOD}Z`, onClick: undo, disabled: !undoN },

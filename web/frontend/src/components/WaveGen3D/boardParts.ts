@@ -1,7 +1,7 @@
-// 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、跳線
+// 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、ATmega328P／CH340G（DIP）、跳線
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340';
 
 export interface BoardPart {
   id: string;
@@ -11,6 +11,8 @@ export interface BoardPart {
   model?: DiodeModel;
   ledColor?: LedColor;
   color?: string; // 跳線顏色
+  code?: string; // ATmega328P：編輯中的程式
+  flash?: string; // ATmega328P：已經燒進 Flash 的程式（斷電不會消失）
   burnt?: boolean;
   gen: number; // 更換零件時 +1（讓溫度重新從室溫開始）
 }
@@ -60,6 +62,8 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   diode: { rth: 60, tau: 5, burn: 260 }, // 1N400x：約 4 W 以上會燒
   led: { rth: 1200, tau: 1.5, burn: 300 }, // 5 mm LED：約 0.23 W（~100 mA）以上會燒
   ldo: { rth: 50, tau: 8, burn: Infinity }, // TO-220 無散熱片：150 °C 熱關斷，不會燒
+  atmega: { rth: 60, tau: 10, burn: Infinity }, // DIP-28
+  ch340: { rth: 80, tau: 8, burn: Infinity },
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -69,6 +73,8 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'diode') return `二極體 ${p.model}`;
   if (p.kind === 'led') return `${LED_SPEC[p.ledColor ?? 'red'].name}色 LED`;
   if (p.kind === 'ldo') return 'LT1117-3.3 穩壓 IC';
+  if (p.kind === 'atmega') return 'ATmega328P-PU';
+  if (p.kind === 'ch340') return 'CH340G USB 轉序列';
   return '杜邦線';
 }
 

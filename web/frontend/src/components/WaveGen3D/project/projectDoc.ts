@@ -8,6 +8,7 @@ import { useFpga, exampleConf, MAX_FILE, type FpgaConf } from '../devboards/fpga
 import { SLOW_CLOCKS } from '../devboards/fpga/fpgaBoard.js';
 import type { FpgaFile } from '../devboards/fpga/fpgaBuild.js';
 import { isValidHole } from '../boardModel.js';
+import { useChips } from '../chips/chipStore.js';
 import { LOAD_STEPS } from '../psu.js';
 import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
 import {
@@ -51,7 +52,7 @@ const bool = (v: unknown, dflt: boolean) => (typeof v === 'boolean' ? v : dflt);
 const str = (v: unknown, max: number, dflt = '') => (typeof v === 'string' ? v.slice(0, max) : dflt);
 const oneOf = <T extends string>(v: unknown, list: readonly T[], dflt: T): T => (list.includes(v as T) ? (v as T) : dflt);
 
-const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3 };
+const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3, atmega: 28, ch340: 16 };
 
 function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[] {
   if (!Array.isArray(raw)) return [];
@@ -60,7 +61,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
   const used = new Set<string>();
   for (const r of raw.slice(0, 2000)) {
     const o = obj(r);
-    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire'] as const, 'wire');
+    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire', 'atmega', 'ch340'] as const, 'wire');
     if (o.kind !== kind) continue;
     const pins = Array.isArray(o.pins) ? o.pins.map((x) => str(x, 40)) : [];
     if (pins.length !== PIN_COUNT[kind] || !pins.every(isValidHole)) continue;
@@ -73,6 +74,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
     if (kind === 'resistor') p.value = RESISTOR_VALUES.includes(o.value as number) ? (o.value as number) : num(o.value, 1, 1e7, 330);
     if (kind === 'diode') p.model = oneOf(o.model, DIODE_MODELS, '1N4007');
     if (kind === 'led') p.ledColor = oneOf(o.ledColor, LED_COLORS, 'red');
+    if (kind === 'atmega') { p.code = str(o.code, 100_000, ''); p.flash = str(o.flash, 100_000, ''); }
     if (kind === 'wire') p.color = typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : WIRE_COLORS[0];
     ids.add(id);
     pins.forEach((h) => used.add(h));
@@ -154,6 +156,7 @@ export function applyDoc(raw: unknown): string {
   const b = obj(d.board);
   const present = Object.fromEntries(DEV_KINDS.map((k) => [k, conf[k].present])) as Record<DevKind, boolean>;
   const parts = cleanParts(b.parts, present);
+  useChips.setState({ rt: {}, tab: null }); // 麵包板 IC 的執行狀態從頭開始（Flash 內容跟著零件存在專案裡）
   useBoard.getState().loadParts(parts);
   const dmm = typeof b.dmm === 'string' && isValidHole(b.dmm) ? b.dmm : null;
   useBoard.setState({ dmm, tool: 'select', temps: {}, tsd: {}, message: '' });

@@ -8,6 +8,18 @@ import { useBench } from '../bench.js';
 import { useLabUi } from '../labUi.js';
 import { Section, chip, row, help, warn, T } from '../panelUi.js';
 import { FpgaCard, FpgaWorkbench } from './fpga/FpgaPanels.js';
+import { useChips } from '../chips/chipStore.js';
+import { ChipCodePanel, ChipSerialPanel } from '../chips/ChipPanels.js';
+
+/** 下方分頁目前要顯示的麵包板 ATmega328P（選了它的分頁，或桌上沒有開發板時的第一顆）；null = 顯示開發板 */
+function useChipTab(): string | null {
+  const tab = useChips((s) => s.tab);
+  const ids = useBoard((s) => s.parts.filter((p) => p.kind === 'atmega').map((p) => p.id).join(','));
+  const anyDev = useDev((s) => DEV_KINDS.some((k) => s.conf[k].present));
+  const list = ids ? ids.split(',') : [];
+  if (tab && list.includes(tab)) return tab;
+  return !anyDev && list.length ? list[0] : null;
+}
 
 const ICON: Record<DevKind, string> = { uno: '∞', esp32: '📶', stm32: '▣', pi5: 'π', fpga: '⧉' };
 const STATUS: Record<string, [string, string]> = {
@@ -133,11 +145,20 @@ const td: CSSProperties = { padding: '2px 6px', borderBottom: `1px solid ${T.bor
 export function BoardTabs() {
   const conf = useDev((s) => s.conf);
   const tab = useDev((s) => s.codeTab);
+  const chipTab = useChipTab();
+  const chipIds = useBoard((s) => s.parts.filter((p) => p.kind === 'atmega').map((p) => p.id).join(','));
+  const chips = chipIds ? chipIds.split(',').map((id) => ({ id })) : [];
   const present = DEV_KINDS.filter((k) => conf[k].present);
   return (
     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
       {present.map((k) => (
-        <button key={k} style={{ ...chip(tab === k), flex: 'none' }} onClick={() => useDev.getState().setCodeTab(k)}>{DEV_BOARDS[k].name}</button>
+        <button key={k} style={{ ...chip(!chipTab && tab === k), flex: 'none' }}
+          onClick={() => { useChips.getState().setTab(null); useDev.getState().setCodeTab(k); }}>{DEV_BOARDS[k].name}</button>
+      ))}
+      {chips.map((p, i) => (
+        <button key={p.id} style={{ ...chip(chipTab === p.id), flex: 'none' }} onClick={() => useChips.getState().setTab(p.id)}>
+          ATmega328P{chips.length > 1 ? ` #${i + 1}` : ''}（麵包板）
+        </button>
       ))}
     </div>
   );
@@ -146,7 +167,7 @@ export function BoardTabs() {
 function NoBoards() {
   return (
     <Section title="還沒有開發板">
-      <p style={help}>從左側元件庫的「開發板」加入 Arduino Uno、ESP32、STM32 Blue Pill、Raspberry Pi 5 或 FLEX 10K FPGA 實驗板。</p>
+      <p style={help}>從左側元件庫的「開發板」加入 Arduino Uno、ESP32、STM32 Blue Pill、Raspberry Pi 5 或 FLEX 10K FPGA 實驗板，或在「零件」放一顆 ATmega328P 到麵包板上。</p>
     </Section>
   );
 }
@@ -154,6 +175,8 @@ function NoBoards() {
 export function CodePanel() {
   const tab = useDev((s) => s.codeTab);
   const fpga = useDev((s) => s.conf.fpga.present);
+  const chipTab = useChipTab();
+  if (chipTab) return <ChipCodePanel id={chipTab} />;
   return tab === 'fpga' && fpga ? <FpgaWorkbench /> : <McuCodePanel />;
 }
 
@@ -244,6 +267,11 @@ function McuCodePanel() {
 }
 
 export function SerialPanel() {
+  const chipTab = useChipTab();
+  return chipTab ? <ChipSerialPanel id={chipTab} /> : <McuSerialPanel />;
+}
+
+function McuSerialPanel() {
   const conf = useDev((s) => s.conf);
   const tab = useDev((s) => s.codeTab);
   const rt = useDev((s) => s.rt[tab]);
