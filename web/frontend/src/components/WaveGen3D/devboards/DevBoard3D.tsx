@@ -249,6 +249,7 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
     const p = nearest(e);
     if (p?.id !== hover?.id) {
       setHover(p);
+      useBoard.getState().setHoverHole(p ? `h:${kind}:${p.id}` : null);
       document.body.style.cursor = p ? 'crosshair' : 'pointer';
     }
   };
@@ -285,7 +286,7 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
       {/* 點擊 / 滑鼠感應面：排針頂端高度、整塊板子大小（透明） */}
       <mesh position={[0, top + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}
         onPointerMove={onMove} onClick={onClick}
-        onPointerOut={() => { setHover(null); document.body.style.cursor = 'auto'; }}>
+        onPointerOut={() => { setHover(null); useBoard.getState().setHoverHole(null); document.body.style.cursor = 'auto'; }}>
         <planeGeometry args={[d.size.w, d.size.d]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>

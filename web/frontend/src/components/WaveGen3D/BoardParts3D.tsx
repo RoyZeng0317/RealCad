@@ -5,6 +5,8 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
+import { useWaveLab } from './waveStore.js';
+import { BREADBOARD } from './layout.js';
 import { useDev } from './devboards/devStore.js';
 import { getBench } from './bench.js';
 import { holePos, type HoleKey } from './boardModel.js';
@@ -13,6 +15,8 @@ import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
+/** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
+type Sel = boolean | 'bad';
 const AMBIENT = 25;
 const LEAD = '#c9ced4';
 
@@ -91,21 +95,53 @@ function Bent({ pts, r, color }: { pts: THREE.Vector3[]; r: number; color: strin
 }
 
 /** 依溫度把本體染成發熱紅光／燒黑 */
-function useHeatMaterial(part: BoardPart, base: string, selected: boolean) {
+function useHeatMaterial(part: BoardPart, base: string, selected: Sel) {
   const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: base, roughness: 0.55 }), [base]);
   useEffect(() => () => mat.dispose(), [mat]);
   useFrame(() => {
     const t = partTemp(part);
     const heat = THREE.MathUtils.clamp((t - 120) / 200, 0, 1);
     mat.color.set(part.burnt ? '#2a2420' : base);
-    if (selected) { mat.emissive.set('#2f8cff'); mat.emissiveIntensity = 0.35; }
+    if (selected === 'bad') { mat.emissive.set('#ff2a2a'); mat.emissiveIntensity = 0.8; }
+    else if (selected) { mat.emissive.set('#2f8cff'); mat.emissiveIntensity = 0.35; }
     else { mat.emissive.setRGB(1, 0.3, 0.05); mat.emissiveIntensity = part.burnt ? 0 : heat * 1.5; }
   });
   return mat;
 }
 
+/**
+ * 零件的滑鼠事件：選取工具下點一下 = 選取；按住拖曳 = 移到別的孔（放開才生效，不合法會自動取消）
+ */
 function usePartEvents(part: BoardPart) {
   return {
+    onPointerDown: (e: ThreeEvent<PointerEvent>) => {
+      if (useBoard.getState().tool !== 'select' || e.nativeEvent.button !== 0) return;
+      e.stopPropagation();
+      // 抓住離滑鼠最近的那隻腳（杜邦線就是抓那一端）
+      const local = e.point.clone().sub(BREADBOARD.pos).applyAxisAngle(UP, -BREADBOARD.rotY);
+      let grab = 0, best = Infinity;
+      part.pins.forEach((h, i) => { const p = holePos(h); const d = Math.hypot(p.x - local.x, p.z - local.z); if (d < best) { best = d; grab = i; } });
+      const board = useBoard.getState();
+      board.startDrag(part.id, grab);
+      useDev.getState().select(null);
+      useWaveLab.getState().setDragging(true); // 拖曳時不要轉動視角
+      const x0 = e.nativeEvent.clientX, y0 = e.nativeEvent.clientY;
+      const move = (ev: PointerEvent) => {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 5) {
+          useBoard.getState().markDragMoved();
+          document.body.style.cursor = useBoard.getState().drag?.valid ? 'grabbing' : 'not-allowed';
+        }
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        useBoard.getState().endDrag(true);
+        useWaveLab.getState().setDragging(false);
+        document.body.style.cursor = 'auto';
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    },
     onClick: (e: ThreeEvent<MouseEvent>) => {
       if (e.delta > 4) return;
       if (useBoard.getState().tool !== 'select') return; // 放置工具時讓點擊穿透到下面的孔
@@ -147,7 +183,7 @@ function axialLayout(a: HoleKey, b: HoleKey, bodyLen: number) {
   };
 }
 
-export function Resistor3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+export function Resistor3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const L = 0.24, R = 0.034;
   const lay = useMemo(() => axialLayout(part.pins[0], part.pins[1], L), [part.pins]);
   const mat = useHeatMaterial(part, '#d9c29a', selected);
@@ -168,7 +204,7 @@ export function Resistor3D({ part, selected }: { part: BoardPart; selected: bool
   );
 }
 
-export function Diode3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+export function Diode3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const L = 0.17, R = 0.03;
   const lay = useMemo(() => axialLayout(part.pins[0], part.pins[1], L), [part.pins]);
   const mat = useHeatMaterial(part, '#15171a', selected);
@@ -184,7 +220,7 @@ export function Diode3D({ part, selected }: { part: BoardPart; selected: boolean
 }
 
 /** 5 mm LED：本體立在兩隻腳的中間，亮度 ∝ 模擬出來的電流（20 mA = 全亮） */
-export function Led3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+export function Led3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const color = LED_SPEC[part.ledColor ?? 'red'].hex;
   const g = useMemo(() => {
     const [A, B] = part.pins.map(holePos);
@@ -206,7 +242,7 @@ export function Led3D({ part, selected }: { part: BoardPart; selected: boolean }
     const i = part.burnt ? 0 : Math.max(0, getBench().sol.el[part.id]?.i ?? 0);
     const k = Math.min(1, i / 0.02);
     mat.color.set(part.burnt ? '#2a2420' : color);
-    mat.emissive.set(selected ? '#2f8cff' : color);
+    mat.emissive.set(selected === 'bad' ? '#ff2a2a' : selected ? '#2f8cff' : color);
     mat.emissiveIntensity = selected ? 0.4 : k * 2.2;
     if (light.current) light.current.intensity = k * 0.6;
   });
@@ -246,7 +282,7 @@ function ldoFaceTexture() {
   }, 1200);
 }
 
-export function Ldo3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+export function Ldo3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const pins = useMemo(() => part.pins.map(holePos), [part.pins]);
   const mat = useHeatMaterial(part, '#1d1f23', selected);
   const tex = useMemo(ldoFaceTexture, []);
@@ -309,7 +345,7 @@ function DupontEnd({ at, dir }: { at: THREE.Vector3; dir: THREE.Vector3 }) {
   );
 }
 
-export function Wire3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+export function Wire3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const g = useMemo(() => {
     const [A, B] = part.pins.map(holePos);
     const d = Math.hypot(B.x - A.x, B.z - A.z);
@@ -335,7 +371,7 @@ export function Wire3D({ part, selected }: { part: BoardPart; selected: boolean 
     <group {...usePartEvents(part)}>
       <mesh geometry={geo} castShadow>
         <meshStandardMaterial color={part.color} roughness={0.45}
-          emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
+          emissive={selected === 'bad' ? '#ff2a2a' : selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.6 : 0} />
       </mesh>
       <DupontEnd at={g.A} dir={g.dA} />
       <DupontEnd at={g.B} dir={g.dB} />
@@ -381,10 +417,14 @@ export function BoardMarkers() {
 export function BoardParts3D() {
   const parts = useBoard((s) => s.parts);
   const selectedId = useBoard((s) => s.selectedId);
+  const drag = useBoard((s) => s.drag);
   return (
     <>
-      {parts.map((p) => {
-        const sel = p.id === selectedId;
+      {parts.map((orig) => {
+        // 拖曳中的零件畫在預覽位置；放不下的位置用紅色
+        const dragging = drag && drag.moved && drag.id === orig.id;
+        const p = dragging ? { ...orig, pins: drag.pins } : orig;
+        const sel: Sel = dragging && !drag.valid ? 'bad' : p.id === selectedId;
         if (p.kind === 'resistor') return <Resistor3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'diode') return <Diode3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'led') return <Led3D key={p.id} part={p} selected={sel} />;

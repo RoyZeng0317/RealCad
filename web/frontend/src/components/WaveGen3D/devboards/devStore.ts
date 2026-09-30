@@ -1,7 +1,7 @@
 // 開發板狀態：哪些板子在桌上、USB 供電、程式碼（存檔內容）與執行期狀態（腳位模式/輸出、序列埠、錯誤、燒毀的腳）
 import { create } from 'zustand';
 import { DEV_BOARDS, DEV_KINDS, type DevKind } from './boardDefs.js';
-import { compile } from './sketchRun.js';
+import { compile } from './compile.js';
 import { useBoard } from '../boardStore.js';
 
 export interface DevConf { present: boolean; usb: boolean; code: string }
@@ -78,7 +78,7 @@ export const useDev = create<DevState>((set, get) => ({
   })),
   setCode: (k, code) => set((s) => ({ conf: { ...s.conf, [k]: { ...s.conf[k], code } } })),
   upload: (k) => {
-    const c = compile(get().conf[k].code);
+    const c = compile(get().conf[k].code, DEV_BOARDS[k].language);
     if (c.error) { get().patchRt(k, { compileError: c.error }); return false; }
     set((s) => ({ rt: { ...s.rt, [k]: { ...s.rt[k], compileError: null, runtimeError: null, pins: {}, running: true, bootNonce: s.rt[k].bootNonce + 1, serial: s.rt[k].serial + '\n--- 上傳完成，重新開機 ---\n' } } }));
     return true;
