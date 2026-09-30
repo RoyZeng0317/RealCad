@@ -22,3 +22,5 @@
 4. 原理圖零件庫: .RealCad_cl
 5. 腳位零件庫: .RealCad_fp
 10. 零件新增視窗是可以繪製零件: 方形、圓形、線條與任意線條，另外要加上腳位，包含封裝腳位也是如此
+
+11. 快捷鍵（S 選取、W 杜邦線、X 刪除、Delete、Esc）反覆失效是嚴重問題：每次修改都要遵守 web/frontend/src/components/WaveGen3D/SHORTCUTS.md 的規範，並在合併前執行 web/frontend/scripts/shortcuts-regression.mjs，全部通過才能開 PR；新的失效情況要補進 SHORTCUTS.md 的紀錄表與回歸測試

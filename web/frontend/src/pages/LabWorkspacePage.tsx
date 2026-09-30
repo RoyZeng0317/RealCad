@@ -8,7 +8,7 @@ import { LabToolbar } from '../components/WaveGen3D/LabToolbar.js';
 import { LabLibrary, LabInspector } from '../components/WaveGen3D/LabSidebars.js';
 import { LabDock, LabStatusBar } from '../components/WaveGen3D/LabDock.js';
 import { useLabUi } from '../components/WaveGen3D/labUi.js';
-import { useBoardKeys } from '../components/WaveGen3D/BoardPanel.js';
+import { useBoardKeys } from '../components/WaveGen3D/shortcuts.js';
 import { T } from '../components/WaveGen3D/panelUi.js';
 import { useProjectShell, ProjectOverlays } from '../components/WaveGen3D/project/MenuBar.js';
 
