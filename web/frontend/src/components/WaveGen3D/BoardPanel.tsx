@@ -1,7 +1,6 @@
 // 麵包板操作介面：左側元件庫（零件/工具/範例）、右側檢視器（三用電表、選取零件的工作點）
 import { useEffect, type CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
-import { useDev } from './devboards/devStore.js';
 import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
@@ -13,7 +12,6 @@ import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
 export const TOOL_HINT: Record<Tool, string> = {
-  erase: '刪除模式：點零件、杜邦線或插著線的孔就刪除；點開發板本體會把板子從實驗桌移除。按 S 回到選取（可用 Ctrl+Z 復原）。',
   select: '點零件看電壓、電流、功率與溫度；按住零件拖曳可以移到別的孔（杜邦線是拖其中一端）；X 或 Delete 刪除。',
   probe: '點任一個孔：紅棒放在那裡，黑棒固定接 GND，讀出該點對地電壓。',
   wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
@@ -24,7 +22,7 @@ export const TOOL_HINT: Record<Tool, string> = {
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
+  select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
 };
 
 /**
@@ -43,13 +41,11 @@ export function shortcutLetter(e: KeyboardEvent): string {
 export const boardActions = {
   select: () => useBoard.getState().setTool('select'),
   wire: () => useBoard.getState().setTool('wire'),
-  /** 有選取零件 → 刪掉它；有選取開發板 → 從實驗桌移除；什麼都沒選 → 切到刪除工具（再點要刪的東西） */
+  /** 只刪除用滑鼠選取的那個零件；沒有選取就提示先點選 */
   remove: () => {
     const s = useBoard.getState();
-    const dev = useDev.getState();
     if (s.selectedId) s.removePart(s.selectedId);
-    else if (dev.selected) dev.setPresent(dev.selected, false);
-    else s.setTool(s.tool === 'erase' ? 'select' : 'erase');
+    else s.setMessage('請先用滑鼠點選要刪除的零件或杜邦線，再按刪除（X / Delete）');
   },
 };
 
@@ -62,7 +58,7 @@ export function useBoardKeys() {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const st = useBoard.getState();
       if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); return; }
-      if (e.key === 'Delete' || e.key === 'Backspace') { if (st.selectedId || useDev.getState().selected) { e.preventDefault(); boardActions.remove(); } return; }
+      if (e.key === 'Delete' || e.key === 'Backspace') { if (st.selectedId) { e.preventDefault(); boardActions.remove(); } return; }
       const k = shortcutLetter(e);
       if (k === 's') { e.preventDefault(); boardActions.select(); }
       else if (k === 'w') { e.preventDefault(); boardActions.wire(); }
