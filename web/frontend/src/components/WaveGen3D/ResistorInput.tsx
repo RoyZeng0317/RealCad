@@ -25,8 +25,9 @@ export function ResistorInput({ value, onChange, id }: { value: number; onChange
           onChange={(e) => { setText(e.target.value); setBad(false); }}
           onBlur={apply}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') { e.preventDefault(); apply(); }
-            if (e.key === 'Escape') { setText(plain(value)); setBad(false); }
+            // 套用或取消後離開輸入框，S / W / X 快捷鍵才會馬上恢復
+            if (e.key === 'Enter') { e.preventDefault(); apply(); if (parseOhm(text) !== null) e.currentTarget.blur(); }
+            if (e.key === 'Escape') { setText(plain(value)); setBad(false); e.currentTarget.blur(); }
             e.stopPropagation(); // 打字時不要觸發 S / W / X / Delete 快捷鍵
           }}
           style={{ ...selectStyle, flex: 1, minWidth: 0, fontFamily: T.mono, borderColor: bad ? '#d23b3b' : T.border }}

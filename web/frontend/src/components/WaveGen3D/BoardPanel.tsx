@@ -54,12 +54,23 @@ export const boardActions = {
   },
 };
 
+/**
+ * 焦點是不是在「正在打字」的地方（文字輸入框、程式編輯器）：這時字母要打進去，不當快捷鍵。
+ * 滑桿、下拉選單、按鈕、勾選框用完後焦點會留在上面，但不會打字，所以快捷鍵照樣要能用。
+ */
+const TEXT_INPUTS = new Set(['text', 'search', 'number', 'email', 'password', 'url', 'tel', '']);
+export function isTyping(el: EventTarget | null): boolean {
+  const h = el as HTMLElement | null;
+  if (!h || !h.tagName) return false;
+  if (h.isContentEditable || h.tagName === 'TEXTAREA') return true;
+  return h.tagName === 'INPUT' && TEXT_INPUTS.has(((h as HTMLInputElement).getAttribute('type') ?? '').toLowerCase());
+}
+
 /** S 選取、W 杜邦線、X / Delete 刪除選取的零件、Esc 取消 */
 export function useBoardKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement;
-      if (el?.tagName === 'INPUT' || el?.tagName === 'SELECT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable) return;
+      if (isTyping(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const st = useBoard.getState();
       if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); return; }
