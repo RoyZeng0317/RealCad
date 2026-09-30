@@ -2,6 +2,7 @@
 import { useWaveLab } from './waveStore.js';
 import { type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT, formatSI } from './waveform.js';
 import { Section, Slider, chip, row, grid3, help } from './panelUi.js';
+import { LeadControl } from './LeadControls.js';
 
 const WAVES: [Waveform, string][] = [
   ['sine', '正弦'], ['square', '方波'], ['triangle', '三角'],
@@ -18,7 +19,7 @@ export function GeneratorControls() {
             <button key={w} style={chip(gen.waveform === w)} onClick={() => setWaveform(w)}>{t}</button>
           ))}
         </div>
-        <p style={help}>FG-2000：0.1 Hz – 10 MHz，輸出上限 ±10 V（超過會削峰），BNC 輸出接示波器 CH1。</p>
+        <p style={help}>FG-2000：0.1 Hz – 10 MHz，輸出上限 ±10 V（超過會削峰），BNC 輸出可直接接示波器 CH1，或接到麵包板。</p>
       </Section>
       <Section title="參數">
         <Slider label="頻率" value={formatSI(gen.frequency, 'Hz', 4)}
@@ -41,6 +42,10 @@ export function GeneratorControls() {
           <button style={chip(gen.output, '#1f8f3c')} onClick={() => setGen({ output: !gen.output })}>輸出 {gen.output ? 'ON' : 'OFF'}</button>
         </div>
         <p style={help}>3D 面板上的 ADJUST 旋鈕：拖曳或滾輪調整目前選取的參數（FREQ / AMPL / OFFSET / DUTY），按住 Shift 微調。</p>
+      </Section>
+      <Section title="輸出接線">
+        <LeadControl kind="fg" />
+        <p style={help}>接到麵包板後，產生器就是電路裡的訊號源（輸出內阻 50 Ω），三用電表量到的是平均值。</p>
       </Section>
     </>
   );

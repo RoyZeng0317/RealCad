@@ -3,12 +3,15 @@ import { useWaveLab } from './waveStore.js';
 import { TIME_DIVS, VOLT_DIVS, OUTPUT_LIMIT, formatSI } from './waveform.js';
 import { V_MAX } from './psu.js';
 import { Section, Slider, chip, row, help } from './panelUi.js';
+import { LeadControl } from './LeadControls.js';
+import { useBoard } from './boardStore.js';
 
 export function ScopeControls() {
   const { scope, setScope, autoSet } = useWaveLab();
+  const leads = useBoard((s) => s.leads);
   return (
     <>
-      <Section title="CH1（函數波產生器）">
+      <Section title={leads.ch1 ? 'CH1（探棒量麵包板）' : 'CH1（函數波產生器）'}>
         <Slider label="VOLTS/DIV" value={formatSI(VOLT_DIVS[scope.voltDivIdx], 'V')}
           min={0} max={VOLT_DIVS.length - 1} step={1} v={scope.voltDivIdx}
           onChange={(x) => setScope({ voltDivIdx: x })} />
@@ -17,8 +20,9 @@ export function ScopeControls() {
         <button style={chip(scope.coupling === 'AC')} onClick={() => setScope({ coupling: scope.coupling === 'DC' ? 'AC' : 'DC' })}>
           {scope.coupling} 耦合
         </button>
+        <LeadControl kind="ch1" />
       </Section>
-      <Section title="CH2（探棒量電源供應器）" right={
+      <Section title={leads.ch2 ? 'CH2（探棒量麵包板）' : 'CH2（探棒量電源供應器）'} right={
         <button style={{ ...chip(scope.ch2On, '#1a9fc4'), flex: 'none', padding: '2px 10px' }} onClick={() => setScope({ ch2On: !scope.ch2On })}>
           {scope.ch2On ? 'ON' : 'OFF'}
         </button>
@@ -28,6 +32,7 @@ export function ScopeControls() {
           onChange={(x) => setScope({ ch2VoltDivIdx: x })} />
         <Slider label="垂直位置" value={`${scope.ch2Position.toFixed(1)} div`} min={-4} max={4} step={0.1} v={scope.ch2Position}
           onChange={(x) => setScope({ ch2Position: x })} />
+        <LeadControl kind="ch2" />
       </Section>
       <Section title="水平 / 觸發">
         <Slider label="TIME/DIV" value={formatSI(TIME_DIVS[scope.timeDivIdx], 's')}

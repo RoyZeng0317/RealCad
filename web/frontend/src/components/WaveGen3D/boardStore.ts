@@ -5,7 +5,11 @@ import { hitHole } from './breadboardGrid.js';
 import { type BoardPart, type PartKind, type DiodeModel, type LedColor, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'erase';
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'erase' | LeadKind;
+/** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
+export type LeadKind = 'fg' | 'ch1' | 'ch2';
+export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
+export const LEAD_NAME: Record<LeadKind, string> = { fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒' };
 
 interface BoardState {
   parts: BoardPart[];
@@ -15,6 +19,7 @@ interface BoardState {
   dmm: HoleKey | null; // 三用電表紅棒位置
   dmmBlack: HoleKey | null; // 三用電表黑棒位置（預設插在 GND 接線柱）
   probeSide: 'red' | 'black'; // 三用電表工具下一次點擊要放哪一支探棒
+  leads: Leads; // null = 沒接到麵包板（產生器直接接示波器 CH1、CH2 探棒夾在電源負載上）
   resistorValue: number;
   diodeModel: DiodeModel;
   ledColor: LedColor;
@@ -36,6 +41,7 @@ interface BoardState {
   clearBoard: () => void;
   loadParts: (parts: BoardPart[]) => void;
   setMessage: (m: string) => void;
+  setLead: (k: LeadKind, pins: [HoleKey, HoleKey] | null) => void;
   setHoverHole: (k: HoleKey | null) => void;
   startDrag: (id: string, grab: number) => void;
   markDragMoved: () => void;
@@ -106,6 +112,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   dmm: null,
   dmmBlack: 'p:GND',
   probeSide: 'red',
+  leads: { fg: null, ch1: null, ch2: null },
   resistorValue: 330,
   diodeModel: '1N4007',
   ledColor: 'red',
@@ -120,6 +127,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   setTool: (tool) => set({ tool, pending: null, message: '' }),
   setParam: (patch) => set(patch),
   setMessage: (message) => set({ message }),
+  setLead: (k, pins) => set((s) => ({ leads: { ...s.leads, [k]: pins } })),
   setHoverHole: (hoverHole) => {
     const s = get();
     if (s.hoverHole === hoverHole) return;
@@ -157,6 +165,13 @@ export const useBoard = create<BoardState>((set, get) => ({
     // 三用電表：紅棒、黑棒輪流放（也可以在左側指定下一次放哪一支）
     if (s.tool === 'probe') {
       set(s.probeSide === 'red' ? { dmm: k, probeSide: 'black', message: '' } : { dmmBlack: k, probeSide: 'red', message: '' });
+      return;
+    }
+    // 儀器的線：第一下是訊號端（紅 / 探針），第二下是接地端（黑 / 接地夾）；夾在孔上，不佔用孔
+    if (s.tool === 'fg' || s.tool === 'ch1' || s.tool === 'ch2') {
+      if (!s.pending) { set({ pending: k, message: '' }); return; }
+      if (s.pending === k) { set({ pending: null }); return; }
+      set({ leads: { ...s.leads, [s.tool]: [s.pending, k] }, pending: null, tool: 'select', message: '' });
       return;
     }
     // 刪除模式：點到的孔插著哪個零件（或杜邦線）就刪掉它
@@ -215,6 +230,6 @@ export const useBoard = create<BoardState>((set, get) => ({
     tsd,
     parts: burnt.length ? s.parts.map((p) => (burnt.includes(p.id) ? { ...p, burnt: true } : p)) : s.parts,
   })),
-  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, dmmBlack: 'p:GND', probeSide: 'red', temps: {}, tsd: {} }),
+  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, dmmBlack: 'p:GND', probeSide: 'red', leads: { fg: null, ch1: null, ch2: null }, temps: {}, tsd: {} }),
   loadParts: (parts) => set({ parts, selectedId: null, pending: null }),
 }));

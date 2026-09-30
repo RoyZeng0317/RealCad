@@ -1,11 +1,12 @@
-// 3D 示波器（雙通道）：CH1 接函數波產生器、CH2 用探棒量電源供應器輸出；上升緣觸發（可選 CH1/CH2）、AUTO SET、自動量測
+// 3D 示波器（雙通道）：CH1 接函數波產生器、CH2 用探棒量電源供應器輸出（兩個通道都可以改用探棒量麵包板）；上升緣觸發（可選 CH1/CH2）、AUTO SET、自動量測
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RoundedBox } from '@react-three/drei';
 import { useWaveLab } from './waveStore.js';
 import { getBench } from './bench.js';
 import { DcTrace } from './ch2Signal.js';
-import { sampleWave, findTrigger, measure, TIME_DIVS, VOLT_DIVS, H_DIVS } from './waveform.js';
+import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS } from './waveform.js';
+import { getTransfers, probeValue, channelLead } from './scopeLink.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
 import { drawScope, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
 import { Knob3D, Button3D, Led3D, Bnc3D } from './parts.js';
@@ -61,27 +62,38 @@ export function Oscilloscope3D() {
     const timeDiv = TIME_DIVS[sc.timeDivIdx];
     const span = H_DIVS * timeDiv;
     const dt = span / (N_SAMPLES - 1);
-    const acShift = sc.coupling === 'AC' && gen.power && gen.output && gen.waveform !== 'noise' ? gen.offset : 0;
+    // 通道接到麵包板時：波形 = 轉換曲線（產生器電壓 → 探棒電壓）套在產生器波形上
+    const tr = getTransfers();
+    const on1 = channelLead('ch1') ? tr.ch1 : null, on2 = channelLead('ch2') ? tr.ch2 : null;
+    const v1 = (t: number) => (on1 ? probeValue(on1, sampleWave(gen, t)) : sampleWave(gen, t));
+    const v2 = on2 ? (t: number) => probeValue(on2, sampleWave(gen, t)) : null;
+    const live = gen.power && gen.output && gen.waveform !== 'noise';
+    const period = 1 / gen.frequency;
+    let mean1 = gen.offset;
+    if (on1) { mean1 = 0; for (let i = 0; i < 64; i++) mean1 += v1((i + 0.5) * period / 64) / 64; }
+    const acShift = sc.coupling === 'AC' && live ? mean1 : 0;
 
     if (!sc.running) {
       status.current = 'Stop';
     } else {
       // 觸發點放在螢幕水平中央；沒有觸發（Auto）時畫面右緣 = 現在
       let tTrig: number | null;
-      if (sc.trigSource === 'CH2') {
+      if (sc.trigSource === 'CH2' && v2) {
+        tTrig = live ? findTriggerFn(v2, period, sc.trigLevel, now) : null;
+      } else if (sc.trigSource === 'CH2') {
         // 電源是直流，只有開關輸出/換負載的瞬間有邊緣：抓最近一次上升穿越，畫面保留 5 秒（類似 Normal 觸發模式）方便觀察
         tTrig = psuTrace.lastRisingCrossing(sc.trigLevel, now);
         if (tTrig !== null && now - tTrig > Math.max(5, span * 2)) tTrig = null;
       } else {
         // CH1 觸發準位是「螢幕上的電壓」，AC 耦合時要加回直流準位才是產生器的真實電壓
-        tTrig = findTrigger(gen, sc.trigLevel + acShift, now);
+        tTrig = on1 ? (live ? findTriggerFn(v1, period, sc.trigLevel + acShift, now) : null) : findTrigger(gen, sc.trigLevel + acShift, now);
       }
       status.current = tTrig === null ? 'Auto' : 'Trig\'d';
       const t0 = tTrig !== null ? tTrig - span / 2 : now - span;
       for (let i = 0; i < N_SAMPLES; i++) {
         const t = t0 + i * dt;
-        s1.current[i] = sampleWave(gen, t) - acShift;
-        s2.current[i] = psuTrace.sample(Math.min(t, now));
+        s1.current[i] = v1(t) - acShift;
+        s2.current[i] = v2 ? v2(t) : psuTrace.sample(Math.min(t, now));
       }
     }
 

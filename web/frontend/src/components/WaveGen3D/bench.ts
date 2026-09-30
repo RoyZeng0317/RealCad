@@ -2,6 +2,8 @@
 // 依輸入物件參照做快取，React 元件與 useFrame 都可以呼叫 getBench() 而不重複求解
 import { useBoard } from './boardStore.js';
 import { usePsuLab, loadResistance } from './psuStore.js';
+import { useWaveLab } from './waveStore.js';
+import { waveMean } from './waveform.js';
 import { netOf, postKey, type HoleKey } from './boardModel.js';
 import { solveCircuit, type Element, type Solution } from './circuit.js';
 import { DIODE_PIV, LDO_VIN_MAX, ledModel, type BoardPart } from './boardParts.js';
@@ -44,7 +46,11 @@ function mergeNets(parts: BoardPart[]) {
 
 let cache: { key: unknown[]; bench: Bench } | null = null;
 
-export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}): Bench {
+/** 函數產生器接到麵包板時的訊號源：p = 紅 +、n = 黑 −，v = 這一瞬間的輸出電壓 */
+export interface FgSource { p: HoleKey; n: HoleKey; v: number }
+export const FG_ROUT = 50; // 產生器輸出內阻 Ω
+
+export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null): Bench {
   const merged = mergeNets(parts);
   const net = merged.hole;
   const VA = net(postKey('Va')), GND = net(postKey('GND'));
@@ -73,6 +79,11 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
   }
   els.push(...devElements(dev, merged.net, GND));
   els.push(...chipElements(parts, chips, net));
+  if (fg) {
+    // 產生器外殼接地：黑線那端經 1 MΩ 漏電到實驗桌地，沒接 GND 也不會讓電路浮接無解
+    els.push({ kind: 'src', id: 'fg', p: net(fg.p), n: net(fg.n), v: fg.v, r: FG_ROUT });
+    els.push({ kind: 'res', id: 'fg:leak', a: net(fg.n), b: GND, r: 1e6 });
+  }
   const sol = solveCircuit(els, GND);
   const di = devIssues(dev, sol, merged.net);
   const r = sol.el.psu;
@@ -102,16 +113,24 @@ export function meterV(b: Bench, red: HoleKey | null, black: HoleKey | null): nu
   return r === null || k === null ? null : r - k;
 }
 
+/** 產生器接到麵包板時，直流電路（三用電表、零件工作點）用輸出的平均值 */
+export function fgDc(): FgSource | null {
+  const lead = useBoard.getState().leads.fg;
+  if (!lead) return null;
+  return { p: lead[0], n: lead[1], v: waveMean(useWaveLab.getState().gen) };
+}
+
 export function getBench(): Bench {
   const ps = usePsuLab.getState();
+  const wl = useWaveLab.getState();
   const bs = useBoard.getState();
   const ds = useDev.getState();
   // 只有會影響電路的開發板狀態才放進快取 key（序列埠輸出改變不用重算電路）
   const cs = useChips.getState();
-  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec,
+  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec, bs.leads.fg, bs.leads.fg ? wl.gen : null,
     ...DEV_KINDS.flatMap((k) => [ds.rt[k].pins, ds.rt[k].dead, ds.rt[k].tripped])];
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.bench;
-  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt);
+  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fgDc());
   cache = { key, bench };
   return bench;
 }
@@ -126,5 +145,7 @@ export function useBench(): Bench {
   useDev((s) => s.conf);
   useDev((s) => s.rt);
   useChips((s) => s.elec);
+  useBoard((s) => s.leads);
+  useWaveLab((s) => s.gen);
   return getBench();
 }
