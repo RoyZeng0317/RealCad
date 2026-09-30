@@ -6,6 +6,7 @@ import { usePsuLab } from './psuStore.js';
 import { useLabUi } from './labUi.js';
 import { T } from './panelUi.js';
 import { MenuBar, ProjectTitle } from './project/MenuBar.js';
+import { useDev } from './devboards/devStore.js';
 import { useBoard } from './boardStore.js';
 import { boardActions } from './BoardPanel.js';
 import { useProject, undo, redo } from './project/projectStore.js';
@@ -23,6 +24,7 @@ export function LabToolbar() {
   const { focus, toggleLeft, toggleRight, leftOpen, rightOpen } = useLabUi();
   const tool = useBoard((s) => s.tool);
   const selectedId = useBoard((s) => s.selectedId);
+  const devSel = useDev((s) => s.selected);
   const undoN = useProject((s) => s.undo.length);
   const redoN = useProject((s) => s.redo.length);
 
@@ -47,7 +49,8 @@ export function LabToolbar() {
       <div style={group}>
         <button style={btn(tool === 'select')} onClick={boardActions.select} title="選取／拖曳零件（S）">↖ 選取<Key k="S" /></button>
         <button style={btn(tool === 'wire')} onClick={boardActions.wire} title="杜邦線（W）">〰 杜邦線<Key k="W" /></button>
-        <button style={{ ...btn(false), opacity: selectedId ? 1 : 0.4 }} disabled={!selectedId} onClick={boardActions.remove} title="刪除選取的零件（X）">✕ 刪除<Key k="X" /></button>
+        <button style={btn(tool === 'erase')} onClick={boardActions.remove}
+          title={selectedId || devSel ? '刪除選取的零件／開發板（X、Delete）' : '刪除工具：再點要刪的零件或杜邦線（X）'}>✕ 刪除<Key k="X" /></button>
         <button style={{ ...btn(false), opacity: undoN ? 1 : 0.4 }} disabled={!undoN} onClick={undo} title="復原（Ctrl+Z）">↶</button>
         <button style={{ ...btn(false), opacity: redoN ? 1 : 0.4 }} disabled={!redoN} onClick={redo} title="重做（Ctrl+Y）">↷</button>
       </div>

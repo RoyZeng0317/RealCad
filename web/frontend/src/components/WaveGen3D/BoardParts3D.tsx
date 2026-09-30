@@ -144,6 +144,7 @@ function usePartEvents(part: BoardPart) {
     },
     onClick: (e: ThreeEvent<MouseEvent>) => {
       if (e.delta > 4) return;
+      if (useBoard.getState().tool === 'erase') { e.stopPropagation(); useBoard.getState().removePart(part.id); return; }
       if (useBoard.getState().tool !== 'select') return; // 放置工具時讓點擊穿透到下面的孔
       e.stopPropagation();
       useBoard.getState().selectPart(part.id);
