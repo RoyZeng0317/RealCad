@@ -8,6 +8,7 @@ import { usePsuLab } from '../psuStore.js';
 import { useBoard } from '../boardStore.js';
 import { useDev } from '../devboards/devStore.js';
 import { DEV_KINDS, DEV_BOARDS, type DevKind } from '../devboards/boardDefs.js';
+import { useFpga, exampleConf } from '../devboards/fpga/fpgaStore.js';
 import type { DevConf } from '../devboards/devStore.js';
 
 const PICKER_TYPES = [{ description: 'RealCad Lab 專案', accept: { 'application/x-realcad-lab': ['.rc'] } }];
@@ -42,6 +43,7 @@ export function newProject() {
     p.replaceResistor();
     useBoard.getState().clearBoard();
     useDev.getState().loadConf(Object.fromEntries(DEV_KINDS.map((k) => [k, { present: false, usb: true, code: DEV_BOARDS[k].example }])) as Record<DevKind, DevConf>);
+    useFpga.getState().loadConf(exampleConf());
   });
   useProject.setState({ name: '未命名專案', handle: null, dirty: false, undo: [], redo: [] });
   useProject.getState().setToast('已建立新專案');

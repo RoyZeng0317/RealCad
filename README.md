@@ -21,6 +21,12 @@
   - 接線錯誤會顯示 ERROR：GPIO 過電流、3.3 V 板子被接 5 V、負電壓、5V／3V3 短路（USB 保險絲跳脫）、3V3 被倒灌、沒上電卻有電壓、ESP32 Flash 腳；持續 0.3 秒以上腳位會燒毀
   - 開發板 GND 沒跟麵包板 GND 接在一起時兩邊不共地（只有 1 MΩ 漏電），可以模擬「忘記共地」
   - 下方「程式碼」分頁（上傳並執行 Ctrl+Enter、停止、重新開機、範例）、「序列埠」分頁看輸出
+- **FPGA 實驗板**（`devboards/fpga/`）：Altera FLEX 10KE **EPF10K50EQC240-1**（QFP240）+ EPC2 設定晶片、50 MHz 振盪器、JTAG 座、8 LED、兩位七段顯示器（共陽極）、8 位指撥開關、4 顆按鍵、nCONFIG 鍵、J1 2×20 排針（IO0–31 可用杜邦線接麵包板，5 V 耐壓）
+  - 上傳 Quartus 專案檔（按鈕或拖曳）：`.v`（Verilog）、`.qsf`（腳位 `set_location_assignment`、`TOP_LEVEL_ENTITY`、`DEVICE`）、`.qpf`、`.sof`、`.pof`；VHDL／`.bdf` 會提示先在 Quartus 轉成 Verilog
+  - 編譯：Verilog-2001 可合成子集解析 + 展開（`verilogLang.ts`／`verilogElab.ts`：module／parameter／wire／reg／assign／always @(*)／posedge／negedge 非同步重置／if／case／casez／for／模組實例化／記憶體陣列／$clog2），產生的模擬程式只含索引與數字常數（不執行使用者文字）；報告含錯誤檔名與行號、型號檢查、腳位衝突、輸出接到開關腳等 Fitter 檢查
+  - Programmer：JTAG（`.sof` → FPGA SRAM，斷電消失）與 Active Serial（`.pof` → EPC2，每次上電自動載入）；`.sof`／`.pof` 是 Intel 封閉格式，燒錄時從檔案讀出元件型號比對（不符就像 Quartus 一樣拒絕），電路由同專案原始碼重建
+  - 板上腳位：CLK_50MHz = PIN_91（盡量快跑並顯示實際模擬速度）、CLK_SEL = PIN_92（1 Hz–1 kHz 可調）、KEY0–3 = PIN_7/8/9/11（按下 = 0）、SW0–7 = PIN_12–20、LED0–7 = PIN_21–29、HEX0／HEX1 = PIN_30–41／44–54（低電位亮）、J1 IO0–31 = PIN_132–168（完整表在 Pin Planner「板子腳位總表」）
+  - 輸出以每幀的高電位比例呈現（PWM／快速切換的 LED 會顯示亮度）；專案檔與 EPC2 內容會存進 `.rc`
 - 新零件：5 mm LED（紅／黃／綠／藍／白，亮度依電流，超過約 100 mA 會燒毀）
 
 網頁前端 `web/frontend` 新增 3D 實驗桌：函數波產生器 FG-2000 以 BNC 線接到示波器 DS-1100，旁邊是直流電源供應器 PS-3005 接電阻負載。
@@ -34,6 +40,6 @@
   - 電源供應器 + 接麵包板 Va、− 接 GND（與負載電阻並聯，負載可調成開路）
   - 求解器：`circuit.ts`（MNA + 牛頓法），含電源 CV/CC、二極體 Shockley 模型與逆向崩潰、LT1117 穩壓／壓降不足／1 A 限流／熱關斷
   - 三用電表工具量任一孔對地電壓；選取零件看電壓、電流、功率、溫度；電阻過功率會燒斷、二極體燒毀變短路、LT1117 輸入超過 15 V 損壞
-  - 範例（檔案選單或左側元件庫）：3.3 V 穩壓電路（7 V → 1N4007 → LT1117-3.3 → 330 Ω，輸出 3.300 V）、Arduino Uno LED 閃爍、Raspberry Pi 5 MicroPython LED 閃爍、錯誤示範（5 V 接到 ESP32 GPIO）
+  - 範例（檔案選單或左側元件庫）：3.3 V 穩壓電路（7 V → 1N4007 → LT1117-3.3 → 330 Ω，輸出 3.300 V）、Arduino Uno LED 閃爍、Raspberry Pi 5 MicroPython LED 閃爍、錯誤示範（5 V 接到 ESP32 GPIO）、FLEX 10K FPGA 計數器（七段顯示器 + J1 IO0 接麵包板 LED）
 - 操作：3D 面板上的按鍵可直接點；旋鈕按住上下拖曳或滾輪轉動（Shift 微調）；右側 HTML 面板與 3D 面板共用同一份狀態
 - 程式碼：`web/frontend/src/components/WaveGen3D/`（依功能拆分：`waveform.ts` 波形數學、`waveStore.ts` 狀態、`parts.tsx` 旋鈕/按鍵、`FunctionGenerator3D.tsx`、`Oscilloscope3D.tsx`、`BncCable.tsx`、`BananaLead.tsx`、`BoardLeads.tsx`、`ScopeProbe.tsx`、`psu.ts`／`psuStore.ts`／`psuDisplay.ts`／`PowerSupply3D.tsx`／`PowerLoad3D.tsx`／`PsuPanel.tsx` 電源與負載、`breadboardGrid.ts`／`boardModel.ts`／`boardParts.ts`／`boardStore.ts`／`circuit.ts`／`bench.ts`／`BoardParts3D.tsx`／`BoardPanel.tsx` 麵包板與電路模擬、`LabBench.tsx` 場景），頁面入口 `web/frontend/src/pages/LabWorkspacePage.tsx`（工作區元件：`LabToolbar.tsx`、`LabSidebars.tsx`、`LabDock.tsx`、`GenPanel.tsx`、`ScopePanel.tsx`、`NodesPanel.tsx`、`labUi.ts`）

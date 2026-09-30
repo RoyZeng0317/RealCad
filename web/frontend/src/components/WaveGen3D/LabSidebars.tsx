@@ -16,6 +16,7 @@ const INSTRUMENTS: [ViewPreset, string, string, string][] = [
   ['psu', '直流電源供應器', 'PS-3005・0–30 V / 0–5 A', '⎓'],
   ['breadboard', '麵包板', 'RB-2・2 × 830 孔', '▦'],
   ['devboards', '開發板區', 'Uno・ESP32・STM32・Pi 5', '⌗'],
+  ['fpga', 'FPGA 實驗板', 'EPF10K50EQC240-1', '⧉'],
 ];
 
 function InstrumentList() {

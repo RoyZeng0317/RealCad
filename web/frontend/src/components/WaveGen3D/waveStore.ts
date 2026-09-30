@@ -7,7 +7,7 @@ import {
 import { getBench } from './bench.js';
 
 export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
-export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu' | 'breadboard' | 'devboards';
+export type ViewPreset = 'overview' | 'generator' | 'scope' | 'psu' | 'breadboard' | 'devboards' | 'fpga';
 
 export interface ScopeSettings {
   timeDivIdx: number;

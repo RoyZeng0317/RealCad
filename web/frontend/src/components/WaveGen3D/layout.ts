@@ -70,5 +70,10 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x + 3.4, 4.0, BREADBOARD.pos.z + 2.1),
     target: new THREE.Vector3(BREADBOARD.pos.x + 3.3, 0, BREADBOARD.pos.z - 0.1),
   },
+  // FPGA 實驗板（麵包板本地 x 6.25）
+  fpga: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 3.0, BREADBOARD.pos.z + 1.7),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.1),
+  },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

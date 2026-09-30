@@ -11,6 +11,7 @@ import { useBoard } from '../boardStore.js';
 import { getBench } from '../bench.js';
 import { createCanvasTexture, FONT } from '../panelTexture.js';
 import { P } from '../breadboardGrid.js';
+import { FpgaDetails } from './fpga/FpgaBoard3D.js';
 
 const PCB_H = 0.03;
 const MODE_NAME = ['INPUT', 'OUTPUT', 'INPUT_PULLUP', 'INPUT_PULLDOWN'];
@@ -55,12 +56,15 @@ function silkscreen(d: DevBoardDef) {
     for (const pin of d.pins) {
       const off = pin.z < 0 ? P * 0.85 : -P * 0.85;
       ctx.save();
-      ctx.translate(p.x(pin.x), p.y(-(pin.z + off)));
-      if (d.kind !== 'uno') ctx.rotate(-Math.PI / 2);
+      // FPGA 的 J1 是直排的雙排針：名稱印在左右兩側
+      if (d.kind === 'fpga') ctx.translate(p.x(pin.x + (pin.x < 0.74 ? -P * 1.05 : P * 1.05)), p.y(-pin.z));
+      else ctx.translate(p.x(pin.x), p.y(-(pin.z + off)));
+      if (d.kind !== 'uno' && d.kind !== 'fpga') ctx.rotate(-Math.PI / 2);
       ctx.fillText(pin.label, 0, 0);
       ctx.restore();
     }
     ctx.font = `800 ${p.s(P * 1.0)}px ${FONT}`;
+    if (d.kind === 'fpga') return;
     const title = d.kind === 'uno' ? 'UNO' : d.kind === 'pi5' ? 'Raspberry Pi 5' : d.kind === 'esp32' ? 'ESP32-DevKitC' : 'STM32F103';
     ctx.fillText(title, p.x(d.kind === 'uno' ? 1.2 * P : d.kind === 'pi5' ? -3 * P : 0), p.y(d.kind === 'uno' ? -2.5 * P : d.kind === 'pi5' ? -4 * P : 0));
   }, 520);
@@ -87,6 +91,7 @@ function BoardLed({ at, color, on, k = 1 }: { at: [number, number]; color: strin
 /** 各板子的主要零件外觀 */
 function Details({ d, powered, ledOn, ledK, running }: { d: DevBoardDef; powered: boolean; ledOn: boolean; ledK: number; running: boolean }) {
   const W = d.size.w, D = d.size.d;
+  if (d.kind === 'fpga') return <FpgaDetails d={d} powered={powered} />;
   if (d.kind === 'uno') return (
     <>
       <Box at={[-W / 2 + 0.08, 0, -0.18]} size={[0.24, 0.2, 0.21]} color="#c9ced4" metal />
@@ -272,7 +277,8 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
           <meshStandardMaterial color="#c9a24a" metalness={0.8} roughness={0.3} />
         </mesh>
       )))}
-      <RoundedBox args={[d.size.w, PCB_H, d.size.d]} radius={0.012} smoothness={2} position={[0, PCB_TOP - PCB_H / 2, 0]} castShadow receiveShadow>
+      <RoundedBox args={[d.size.w, PCB_H, d.size.d]} radius={0.012} smoothness={2} position={[0, PCB_TOP - PCB_H / 2, 0]} castShadow receiveShadow
+        onClick={d.sensor ? (e) => { if (e.delta <= 4) { e.stopPropagation(); selectBoard(); } } : undefined}>
         <meshStandardMaterial color={d.pcb} roughness={0.6} emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.25 : 0} />
       </RoundedBox>
       <mesh position={[0, PCB_TOP + 0.0008, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -284,10 +290,10 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
       {usb && <UsbCable d={d} />}
 
       {/* 點擊 / 滑鼠感應面：排針頂端高度、整塊板子大小（透明） */}
-      <mesh position={[0, top + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}
+      <mesh position={[d.sensor?.x ?? 0, top + 0.002, d.sensor?.z ?? 0]} rotation={[-Math.PI / 2, 0, 0]}
         onPointerMove={onMove} onClick={onClick}
         onPointerOut={() => { setHover(null); useBoard.getState().setHoverHole(null); document.body.style.cursor = 'auto'; }}>
-        <planeGeometry args={[d.size.w, d.size.d]} />
+        <planeGeometry args={[d.sensor?.w ?? d.size.w, d.sensor?.d ?? d.size.d]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       {hover && (
@@ -323,7 +329,8 @@ function ErrorBadge({ tripped }: { tripped: boolean }) {
 function UsbCable({ d }: { d: DevBoardDef }) {
   const geo = useMemo(() => {
     const W = d.size.w, D = d.size.d;
-    const start = d.kind === 'pi5' ? new THREE.Vector3(-W / 2 + 0.2, PCB_TOP + 0.03, D / 2 + 0.05)
+    const start = d.kind === 'fpga' ? new THREE.Vector3(-W / 2 - 0.05, PCB_TOP + 0.03, -D / 2 + 0.2)
+      : d.kind === 'pi5' ? new THREE.Vector3(-W / 2 + 0.2, PCB_TOP + 0.03, D / 2 + 0.05)
       : d.kind === 'uno' ? new THREE.Vector3(-W / 2 - 0.05, PCB_TOP + 0.1, -0.18)
       : d.kind === 'esp32' ? new THREE.Vector3(W / 2 + 0.05, PCB_TOP + 0.02, 0)
       : new THREE.Vector3(-W / 2 - 0.05, PCB_TOP + 0.02, 0);

@@ -11,7 +11,7 @@ import { boardActions } from './BoardPanel.js';
 import { useProject, undo, redo } from './project/projectStore.js';
 
 const VIEWS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'], ['devboards', '開發板'],
+  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'], ['devboards', '開發板'], ['fpga', 'FPGA'],
 ];
 
 export function LabToolbar() {

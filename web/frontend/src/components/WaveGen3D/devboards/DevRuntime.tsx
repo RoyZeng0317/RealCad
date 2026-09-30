@@ -103,6 +103,7 @@ export function DevRuntime() {
     const st = useDev.getState();
 
     for (const k of DEV_KINDS) {
+      if (DEV_BOARDS[k].language === 'verilog') continue; // FPGA 由 FpgaRuntime 負責
       const rt = st.rt[k];
       const on = isPowered(st, k);
       let l = live.get(k);

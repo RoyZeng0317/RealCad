@@ -1,6 +1,7 @@
 // 實驗室工作區的介面狀態：下方面板目前的分頁、左右側欄開關
 import { create } from 'zustand';
 import { useWaveLab, type ViewPreset } from './waveStore.js';
+import { useDev } from './devboards/devStore.js';
 
 export type DockTab = 'generator' | 'scope' | 'psu' | 'nodes' | 'code' | 'serial' | 'help';
 
@@ -15,7 +16,7 @@ interface LabUiState {
   focus: (v: ViewPreset) => void;
 }
 
-const DOCK_OF: Partial<Record<ViewPreset, DockTab>> = { generator: 'generator', scope: 'scope', psu: 'psu', breadboard: 'nodes', devboards: 'code' };
+const DOCK_OF: Partial<Record<ViewPreset, DockTab>> = { generator: 'generator', scope: 'scope', psu: 'psu', breadboard: 'nodes', devboards: 'code', fpga: 'code' };
 const wide = typeof window === 'undefined' || window.innerWidth >= 1000;
 
 export const useLabUi = create<LabUiState>((set) => ({
@@ -29,5 +30,6 @@ export const useLabUi = create<LabUiState>((set) => ({
     useWaveLab.getState().setView(v);
     const t = DOCK_OF[v];
     if (t) set({ dockTab: t });
+    if (v === 'fpga' && useDev.getState().conf.fpga.present) useDev.getState().setCodeTab('fpga');
   },
 }));

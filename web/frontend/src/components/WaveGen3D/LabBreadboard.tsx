@@ -12,6 +12,7 @@ import { useBench } from './bench.js';
 import { BoardParts3D, BoardThermal } from './BoardParts3D.js';
 import { DevBoards3D } from './devboards/DevBoard3D.js';
 import { DevRuntime } from './devboards/DevRuntime.js';
+import { FpgaRuntime } from './devboards/fpga/FpgaRuntime.js';
 import {
   P, ROWS, STRIPS, STRIP_LEN, STRIP_Z, STRIP_H, PLATE, TOP_Y, TERM_W, BUS_W, COLS,
   termColX, rowZ, BUS_SLOTS, busZ, busRailX, hitHole, describeHit, type HoleHit,
@@ -205,6 +206,7 @@ export function LabBreadboard() {
       <BoardThermal />
       <DevBoards3D />
       <DevRuntime />
+      <FpgaRuntime />
 
       {hl && hover && (
         <>
