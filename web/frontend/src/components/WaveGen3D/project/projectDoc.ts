@@ -37,7 +37,8 @@ export function collectDoc(name: string): LabDoc {
     load: { idx: p.loadIdx, burnt: p.burnt },
     board: { parts: b.parts, dmm: b.dmm },
     dev: d.conf,
-    fpga: (({ files, active, top, slowHz, sw, epc }) => ({ files, active, top, slowHz, sw, epc }))(useFpga.getState()),
+    fpga: (({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }) =>
+      ({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }))(useFpga.getState()),
   };
 }
 
@@ -103,6 +104,7 @@ function cleanFpga(raw: unknown): FpgaConf {
     files, active: files.some((f) => f.name === o.active) ? (o.active as string) : files[0]?.name ?? '',
     top: str(o.top, 80).replace(/[^\w$]/g, ''), slowHz: SLOW_CLOCKS.includes(o.slowHz as number) ? (o.slowHz as number) : 2,
     sw: int(o.sw, 0, 255, 0),
+    slides: int(o.slides, 0, 3, 0), sdCard: bool(o.sdCard, false), tfCard: bool(o.tfCard, false), speaker: bool(o.speaker, true),
     epc: e && epcFiles.length ? { files: epcFiles, top: str(e.top, 80).replace(/[^\w$]/g, ''), name: str(e.name, 80) || 'design' } : null,
   };
 }

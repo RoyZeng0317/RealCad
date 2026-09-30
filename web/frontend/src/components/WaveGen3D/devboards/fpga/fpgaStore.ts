@@ -7,16 +7,24 @@ import { EXAMPLE_FILES } from './fpgaBoard.js';
 
 export type ProgMode = 'jtag' | 'as';
 export interface Epc { files: FpgaFile[]; top: string; name: string }
-export interface FpgaConf { files: FpgaFile[]; active: string; top: string; slowHz: number; sw: number; epc: Epc | null }
+export interface FpgaConf {
+  files: FpgaFile[]; active: string; top: string; slowHz: number; sw: number; epc: Epc | null;
+  slides: number; // 滑動開關 SLD0、SLD1
+  sdCard: boolean; tfCard: boolean; // 記憶卡有沒有插著
+  speaker: boolean; // 喇叭開 / 靜音
+}
 export interface ProgState { mode: ProgMode; source: string; progress: number | null; log: string[] }
 
 export const MAX_FILE = 400_000;
 export const exampleConf = (): FpgaConf => ({
   files: EXAMPLE_FILES().map((f) => ({ ...f, size: f.text.length })), active: 'counter.v', top: '', slowHz: 2, sw: 0, epc: null,
+  slides: 0, sdCard: false, tfCard: false, speaker: true,
 });
 
 interface FpgaState extends FpgaConf {
   keys: number; // 目前按住的按鍵（bit i = KEYi 按下）
+  reset: boolean; // 紅色 RESET 按住中
+  spkHz: number; // 喇叭目前的頻率（0 = 沒聲音）
   build: Build | null;
   sram: Image | null; // FPGA 目前的電路（CONF_DONE = 1）
   nonce: number; // 每次重新設定 +1，執行期看到就重建模擬器
@@ -31,6 +39,10 @@ interface FpgaState extends FpgaConf {
   setSlowHz: (hz: number) => void;
   toggleSw: (i: number) => void;
   setKey: (i: number, down: boolean) => void;
+  setReset: (down: boolean) => void;
+  toggleSlide: (i: number) => void;
+  toggleCard: (which: 'sd' | 'tf') => void;
+  toggleSpeaker: () => void;
   compile: (prefer?: string) => Build;
   setProg: (p: Partial<ProgState>) => void;
   program: (powered: boolean) => void;
@@ -48,6 +60,8 @@ const imageFromEpc = (epc: Epc) => buildProject(epc.files, epc.top).image;
 export const useFpga = create<FpgaState>((set, get) => ({
   ...exampleConf(),
   keys: 0,
+  reset: false,
+  spkHz: 0,
   build: null,
   sram: null,
   nonce: 0,
@@ -76,6 +90,10 @@ export const useFpga = create<FpgaState>((set, get) => ({
   setSlowHz: (slowHz) => set({ slowHz }),
   toggleSw: (i) => set((s) => ({ sw: s.sw ^ (1 << i) })),
   setKey: (i, down) => set((s) => ({ keys: down ? s.keys | (1 << i) : s.keys & ~(1 << i) })),
+  setReset: (reset) => set({ reset }),
+  toggleSlide: (i) => set((s) => ({ slides: s.slides ^ (1 << i) })),
+  toggleCard: (which) => set((s) => (which === 'sd' ? { sdCard: !s.sdCard } : { tfCard: !s.tfCard })),
+  toggleSpeaker: () => set((s) => ({ speaker: !s.speaker })),
   compile: (prefer) => {
     const b = buildProject(get().files, get().top, prefer ?? baseName(get().active));
     set({ build: b });
@@ -144,7 +162,7 @@ export const useFpga = create<FpgaState>((set, get) => ({
     set({ sram: s.epc ? imageFromEpc(s.epc) : null, nonce: s.nonce + 1, runtimeError: null });
   },
   loadExample: () => set({ ...exampleConf(), build: null }),
-  loadConf: (c) => set((s) => ({ ...c, build: null, sram: null, nonce: s.nonce + 1, runtimeError: null, keys: 0, prog: { mode: 'jtag', source: 'build', progress: null, log: [] } })),
+  loadConf: (c) => set((s) => ({ ...c, build: null, sram: null, nonce: s.nonce + 1, runtimeError: null, keys: 0, reset: false, prog: { mode: 'jtag', source: 'build', progress: null, log: [] } })),
   patch: (p) => set(p),
 }));
 

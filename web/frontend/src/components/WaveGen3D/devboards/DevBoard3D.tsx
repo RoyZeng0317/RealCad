@@ -264,6 +264,7 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
     const p = nearest(e);
     const tool = useBoard.getState().tool;
     if (p && tool !== 'select') useBoard.getState().clickHole(`h:${kind}:${p.id}`);
+    else if (tool === 'erase') useDev.getState().setPresent(kind, false);
     else selectBoard();
   };
 
@@ -278,7 +279,12 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
         </mesh>
       )))}
       <RoundedBox args={[d.size.w, PCB_H, d.size.d]} radius={0.012} smoothness={2} position={[0, PCB_TOP - PCB_H / 2, 0]} castShadow receiveShadow
-        onClick={d.sensor ? (e) => { if (e.delta <= 4) { e.stopPropagation(); selectBoard(); } } : undefined}>
+        onClick={d.sensor ? (e) => {
+          if (e.delta > 4) return;
+          e.stopPropagation();
+          if (useBoard.getState().tool === 'erase') useDev.getState().setPresent(kind, false);
+          else selectBoard();
+        } : undefined}>
         <meshStandardMaterial color={d.pcb} roughness={0.6} emissive={selected ? '#2f8cff' : '#000'} emissiveIntensity={selected ? 0.25 : 0} />
       </RoundedBox>
       <mesh position={[0, PCB_TOP + 0.0008, 0]} rotation={[-Math.PI / 2, 0, 0]}>

@@ -21,11 +21,13 @@
   - 接線錯誤會顯示 ERROR：GPIO 過電流、3.3 V 板子被接 5 V、負電壓、5V／3V3 短路（USB 保險絲跳脫）、3V3 被倒灌、沒上電卻有電壓、ESP32 Flash 腳；持續 0.3 秒以上腳位會燒毀
   - 開發板 GND 沒跟麵包板 GND 接在一起時兩邊不共地（只有 1 MΩ 漏電），可以模擬「忘記共地」
   - 下方「程式碼」分頁（上傳並執行 Ctrl+Enter、停止、重新開機、範例）、「序列埠」分頁看輸出
-- **FPGA 實驗板**（`devboards/fpga/`）：Altera FLEX 10KE **EPF10K50EQC240-1**（QFP240）+ EPC2 設定晶片、50 MHz 振盪器、JTAG 座、8 LED、兩位七段顯示器（共陽極）、8 位指撥開關、4 顆按鍵、nCONFIG 鍵、J1 2×20 排針（IO0–31 可用杜邦線接麵包板，5 V 耐壓）
+- **FPGA 實驗板**（`devboards/fpga/`）：Altera FLEX 10KE **EPF10K50EQC240-1**（QFP240）+ EPC2 設定晶片、50 MHz 振盪器、JTAG 座、8 LED、兩位七段顯示器（共陽極）、8 位指撥開關、4 顆按鍵、nCONFIG 鍵、J1 2×20 排針（IO0–31 可用杜邦線接麵包板，5 V 耐壓）、Type-C 電源座 + PWR 電源滑動開關、喇叭、紅色 RESET 鍵、2 個滑動開關（SLD0／SLD1）、SD 與 TF（microSD）卡座
   - 上傳 Quartus 專案檔（按鈕或拖曳）：`.v`（Verilog）、`.qsf`（腳位 `set_location_assignment`、`TOP_LEVEL_ENTITY`、`DEVICE`）、`.qpf`、`.sof`、`.pof`；VHDL／`.bdf` 會提示先在 Quartus 轉成 Verilog
   - 編譯：Verilog-2001 可合成子集解析 + 展開（`verilogLang.ts`／`verilogElab.ts`：module／parameter／wire／reg／assign／always @(*)／posedge／negedge 非同步重置／if／case／casez／for／模組實例化／記憶體陣列／$clog2），產生的模擬程式只含索引與數字常數（不執行使用者文字）；報告含錯誤檔名與行號、型號檢查、腳位衝突、輸出接到開關腳等 Fitter 檢查
   - Programmer：JTAG（`.sof` → FPGA SRAM，斷電消失）與 Active Serial（`.pof` → EPC2，每次上電自動載入）；`.sof`／`.pof` 是 Intel 封閉格式，燒錄時從檔案讀出元件型號比對（不符就像 Quartus 一樣拒絕），電路由同專案原始碼重建
-  - 板上腳位：CLK_50MHz = PIN_91（盡量快跑並顯示實際模擬速度）、CLK_SEL = PIN_92（1 Hz–1 kHz 可調）、KEY0–3 = PIN_7/8/9/11（按下 = 0）、SW0–7 = PIN_12–20、LED0–7 = PIN_21–29、HEX0／HEX1 = PIN_30–41／44–54（低電位亮）、J1 IO0–31 = PIN_132–168（完整表在 Pin Planner「板子腳位總表」）
+  - 板上腳位：CLK_50MHz = PIN_91（盡量快跑並顯示實際模擬速度）、CLK_SEL = PIN_92（1 Hz–1 kHz 可調）、KEY0–3 = PIN_7/8/9/11（按下 = 0）、SW0–7 = PIN_12–20、LED0–7 = PIN_21–29、HEX0／HEX1 = PIN_30–41／44–54（低電位亮）、J1 IO0–31 = PIN_132–168、RESET = PIN_10（按下 = 0）、SLD0／SLD1 = PIN_56／57、SPEAKER = PIN_55、SD 卡 CLK／CMD／DAT0／DAT3／CD = PIN_60–64、TF 卡 = PIN_65–69（CD 有插卡 = 0）（完整表在 Pin Planner「板子腳位總表」）
+  - 喇叭：量測喇叭腳在模擬時間內的切換頻率，用瀏覽器的 Web Audio 發出方波（20 Hz–20 kHz 才發聲，可在卡片上靜音）；範例按住 KEY1 會發出 440 Hz（50 MHz 除頻，實際多快聽到取決於電腦的模擬速度）
+  - 記憶卡：點卡座或卡片插拔，設計可以讀 CD 腳判斷有沒有插卡；SPI 腳位已配置，卡片內容的讀寫尚未模擬（DAT0 固定讀到 1）
   - 輸出以每幀的高電位比例呈現（PWM／快速切換的 LED 會顯示亮度）；專案檔與 EPC2 內容會存進 `.rc`
 - 新零件：5 mm LED（紅／黃／綠／藍／白，亮度依電流，超過約 100 mA 會燒毀）
 
