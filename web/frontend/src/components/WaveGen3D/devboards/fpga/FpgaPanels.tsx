@@ -255,6 +255,12 @@ export function FpgaCard() {
   const powered = useDev((s) => isPowered(s, 'fpga'));
   const sw = useFpga((s) => s.sw);
   const keys = useFpga((s) => s.keys);
+  const reset = useFpga((s) => s.reset);
+  const slides = useFpga((s) => s.slides);
+  const sdCard = useFpga((s) => s.sdCard);
+  const tfCard = useFpga((s) => s.tfCard);
+  const speaker = useFpga((s) => s.speaker);
+  const spkHz = useFpga((s) => s.spkHz);
   const slowHz = useFpga((s) => s.slowHz);
   const sram = useFpga((s) => s.sram);
   const stats = useFpga((s) => s.stats);
@@ -289,6 +295,23 @@ export function FpgaCard() {
           <button key={i} style={{ ...chip(!!((keys >> i) & 1)), touchAction: 'none' }}
             onPointerDown={() => f.setKey(i, true)} onPointerUp={() => f.setKey(i, false)} onPointerLeave={() => f.setKey(i, false)}>KEY{i}</button>
         ))}
+      </div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <button style={{ ...chip(reset, '#8a1414', '#5a1a1a'), touchAction: 'none' }}
+          onPointerDown={() => f.setReset(true)} onPointerUp={() => f.setReset(false)} onPointerLeave={() => f.setReset(false)}>● RESET</button>
+        {[1, 0].map((i) => (
+          <button key={i} style={chip(!!((slides >> i) & 1))} onClick={() => f.toggleSlide(i)}>SLD{i}：{(slides >> i) & 1}</button>
+        ))}
+      </div>
+      <div style={row}>
+        <button style={chip(sdCard, '#1d4fb8')} onClick={() => f.toggleCard('sd')}>SD 卡：{sdCard ? '已插入' : '未插'}</button>
+        <button style={chip(tfCard, '#1d4fb8')} onClick={() => f.toggleCard('tf')}>TF 卡：{tfCard ? '已插入' : '未插'}</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+        <button style={{ ...chip(speaker, '#1f6a2a'), flex: 'none' }} onClick={() => f.toggleSpeaker()}>{speaker ? '🔊 喇叭' : '🔇 靜音'}</button>
+        <span style={{ color: T.muted, fontSize: 12 }}>
+          {!sram || !powered ? '—' : !spkHz ? '喇叭沒有聲音' : spkHz < 20 ? `${spkHz} Hz（低於可聽範圍）` : spkHz > 20000 ? `${hz(spkHz)}（超過可聽範圍）` : `發聲 ${hz(spkHz)}`}
+        </span>
       </div>
       <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>CLK_SEL（PIN_92）
         <select style={{ ...selectStyle, flex: 1 }} value={slowHz} onChange={(e) => f.setSlowHz(Number(e.target.value))}>

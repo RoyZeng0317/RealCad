@@ -2,7 +2,7 @@
 import { P } from '../../breadboardGrid.js';
 import type { PinDef } from '../boardDefs.js';
 
-export type ResKind = 'clk50' | 'clkslow' | 'key' | 'sw' | 'led' | 'seg0' | 'seg1' | 'io';
+export type ResKind = 'clk50' | 'clkslow' | 'key' | 'sw' | 'led' | 'seg0' | 'seg1' | 'io' | 'rst' | 'slide' | 'spk' | 'sd' | 'tf';
 export interface Res { pin: number; kind: ResKind; index: number; label: string; dir: 'in' | 'out' | 'io' }
 
 // 板上資源 → FPGA 腳位（本板自訂的腳位表，跟 Quartus 的 .qsf 一起使用）
@@ -14,6 +14,14 @@ const SEG1_PINS = [44, 45, 46, 47, 48, 49, 53, 54];
 export const IO_PINS = [132, 133, 134, 135, 136, 138, 139, 140, 141, 142, 143, 144, 147, 148, 149, 150,
   151, 152, 153, 154, 156, 157, 158, 159, 160, 161, 162, 163, 164, 166, 167, 168];
 const SEG = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+const RST_PIN = 10; // 紅色 RESET 按鍵（按下 = 0）
+const SLIDE_PINS = [56, 57]; // 滑動開關 SLD0、SLD1
+const SPK_PIN = 55; // 喇叭（蜂鳴器）
+// SD / TF（microSD）卡座：SPI 模式的 CLK、CMD（MOSI）、DAT0（MISO）、DAT3（CS），CD = 卡片偵測（有插卡 = 0）
+export const CARD_SIGS = ['CLK', 'CMD', 'DAT0', 'DAT3', 'CD'];
+const SD_PINS = [60, 61, 62, 63, 64];
+const TF_PINS = [65, 66, 67, 68, 69];
+const cardDir = (i: number): 'in' | 'out' => (i === 2 || i === 4 ? 'in' : 'out');
 
 export const RESOURCES: Res[] = [
   { pin: 91, kind: 'clk50', index: 0, label: 'CLK_50MHz', dir: 'in' },
@@ -24,6 +32,11 @@ export const RESOURCES: Res[] = [
   ...SEG0_PINS.map((pin, i): Res => ({ pin, kind: 'seg0', index: i, label: `HEX0_${SEG[i]}（低電位亮）`, dir: 'out' })),
   ...SEG1_PINS.map((pin, i): Res => ({ pin, kind: 'seg1', index: i, label: `HEX1_${SEG[i]}（低電位亮）`, dir: 'out' })),
   ...IO_PINS.map((pin, i): Res => ({ pin, kind: 'io', index: i, label: `J1 IO${i}`, dir: 'io' })),
+  { pin: RST_PIN, kind: 'rst', index: 0, label: 'RESET（紅色按鍵，按下 = 0）', dir: 'in' },
+  ...SLIDE_PINS.map((pin, i): Res => ({ pin, kind: 'slide', index: i, label: `SLD${i}（滑動開關）`, dir: 'in' })),
+  { pin: SPK_PIN, kind: 'spk', index: 0, label: 'SPEAKER（喇叭，送方波發聲）', dir: 'out' },
+  ...SD_PINS.map((pin, i): Res => ({ pin, kind: 'sd', index: i, label: `SD_${CARD_SIGS[i]}${i === 4 ? '（插卡 = 0）' : ''}`, dir: cardDir(i) })),
+  ...TF_PINS.map((pin, i): Res => ({ pin, kind: 'tf', index: i, label: `TF_${CARD_SIGS[i]}${i === 4 ? '（插卡 = 0）' : ''}`, dir: cardDir(i) })),
 ];
 export const RES_BY_PIN = new Map(RESOURCES.map((r) => [r.pin, r]));
 
@@ -48,26 +61,39 @@ export function fpgaHeaderPins(): PinDef[] {
 
 const EXAMPLE_V = `// RealCad FLEX 10K 實驗板範例（EPF10K50EQC240-1）
 // 8 位元計數器：低頻時脈計數，結果顯示在 LED 和兩位七段顯示器
-//   KEY0 = 重置（按下 = 0）、SW0 = 1 暫停、SW7 = 1 時 LED 改顯示指撥開關、J1 IO0 輸出計數的最低位元（可接麵包板 LED）
+//   紅色 RESET = 重置（按下 = 0）、SW0 = 1 暫停、SLD0 = 1 倒數、SW7 = 1 時 LED 改顯示指撥開關、
+//   J1 IO0 輸出計數的最低位元（可接麵包板 LED）、按住 KEY1 喇叭發出 440 Hz
 module counter (
+  input            clk50,      // PIN_91：50 MHz
   input            clk_slow,   // PIN_92：CLK_SEL 可調低頻時脈
-  input            rst_n,      // PIN_7 ：KEY0
+  input            rst_n,      // PIN_10：紅色 RESET 按鍵
+  input            key1_n,     // PIN_8 ：KEY1
+  input            sld0,       // PIN_56：滑動開關 SLD0
   input      [7:0] sw,         // SW0 ~ SW7
   output reg [7:0] led,        // LED0 ~ LED7
   output     [7:0] hex0,       // 七段顯示器 {dp,g,f,e,d,c,b,a}，低電位點亮
   output     [7:0] hex1,
-  output           io0         // PIN_132：J1 排針 IO0
+  output           io0,        // PIN_132：J1 排針 IO0
+  output           spk         // PIN_55 ：喇叭
 );
   reg [7:0] count;
 
   always @(posedge clk_slow or negedge rst_n)
     if (!rst_n)      count <= 8'd0;
-    else if (!sw[0]) count <= count + 8'd1;
+    else if (!sw[0]) count <= sld0 ? count - 8'd1 : count + 8'd1;
 
   always @(*)
     led = sw[7] ? sw : count;
 
   assign io0 = count[0];
+
+  // 440 Hz：50 MHz ÷ (2 × 56818)
+  reg [16:0] div;
+  reg        tone;
+  always @(posedge clk50)
+    if (div == 17'd56817) begin div <= 17'd0; tone <= ~tone; end
+    else div <= div + 17'd1;
+  assign spk = tone & ~key1_n;
 
   seg7 u0 (.d(count[3:0]), .seg(hex0));
   seg7 u1 (.d(count[7:4]), .seg(hex1));
@@ -91,8 +117,12 @@ function exampleQsf() {
     'set_global_assignment -name FAMILY "FLEX10KE"',
     'set_global_assignment -name DEVICE EPF10K50EQC240-1',
     'set_global_assignment -name TOP_LEVEL_ENTITY counter',
+    'set_location_assignment PIN_91 -to clk50',
     'set_location_assignment PIN_92 -to clk_slow',
-    'set_location_assignment PIN_7 -to rst_n',
+    `set_location_assignment PIN_${RST_PIN} -to rst_n`,
+    `set_location_assignment PIN_${KEY_PINS[1]} -to key1_n`,
+    `set_location_assignment PIN_${SLIDE_PINS[0]} -to sld0`,
+    `set_location_assignment PIN_${SPK_PIN} -to spk`,
     ...SW_PINS.map((p, i) => `set_location_assignment PIN_${p} -to sw[${i}]`),
     ...LED_PINS.map((p, i) => `set_location_assignment PIN_${p} -to led[${i}]`),
     ...SEG0_PINS.map((p, i) => `set_location_assignment PIN_${p} -to hex0[${i}]`),

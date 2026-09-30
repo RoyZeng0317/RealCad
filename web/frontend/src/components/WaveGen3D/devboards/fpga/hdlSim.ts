@@ -25,6 +25,8 @@ const H = {
   loop: (line: number) => { throw new HdlError('for 迴圈超過 65536 次（是不是條件寫錯？）', line); },
 };
 
+export interface WatchStat { n: number; first: number; lastAt: number; cyc: number }
+
 type Fn = (v: Float64Array, m: Float64Array[], nb: number[], Mf: typeof M, Hf: typeof H) => void;
 const compileFn = (code: string): Fn => new Function('v', 'm', 'nb', 'M', 'H', `"use strict";${code}`) as Fn;
 
@@ -37,6 +39,8 @@ export class HdlSim {
   private edgeSigs: number[];
   private prev: Float64Array;
   cycles = 0;
+  /** 監看一個位元（喇叭）：每個時脈週期檢查一次，依時脈分別記下切換次數與第一次／最後一次切換在第幾個週期 */
+  watch: { sig: number; div: number; last: number; stats: Map<number, WatchStat> } | null = null;
 
   constructor(public d: Design) {
     this.v = new Float64Array(d.sigs.length);
@@ -81,9 +85,17 @@ export class HdlSim {
 
   /** 讓某個時脈跑 n 個週期（上升 + 下降） */
   clock(sig: number, n: number) {
+    const w = this.watch;
+    let st: WatchStat | undefined;
+    if (w) { st = w.stats.get(sig); if (!st) w.stats.set(sig, (st = { n: 0, first: 0, lastAt: 0, cyc: 0 })); }
     for (let k = 0; k < n; k++) {
       this.v[sig] = 1; this.propagate();
       this.v[sig] = 0; this.propagate();
+      if (w && st) {
+        st.cyc++;
+        const b = Math.floor(this.v[w.sig] / w.div) % 2;
+        if (b !== w.last) { w.last = b; if (st.n++ === 0) st.first = st.cyc; st.lastAt = st.cyc; }
+      }
     }
     this.cycles += n;
   }

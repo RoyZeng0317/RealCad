@@ -124,7 +124,8 @@ export function startTracking(): () => void {
     useWaveLab.subscribe((s, p) => { if (s.gen !== p.gen || s.scope !== p.scope) markDirty(); }),
     usePsuLab.subscribe((s, p) => { if (s.psu !== p.psu || s.loadIdx !== p.loadIdx) markDirty(); }),
     useFpga.subscribe((s, p) => {
-      if (s.files !== p.files || s.top !== p.top || s.slowHz !== p.slowHz || s.sw !== p.sw || s.epc !== p.epc) markDirty();
+      if (s.files !== p.files || s.top !== p.top || s.slowHz !== p.slowHz || s.sw !== p.sw || s.epc !== p.epc
+        || s.slides !== p.slides || s.sdCard !== p.sdCard || s.tfCard !== p.tfCard || s.speaker !== p.speaker) markDirty();
     }),
   ];
   const beforeUnload = (e: BeforeUnloadEvent) => { if (useProject.getState().dirty) { e.preventDefault(); e.returnValue = ''; } };
