@@ -7,7 +7,7 @@ import { useLabUi } from './labUi.js';
 import { T } from './panelUi.js';
 import { MenuBar, ProjectTitle } from './project/MenuBar.js';
 import { useBoard } from './boardStore.js';
-import { boardActions } from './BoardPanel.js';
+import { boardActions, useTypingFocus } from './shortcuts.js';
 import { useProject, undo, redo } from './project/projectStore.js';
 
 const VIEWS: [ViewPreset, string][] = [
@@ -24,6 +24,7 @@ export function LabToolbar() {
   const tool = useBoard((s) => s.tool);
   const undoN = useProject((s) => s.undo.length);
   const redoN = useProject((s) => s.redo.length);
+  const typing = useTypingFocus();
 
   return (
     <div style={bar}>
@@ -49,6 +50,12 @@ export function LabToolbar() {
         <button style={btn(tool === 'erase')} onClick={boardActions.remove} title="刪除模式（X）：再用滑鼠點要刪除的零件">✕ 刪除<Key k="X" /></button>
         <button style={{ ...btn(false), opacity: undoN ? 1 : 0.4 }} disabled={!undoN} onClick={undo} title="復原（Ctrl+Z）">↶</button>
         <button style={{ ...btn(false), opacity: redoN ? 1 : 0.4 }} disabled={!redoN} onClick={redo} title="重做（Ctrl+Y）">↷</button>
+        {/* 焦點在文字框 / 程式編輯器時字母會打進去，快捷鍵暫停：明確告訴使用者，按一下就恢復 */}
+        {typing && (
+          <button style={{ ...btn(false), borderColor: '#8a6a1a', color: '#ffd21f' }} title="正在輸入文字，S / W / X 暫停"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => (document.activeElement as HTMLElement | null)?.blur()}>⌨ 輸入中・快捷鍵暫停（Esc 恢復）</button>
+        )}
       </div>
       <div style={sep} />
       <div style={group}>

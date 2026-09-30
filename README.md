@@ -35,6 +35,8 @@
   - 麵包板零件都沒有電容電感，所以把產生器電壓從最低掃到最高（41 點），每點求一次直流解，得到「產生器電壓 → 探棒電壓」轉換曲線，示波器依時間查表畫出波形（二極體削波等非線性都正確）；觸發、AC 耦合、自動量測都作用在量到的波形上
   - 三用電表與「電路節點」的電壓在產生器接上時顯示一個週期的平均值；接線存進 `.rc`，面板可一鍵拔掉改回原本接法
   - 範例：「函數產生器 → 麵包板：半波整流」（10 Vpp 正弦 → 1N4007 → 1 kΩ，CH1 看輸入、CH2 看只剩正半週的輸出）
+- **快捷鍵**（`shortcuts.ts`）：S 選取、W 杜邦線、X 刪除模式、Delete 刪除選取的零件、Esc 取消；支援英文鍵盤與中文輸入法。游標在文字框或程式編輯器時字母會打進去，工具列會顯示「⌨ 輸入中・快捷鍵暫停」，按 Esc 或點提示就恢復
+  - 快捷鍵曾反覆失效，歷次原因與修改規範見 `web/frontend/src/components/WaveGen3D/SHORTCUTS.md`；每次修改後執行 `node web/frontend/scripts/shortcuts-regression.mjs http://localhost:5173/demos`（需要 `npm i -D playwright`），全部通過才能合併
 - 新零件：5 mm LED（紅／黃／綠／藍／白，亮度依電流，超過約 100 mA 會燒毀）
 - 麵包板 IC（`chips/`）：**ATmega328P-PU**（DIP-28）與 **CH340G** USB 轉序列（DIP-16 轉接板 + Micro USB 線），點端子排的孔放置，跨在中間的溝上（第 1 腳在 e 欄）
   - ATmega328P：VCC（7）／AVCC（20）接 2.7–5.5 V、GND（8、22）接地才會動；寫 Arduino C（沿用 C 子集直譯器，Arduino 腳位編號 D0–D13、A0–A5），GPIO 以戴維寧等效接進電路求解器；RESET（1）拉低會重置；燒進 Flash 的程式斷電不會消失，跟著 `.rc` 存檔

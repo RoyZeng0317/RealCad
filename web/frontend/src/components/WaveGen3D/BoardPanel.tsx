@@ -1,5 +1,5 @@
 // 麵包板操作介面：左側元件庫（零件/工具/範例）、右側檢視器（三用電表、選取零件的工作點）
-import { useEffect, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
 import { LEAD_TAG } from './LeadControls.js';
 import { ChipCard } from './chips/ChipPanels.js';
@@ -37,60 +37,8 @@ export const TOOL_NAME: Record<Tool, string> = {
   fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒',
 };
 
-/**
- * 單鍵快捷鍵對應的字母。先看 e.key（一般英文輸入）；中文輸入法開著時 e.key 會變成 "Process"（keyCode 229），
- * 這時改看實體按鍵位置 e.code（KeyS / KeyW / KeyX），所以英文鍵盤、中文輸入法的英文或中文模式都能用。
- */
-export function shortcutLetter(e: KeyboardEvent): string {
-  if (e.key && e.key.length === 1 && /[a-z]/i.test(e.key)) return e.key.toLowerCase();
-  const m = /^Key([A-Z])$/.exec(e.code ?? '');
-  if (m) return m[1].toLowerCase();
-  if (e.keyCode >= 65 && e.keyCode <= 90) return String.fromCharCode(e.keyCode).toLowerCase();
-  return '';
-}
-
-/** 工具列與快捷鍵共用的動作 */
-export const boardActions = {
-  select: () => useBoard.getState().setTool('select'),
-  wire: () => useBoard.getState().setTool('wire'),
-  /** 刪除模式：按一下進入（再按一下離開），之後滑鼠點哪個零件就刪哪個，不用先選取 */
-  remove: () => {
-    const s = useBoard.getState();
-    s.setTool(s.tool === 'erase' ? 'select' : 'erase');
-  },
-};
-
-/**
- * 焦點是不是在「正在打字」的地方（文字輸入框、程式編輯器）：這時字母要打進去，不當快捷鍵。
- * 滑桿、下拉選單、按鈕、勾選框用完後焦點會留在上面，但不會打字，所以快捷鍵照樣要能用。
- */
-const TEXT_INPUTS = new Set(['text', 'search', 'number', 'email', 'password', 'url', 'tel', '']);
-export function isTyping(el: EventTarget | null): boolean {
-  const h = el as HTMLElement | null;
-  if (!h || !h.tagName) return false;
-  if (h.isContentEditable || h.tagName === 'TEXTAREA') return true;
-  return h.tagName === 'INPUT' && TEXT_INPUTS.has(((h as HTMLInputElement).getAttribute('type') ?? '').toLowerCase());
-}
-
-/** S 選取、W 杜邦線、X / Delete 刪除選取的零件、Esc 取消 */
-export function useBoardKeys() {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target)) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const st = useBoard.getState();
-      if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); return; }
-      if (e.key === 'Delete' || e.key === 'Backspace') { if (st.selectedId) { e.preventDefault(); boardActions.remove(); } return; }
-      const k = shortcutLetter(e);
-      if (k === 's') { e.preventDefault(); boardActions.select(); }
-      else if (k === 'w') { e.preventDefault(); boardActions.wire(); }
-      else if (k === 'x') { e.preventDefault(); boardActions.remove(); }
-    };
-    // capture 階段：就算焦點在按鈕或 3D 畫面上也收得到
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
-}
+// 快捷鍵（shortcutLetter / isTyping / boardActions / useBoardKeys）已集中到 shortcuts.ts；這裡轉出去給舊的 import 使用
+export { shortcutLetter, isTyping, boardActions, useBoardKeys } from './shortcuts.js';
 
 interface LibItem { tool: Tool; name: string; sub: string; icon: string }
 const PART_ITEMS: LibItem[] = [
