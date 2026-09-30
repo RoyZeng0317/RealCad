@@ -81,8 +81,8 @@ function BindingPost({ name, color }: { name: PostName; color: string }) {
     <group
       position={[POST_XS[name], PLATE.h, POST_Z]}
       onClick={(e) => { if (e.delta > 4) return; e.stopPropagation(); useBoard.getState().clickHole(postKey(name)); }}
-      onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
+      onPointerOver={(e) => { e.stopPropagation(); setHover(true); useBoard.getState().setHoverHole(postKey(name)); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { setHover(false); useBoard.getState().setHoverHole(null); document.body.style.cursor = 'auto'; }}
     >
       {hover && (
         <Html zIndexRange={[10, 0]} position={[0, 0.3, 0]} center style={{ pointerEvents: 'none' }}>
@@ -146,7 +146,8 @@ export function LabBreadboard() {
     if (k !== lastKey.current) {
       lastKey.current = k;
       setHover(h);
-      document.body.style.cursor = h ? 'crosshair' : 'auto';
+      useBoard.getState().setHoverHole(h ? holeKeyOf(h) : null);
+      if (!useBoard.getState().drag) document.body.style.cursor = h ? 'crosshair' : 'auto';
     }
   };
   const onClick = (e: ThreeEvent<MouseEvent>) => {
@@ -158,7 +159,8 @@ export function LabBreadboard() {
   const onOut = () => {
     lastKey.current = '';
     setHover(null);
-    document.body.style.cursor = 'auto';
+    useBoard.getState().setHoverHole(null);
+    if (!useBoard.getState().drag) document.body.style.cursor = 'auto';
   };
 
   const hl = hover ? highlightRect(hover) : null;

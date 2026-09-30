@@ -71,3 +71,21 @@ void loop() {
   dev.select('esp32');
   dev.reboot('esp32');
 }
+
+/** 範例：Raspberry Pi 5 用 MicroPython 讓外接 LED 閃爍（GPIO17 → 220 Ω → 綠色 LED → GND） */
+export function loadPi5Blink() {
+  const dev = useDev.getState();
+  (['uno', 'esp32', 'stm32'] as const).forEach((k) => useDev.getState().conf[k].present && dev.setPresent(k, false));
+  if (!useDev.getState().conf.pi5.present) dev.setPresent('pi5', true);
+  dev.setCode('pi5', DEV_BOARDS.pi5.example);
+  if (!useDev.getState().conf.pi5.usb) dev.setUsb('pi5', true);
+  useBoard.getState().loadParts([
+    { id: 'ex-w1', kind: 'wire', pins: ['h:pi5:GPIO17', 't:1:20:9'], color: '#2aa84a', gen: 0 },
+    { id: 'ex-r1', kind: 'resistor', pins: ['t:1:20:7', 't:1:26:7'], value: 220, gen: 0 },
+    { id: 'ex-led', kind: 'led', pins: ['t:1:26:6', 'b:2:1:26'], ledColor: 'green', gen: 0 },
+    { id: 'ex-w2', kind: 'wire', pins: ['h:pi5:GND_9', 'b:2:1:20'], color: '#1b1d20', gen: 0 },
+  ]);
+  useBoard.setState({ dmm: 't:1:26:5', tool: 'select', selectedId: 'ex-led' });
+  dev.select('pi5');
+  dev.reboot('pi5');
+}

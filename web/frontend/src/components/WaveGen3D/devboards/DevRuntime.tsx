@@ -4,7 +4,8 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { DEV_BOARDS, DEV_KINDS, devPinByGpio, type DevKind } from './boardDefs.js';
 import { useDev, isPowered } from './devStore.js';
-import { compile, SketchRunner, MODE, type Hal } from './sketchRun.js';
+import { SketchRunner, MODE, type Hal } from './sketchRun.js';
+import { compile } from './compile.js';
 import { SketchError } from './sketchLang.js';
 import { getBench } from '../bench.js';
 
@@ -112,14 +113,14 @@ export function DevRuntime() {
         continue;
       }
       if (!l || l.nonce !== rt.bootNonce) {
-        const c = compile(st.conf[k].code);
+        const c = compile(st.conf[k].code, DEV_BOARDS[k].language);
         if (c.error) {
           live.delete(k);
           if (rt.status !== 'error' || !rt.compileError) st.patchRt(k, { status: 'error', compileError: c.error });
           continue;
         }
         const holder = { current: null as unknown as Live };
-        const runner = new SketchRunner(c.prog!, makeHal(k, () => holder.current), now);
+        const runner = new SketchRunner(c.ok.start(makeHal(k, () => holder.current)), now);
         l = { runner, nonce: rt.bootNonce, boot: now, serial: '', lastRead: new Map() };
         holder.current = l;
         live.set(k, l);

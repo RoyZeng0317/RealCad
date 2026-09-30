@@ -5,7 +5,7 @@ import { useProject, undo, redo, startTracking } from './projectStore.js';
 import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
-import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake } from '../boardDemo.js';
+import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink } from '../boardDemo.js';
 import { T } from '../panelUi.js';
 
 interface Item { label: string; keys?: string; onClick?: () => void; disabled?: boolean; checked?: boolean; header?: boolean }
@@ -27,8 +27,10 @@ ${MOD}S　儲存
 ${MOD}Shift+S　另存新檔
 ${MOD}Z　復原（麵包板與開發板的擺放）
 ${MOD}Y 或 ${MOD}Shift+Z　重做
-Delete　刪除選取的零件
-Esc　取消放置、回到選取工具
+S　選取工具（可拖曳零件）
+W　杜邦線工具
+X 或 Delete　刪除選取的零件
+Esc　取消放置 / 取消拖曳、回到選取工具
 ${MOD}Enter（在程式碼編輯器裡）　上傳並執行`;
 
 const ABOUT_RC = `.rc 是 RealCad Lab 的專案檔，只有這個網站可以開啟。
@@ -62,13 +64,14 @@ export function MenuBar() {
       { label: '範例', header: true },
       { label: '3.3 V 穩壓電路（1N4007 + LT1117）', onClick: () => { loadDemoCircuit(); ui.focus('breadboard'); } },
       { label: 'Arduino Uno：LED 閃爍', onClick: () => { loadUnoBlink(); ui.focus('devboards'); } },
+      { label: 'Raspberry Pi 5：MicroPython LED 閃爍', onClick: () => { loadPi5Blink(); ui.focus('devboards'); } },
       { label: '錯誤示範：5 V 接到 ESP32 GPIO', onClick: () => { loadEsp32Mistake(); ui.focus('devboards'); } },
     ] },
     { name: '編輯', items: [
       { label: '復原', keys: `${MOD}Z`, onClick: undo, disabled: !undoN },
       { label: '重做', keys: `${MOD}Y`, onClick: redo, disabled: !redoN },
       'sep',
-      { label: '刪除選取的零件', keys: 'Delete', disabled: !selectedId, onClick: () => { const id = useBoard.getState().selectedId; if (id) useBoard.getState().removePart(id); } },
+      { label: '刪除選取的零件', keys: 'X / Delete', disabled: !selectedId, onClick: () => { const id = useBoard.getState().selectedId; if (id) useBoard.getState().removePart(id); } },
       { label: '取消放置 / 回到選取工具', keys: 'Esc', onClick: () => useBoard.setState({ pending: null, tool: 'select', message: '' }) },
       'sep',
       { label: '清空麵包板', onClick: () => { if (confirm('清空麵包板上所有零件？')) useBoard.getState().clearBoard(); } },

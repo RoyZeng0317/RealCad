@@ -1,5 +1,5 @@
 // 開發板相關介面：左側元件庫「開發板」、右側檢視器的開發板卡片、下方「程式碼」與「序列埠」分頁
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react';
 import { DEV_BOARDS, DEV_KINDS, devNet, type DevKind } from './boardDefs.js';
 import { useDev, isPowered } from './devStore.js';
 import { MODE } from './sketchRun.js';
@@ -140,6 +140,14 @@ export function CodePanel() {
   const s = useDev.getState();
   const text = useRef<HTMLTextAreaElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
+  // 程式插入縮排後，要在 React 更新完文字的同一輪就把游標放回去（不能等下一幀，否則快速打字會錯位）
+  const caret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (caret.current !== null && text.current) {
+      text.current.selectionStart = text.current.selectionEnd = caret.current;
+      caret.current = null;
+    }
+  });
   const present = DEV_KINDS.filter((k) => conf[k].present);
   useEffect(() => { if (present.length && !present.includes(tab)) s.setCodeTab(present[0]); });
   if (!present.length) return <NoBoards />;
@@ -149,11 +157,20 @@ export function CodePanel() {
   const errLine = rt.compileError?.line ?? rt.runtimeError?.line;
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
+    const el = e.currentTarget, a = el.selectionStart, b = el.selectionEnd;
+    const py = d.language === 'python';
+    const insert = (text: string) => {
+      caret.current = a + text.length;
+      s.setCode(tab, code.slice(0, a) + text + code.slice(b));
+    };
+    if (e.key === 'Tab') { e.preventDefault(); insert(py ? '    ' : '  '); }
+    // Python：Enter 保留上一行縮排，行尾是冒號就再多縮一層
+    if (py && e.key === 'Enter' && !e.ctrlKey && !e.metaKey && a === b) {
       e.preventDefault();
-      const el = e.currentTarget, a = el.selectionStart, b = el.selectionEnd;
-      s.setCode(tab, code.slice(0, a) + '  ' + code.slice(b));
-      requestAnimationFrame(() => { el.selectionStart = el.selectionEnd = a + 2; });
+      const lineStart = code.lastIndexOf('\n', a - 1) + 1;
+      const cur = code.slice(lineStart, a);
+      const indent = /^\s*/.exec(cur)![0];
+      insert('\n' + indent + (/:\s*(#.*)?$/.test(cur) ? '    ' : ''));
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); s.upload(tab); }
     e.stopPropagation(); // 不要觸發 Delete 刪零件等全域快捷鍵
@@ -193,8 +210,10 @@ export function CodePanel() {
         />
       </div>
       <p style={help}>
-        支援：pinMode / digitalWrite / digitalRead / analogWrite / analogRead / delay / millis / Serial.print(ln)、if / for / while / switch、函式、陣列、#define。
-        {tab === 'uno' ? ' Uno 的 int 是 16 位元。' : ''}{tab === 'stm32' ? ' 腳位寫 PA0、PB12、PC13…' : ''}{tab === 'pi5' ? ' Pi 用 main() 與 BCM 編號，printf 會輸出到序列埠分頁。' : ''}
+        {d.language === 'python'
+          ? 'MicroPython：from machine import Pin, PWM、Pin(17, Pin.OUT)、.on() / .off() / .value() / .toggle()、Pin(27, Pin.IN, Pin.PULL_UP)、PWM(Pin(18), freq=1000, duty_u16=32768)、time.sleep / sleep_ms / ticks_ms、print、f-string、if / for / while / def / try、list / dict。腳位用 BCM GPIO 編號（Pi 5 沒有 ADC）。'
+          : '支援：pinMode / digitalWrite / digitalRead / analogWrite / analogRead / delay / millis / Serial.print(ln)、if / for / while / switch、函式、陣列、#define。'}
+        {tab === 'uno' ? ' Uno 的 int 是 16 位元。' : ''}{tab === 'stm32' ? ' 腳位寫 PA0、PB12、PC13…' : ''}
       </p>
     </div>
   );

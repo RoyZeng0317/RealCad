@@ -7,12 +7,12 @@ import {
   DIODE_MODELS, DIODE_PIV, RESISTOR_VALUES, RESISTOR_RATING, WIRE_COLORS, THERMAL, LDO_VIN_MAX,
   fmtOhm, partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
-import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake } from './boardDemo.js';
+import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink } from './boardDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
 export const TOOL_HINT: Record<Tool, string> = {
-  select: '點零件（或它插的孔）看電壓、電流、功率與溫度；Delete 鍵刪除。',
+  select: '點零件看電壓、電流、功率與溫度；按住零件拖曳可以移到別的孔（杜邦線是拖其中一端）；X 或 Delete 刪除。',
   probe: '點任一個孔：紅棒放在那裡，黑棒固定接 GND，讀出該點對地電壓。',
   wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
@@ -29,11 +29,16 @@ export const TOOL_NAME: Record<Tool, string> = {
 export function useBoardKeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const el = e.target as HTMLElement;
+      if (el?.tagName === 'INPUT' || el?.tagName === 'SELECT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const st = useBoard.getState();
-      if (e.key === 'Escape') useBoard.setState({ pending: null, message: '', tool: 'select' });
-      if ((e.key === 'Delete' || e.key === 'Backspace') && st.selectedId) st.removePart(st.selectedId);
+      const key = e.key.toLowerCase();
+      if (e.key === 'Escape') { st.endDrag(false); useBoard.setState({ pending: null, message: '', tool: 'select' }); }
+      // 單鍵快捷鍵：S 選取、W 杜邦線、X 刪除選取的零件
+      else if (key === 's') st.setTool('select');
+      else if (key === 'w') st.setTool('wire');
+      else if ((key === 'x' || e.key === 'Delete' || e.key === 'Backspace') && st.selectedId) { e.preventDefault(); st.removePart(st.selectedId); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -46,10 +51,10 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
   { tool: 'led', name: 'LED', sub: '5 mm・紅 / 黃 / 綠 / 藍 / 白', icon: '◉' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
-  { tool: 'wire', name: '杜邦線', sub: '公對公・接孔或接線柱', icon: '〰' },
+  { tool: 'wire', name: '杜邦線（W）', sub: '公對公・接孔或接線柱', icon: '〰' },
 ];
 const TOOL_ITEMS: LibItem[] = [
-  { tool: 'select', name: '選取', sub: '看零件工作點・Delete 刪除', icon: '↖' },
+  { tool: 'select', name: '選取（S）', sub: '拖曳移動零件・X 刪除', icon: '↖' },
   { tool: 'probe', name: '三用電表', sub: 'DC V・黑棒接 GND', icon: 'V' },
 ];
 
@@ -135,6 +140,9 @@ export function PartLibrary() {
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
           Arduino Uno：LED 閃爍（Blink）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadPi5Blink(); useLabUi.getState().focus('devboards'); }}>
+          Raspberry Pi 5：MicroPython LED 閃爍
         </button>
         <button style={chip(false, '', '#4a1a1a')} onClick={() => { loadEsp32Mistake(); useLabUi.getState().focus('devboards'); }}>
           錯誤示範：5 V 接到 ESP32 GPIO

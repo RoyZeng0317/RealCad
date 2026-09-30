@@ -472,8 +472,8 @@ export class SketchRunner {
   private wakeAt = 0;
   state: RunState = 'running';
   error: { msg: string; line: number } | null = null;
-  constructor(prog: Program, hal: Hal, private start: number) {
-    this.gen = new Interp(prog, hal).run();
+  constructor(gen: Gen<void>, private start: number) {
+    this.gen = gen;
   }
   step(now: number, maxYields = 12): RunState {
     if (this.state === 'done' || this.state === 'error') return this.state;
@@ -494,8 +494,12 @@ export class SketchRunner {
   get startedAt() { return this.start; }
 }
 
-/** 編譯（只做語法分析），錯誤時回傳行號與訊息 */
-export function compile(src: string): { prog?: Program; error?: { msg: string; line: number } } {
-  try { return { prog: parseSketch(src) }; }
-  catch (err) { return { error: err instanceof SketchError ? { msg: err.message, line: err.line } : { msg: String(err), line: 0 } }; }
+/** 把 C 程式（AST）接上硬體，得到可以一步步執行的 generator */
+export function startC(prog: Program, hal: Hal): Gen<void> {
+  return new Interp(prog, hal).run();
+}
+
+/** C 語法分析 */
+export function parseC(src: string): Program {
+  return parseSketch(src);
 }

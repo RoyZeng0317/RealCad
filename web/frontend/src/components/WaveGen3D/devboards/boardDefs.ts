@@ -1,5 +1,6 @@
 // 四塊開發板的腳位、尺寸與電氣規格（依真實板子的排針位置，單位：孔距 P = 2.54 mm）
 import { P } from '../breadboardGrid.js';
+import type { Language } from './compile.js';
 
 export type DevKind = 'uno' | 'esp32' | 'stm32' | 'pi5';
 export const DEV_KINDS: DevKind[] = ['uno', 'esp32', 'stm32', 'pi5'];
@@ -39,6 +40,7 @@ export interface DevBoardDef {
   lim5V: number; lim3V3: number; // 5 V（USB）/ 3.3 V 穩壓器可供電流 A
   intBits: 16 | 32;
   lang: string;
+  language: Language; // c = Arduino 風格 C、python = MicroPython
   consts: Record<string, number>;
   led?: { gpio: number; activeLow?: boolean; color: string; label: string };
   pins: PinDef[];
@@ -179,7 +181,7 @@ export const DEV_BOARDS: Record<DevKind, DevBoardDef> = {
   uno: {
     kind: 'uno', name: 'Arduino Uno R3', mcu: 'ATmega328P・5 V・16 MHz', size: { w: 27 * P, d: 21 * P }, pcb: '#0f6e8c', female: true,
     slot: { x: 2.35, z: -0.95 }, vcc: 5, rOut: 25, iMax: 0.04, vih: 3.0, vil: 1.5, pullR: 35000, adcBits: 10, adcRef: 5,
-    lim5V: 0.5, lim3V3: 0.15, intBits: 16, lang: 'Arduino C++',
+    lim5V: 0.5, lim3V3: 0.15, intBits: 16, lang: 'Arduino C++', language: 'c',
     consts: { LED_BUILTIN: 13, A0: 14, A1: 15, A2: 16, A3: 17, A4: 18, A5: 19, SDA: 18, SCL: 19 },
     led: { gpio: 13, color: '#ffb020', label: 'L' },
     pins: unoPins(),
@@ -188,7 +190,7 @@ export const DEV_BOARDS: Record<DevKind, DevBoardDef> = {
   esp32: {
     kind: 'esp32', name: 'ESP32 DevKitC', mcu: 'ESP32-WROOM-32・3.3 V・240 MHz', size: { w: 21.6 * P, d: 11 * P }, pcb: '#1b1b1f', female: false,
     slot: { x: 2.35, z: 0.9 }, vcc: 3.3, rOut: 30, iMax: 0.04, vih: 2.475, vil: 0.825, pullR: 45000, adcBits: 12, adcRef: 3.3,
-    lim5V: 0.5, lim3V3: 0.6, intBits: 32, lang: 'Arduino-ESP32',
+    lim5V: 0.5, lim3V3: 0.6, intBits: 32, lang: 'Arduino-ESP32', language: 'c',
     consts: { LED_BUILTIN: 2, A0: 36, A3: 39, A4: 32, A5: 33, A6: 34, A7: 35, T0: 4 },
     led: { gpio: 2, color: '#2a7aff', label: 'IO2' },
     pins: esp32Pins(),
@@ -197,7 +199,7 @@ export const DEV_BOARDS: Record<DevKind, DevBoardDef> = {
   stm32: {
     kind: 'stm32', name: 'STM32 Blue Pill', mcu: 'STM32F103C8T6・3.3 V・72 MHz', size: { w: 21 * P, d: 9 * P }, pcb: '#1846a0', female: false,
     slot: { x: 4.35, z: 0.9 }, vcc: 3.3, rOut: 40, iMax: 0.025, vih: 2.0, vil: 1.0, pullR: 40000, adcBits: 12, adcRef: 3.3,
-    lim5V: 0.5, lim3V3: 0.3, intBits: 32, lang: 'STM32duino',
+    lim5V: 0.5, lim3V3: 0.3, intBits: 32, lang: 'STM32duino', language: 'c',
     consts: { LED_BUILTIN: 45, ...stmConsts },
     led: { gpio: 45, activeLow: true, color: '#3cff5a', label: 'PC13' },
     pins: stm32Pins(),
@@ -206,25 +208,23 @@ export const DEV_BOARDS: Record<DevKind, DevBoardDef> = {
   pi5: {
     kind: 'pi5', name: 'Raspberry Pi 5', mcu: 'BCM2712・GPIO 3.3 V', size: { w: 33.5 * P, d: 22 * P }, pcb: '#2a7a3a', female: false,
     slot: { x: 4.4, z: -0.9 }, vcc: 3.3, rOut: 50, iMax: 0.016, vih: 2.0, vil: 0.8, pullR: 50000, adcBits: 0, adcRef: 0,
-    lim5V: 1.6, lim3V3: 0.8, intBits: 32, lang: 'WiringPi C（BCM 腳位編號）',
+    lim5V: 1.6, lim3V3: 0.8, intBits: 32, lang: 'MicroPython（machine 模組・BCM 編號）', language: 'python',
     consts: {},
     pins: pi5Pins(),
-    example: `// Raspberry Pi 5：WiringPi 風格 C（BCM 編號）。GPIO17 = 實體第 11 腳
-#include <wiringPi.h>
-#include <stdio.h>
+    example: `# Raspberry Pi 5（MicroPython）：GPIO17 = 實體第 11 腳
+from machine import Pin
+import time
 
-int main(void) {
-  wiringPiSetupGpio();
-  pinMode(17, OUTPUT);
-  for (int i = 1; ; i++) {
-    digitalWrite(17, HIGH);
-    delay(500);
-    digitalWrite(17, LOW);
-    delay(500);
-    printf("blink %d\\n", i);
-  }
-  return 0;
-}
+led = Pin(17, Pin.OUT)
+count = 0
+
+while True:
+    led.on()
+    time.sleep(0.5)
+    led.off()
+    time.sleep(0.5)
+    count += 1
+    print(f"blink {count}")
 `,
   },
 };
