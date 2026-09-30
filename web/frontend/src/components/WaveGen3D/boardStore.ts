@@ -3,8 +3,9 @@ import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
 import { hitHole } from './breadboardGrid.js';
 import { type BoardPart, type PartKind, type DiodeModel, type LedColor, WIRE_COLORS } from './boardParts.js';
+import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'erase';
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'erase';
 
 interface BoardState {
   parts: BoardPart[];
@@ -49,7 +50,7 @@ export function placementError(parts: BoardPart[], part: BoardPart, pins: HoleKe
   if (pins.some((h) => !h.startsWith('p:') && occ.has(h))) return '目標孔已經插了其他零件';
   if (part.kind === 'wire') return pins[0] === pins[1] ? '杜邦線兩端不能插同一個孔' : '';
   if (pins.some((h) => h.startsWith('p:') || h.startsWith('h:'))) return '零件腳只能插在麵包板的孔';
-  if (part.kind !== 'ldo' && netOf(pins[0]) === netOf(pins[1])) return '兩隻腳會在同一組相通的孔裡（短路）';
+  if (part.kind !== 'ldo' && part.kind !== 'atmega' && part.kind !== 'ch340' && netOf(pins[0]) === netOf(pins[1])) return '兩隻腳會在同一組相通的孔裡（短路）';
   return '';
 }
 
@@ -161,6 +162,16 @@ export const useBoard = create<BoardState>((set, get) => ({
     if (!k.startsWith('p:') && occ.has(k)) { set({ message: '這個孔已經插了零件腳' }); return; }
     if (s.tool !== 'wire' && (k.startsWith('p:') || k.startsWith('h:'))) { set({ message: '零件腳不能直接插在接線柱或開發板排針上，請用杜邦線連接' }); return; }
 
+    // DIP IC：點的那一列放第 1 腳，跨在端子排中間的溝上（e / f 欄）
+    if (s.tool === 'atmega' || s.tool === 'ch340') {
+      const n = s.tool === 'atmega' ? 28 : 16;
+      const pins = dipPins(k, n);
+      if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : 'CH340G'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: 'IC 要佔用的孔已經有其他零件' }); return; }
+      const part: BoardPart = { id: newId(s.tool), kind: s.tool, pins, gen: 0, ...(s.tool === 'atmega' ? { code: ATMEGA_EXAMPLE } : {}) };
+      set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
+      return;
+    }
     if (s.tool === 'ldo') {
       const pins = ldoPins(k, s.ldoDir);
       if (!pins) { set({ message: 'LT1117 要放在端子排，而且排列方向上還要有 2 列空位' }); return; }

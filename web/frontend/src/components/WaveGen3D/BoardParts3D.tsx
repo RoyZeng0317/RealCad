@@ -1,4 +1,4 @@
-// 麵包板上零件的 3D 模型：色碼電阻、1N400x 二極體、LT1117-3.3（TO-220）、跳線，以及熱模型（發熱、燒毀、熱關斷）
+// 麵包板上零件的 3D 模型：色碼電阻、1N400x 二極體、LT1117-3.3（TO-220）、跳線（DIP IC 在 chips/Chip3D.tsx），以及熱模型（發熱、燒毀、熱關斷）
 // 所有座標都是麵包板本地座標（放在 LabBreadboard 的 group 裡）
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
@@ -13,12 +13,13 @@ import { holePos, type HoleKey } from './boardModel.js';
 import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
+import { Chip3D } from './chips/Chip3D.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
-type Sel = boolean | 'bad';
+export type Sel = boolean | 'bad';
 const AMBIENT = 25;
-const LEAD = '#c9ced4';
+export const LEAD = '#c9ced4';
 
 // ---- 熱模型：每個零件的溫度（key = id#gen，更換零件後從室溫重來） ----
 const temps = new Map<string, number>();
@@ -95,7 +96,7 @@ function Bent({ pts, r, color }: { pts: THREE.Vector3[]; r: number; color: strin
 }
 
 /** 依溫度把本體染成發熱紅光／燒黑 */
-function useHeatMaterial(part: BoardPart, base: string, selected: Sel) {
+export function useHeatMaterial(part: BoardPart, base: string, selected: Sel) {
   const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: base, roughness: 0.55 }), [base]);
   useEffect(() => () => mat.dispose(), [mat]);
   useFrame(() => {
@@ -112,7 +113,7 @@ function useHeatMaterial(part: BoardPart, base: string, selected: Sel) {
 /**
  * 零件的滑鼠事件：選取工具下點一下 = 選取；按住拖曳 = 移到別的孔（放開才生效，不合法會自動取消）
  */
-function usePartEvents(part: BoardPart) {
+export function usePartEvents(part: BoardPart) {
   return {
     onPointerDown: (e: ThreeEvent<PointerEvent>) => {
       if (useBoard.getState().tool !== 'select' || e.nativeEvent.button !== 0) return;
@@ -431,6 +432,7 @@ export function BoardParts3D() {
         if (p.kind === 'diode') return <Diode3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'led') return <Led3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ldo') return <Ldo3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'atmega' || p.kind === 'ch340') return <Chip3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}
       <BoardMarkers />

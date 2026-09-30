@@ -9,6 +9,8 @@ import type { PsuReading, PsuSettings } from './psu.js';
 import { useDev, type Issue } from './devboards/devStore.js';
 import { devElements, devIssues, type DevState, type Damage } from './devboards/devCircuit.js';
 import { DEV_KINDS, type DevKind } from './devboards/boardDefs.js';
+import { useChips, type ChipRt } from './chips/chipStore.js';
+import { chipElements } from './chips/chipCircuit.js';
 
 export interface Bench {
   sol: Solution;
@@ -42,7 +44,7 @@ function mergeNets(parts: BoardPart[]) {
 
 let cache: { key: unknown[]; bench: Bench } | null = null;
 
-export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState): Bench {
+export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}): Bench {
   const merged = mergeNets(parts);
   const net = merged.hole;
   const VA = net(postKey('Va')), GND = net(postKey('GND'));
@@ -70,6 +72,7 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
     }
   }
   els.push(...devElements(dev, merged.net, GND));
+  els.push(...chipElements(parts, chips, net));
   const sol = solveCircuit(els, GND);
   const di = devIssues(dev, sol, merged.net);
   const r = sol.el.psu;
@@ -97,10 +100,11 @@ export function getBench(): Bench {
   const bs = useBoard.getState();
   const ds = useDev.getState();
   // 只有會影響電路的開發板狀態才放進快取 key（序列埠輸出改變不用重算電路）
-  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf,
+  const cs = useChips.getState();
+  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec,
     ...DEV_KINDS.flatMap((k) => [ds.rt[k].pins, ds.rt[k].dead, ds.rt[k].tripped])];
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.bench;
-  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds);
+  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt);
   cache = { key, bench };
   return bench;
 }
@@ -114,5 +118,6 @@ export function useBench(): Bench {
   useBoard((s) => s.tsd);
   useDev((s) => s.conf);
   useDev((s) => s.rt);
+  useChips((s) => s.elec);
   return getBench();
 }

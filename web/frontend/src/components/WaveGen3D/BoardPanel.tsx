@@ -1,6 +1,8 @@
 // 麵包板操作介面：左側元件庫（零件/工具/範例）、右側檢視器（三用電表、選取零件的工作點）
 import { useEffect, type CSSProperties } from 'react';
 import { useBoard, type Tool } from './boardStore.js';
+import { ChipCard } from './chips/ChipPanels.js';
+import { loadAtmegaDemo } from './chips/chipDemo.js';
 import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
@@ -19,11 +21,13 @@ export const TOOL_HINT: Record<Tool, string> = {
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
   diode: '先點陽極（A）的孔，再點陰極（K，有銀色環那端）的孔。',
   led: '先點陽極（長腳 +）的孔，再點陰極（短腳 −）的孔；記得串限流電阻。',
+  atmega: '點一個端子排的孔：第 1 腳（RESET，缺口那端）放在那一列，14 隻腳沿 e 欄往下、另 14 隻在 f 欄（跨在中間的溝上）。',
+  ch340: '點一個端子排的孔：第 1 腳（GND）放在那一列，8 隻腳沿 e 欄往下、另 8 隻在 f 欄；Micro USB 線已接到電腦。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
+  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', atmega: 'ATmega328P', ch340: 'CH340G',
 };
 
 /**
@@ -76,6 +80,8 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
   { tool: 'led', name: 'LED', sub: '5 mm・紅 / 黃 / 綠 / 藍 / 白', icon: '◉' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
+  { tool: 'atmega', name: 'ATmega328P-PU', sub: 'AVR 微控制器・DIP-28・可寫 Arduino C', icon: '▥' },
+  { tool: 'ch340', name: 'CH340G', sub: 'USB 轉序列（上傳程式／序列埠）・DIP-16', icon: '⇄' },
   { tool: 'wire', name: '杜邦線（W）', sub: '公對公・接孔或接線柱', icon: '〰' },
 ];
 const TOOL_ITEMS: LibItem[] = [
@@ -169,6 +175,9 @@ export function PartLibrary() {
         <button style={chip(false, '', '#12345a')} onClick={() => { loadPi5Blink(); useLabUi.getState().focus('devboards'); }}>
           Raspberry Pi 5：MicroPython LED 閃爍
         </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadAtmegaDemo(); useLabUi.getState().focus('breadboard'); }}>
+          麵包板 Arduino：ATmega328P + CH340
+        </button>
         <button style={chip(false, '', '#4a1a1a')} onClick={() => { loadEsp32Mistake(); useLabUi.getState().focus('devboards'); }}>
           錯誤示範：5 V 接到 ESP32 GPIO
         </button>
@@ -205,6 +214,10 @@ export function DmmCard() {
 }
 
 export function PartCard({ part }: { part: BoardPart }) {
+  return part.kind === 'atmega' || part.kind === 'ch340' ? <ChipCard part={part} /> : <SimplePartCard part={part} />;
+}
+
+function SimplePartCard({ part }: { part: BoardPart }) {
   const s = useBoard();
   const bench = useBench();
   const r = bench.sol.el[part.id];
