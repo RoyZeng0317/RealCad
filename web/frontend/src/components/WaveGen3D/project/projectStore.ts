@@ -122,7 +122,7 @@ export function startTracking(): () => void {
         const code = (x: typeof s.parts) => x.map((q) => (q.code ?? '') + '\u0000' + (q.flash ?? '')).join('\u0001');
         if (code(s.parts) !== code(p.parts)) markDirty();
       }
-      if (s.dmm !== p.dmm || s.dmmBlack !== p.dmmBlack) markDirty();
+      if (s.dmm !== p.dmm || s.dmmBlack !== p.dmmBlack || s.leads !== p.leads) markDirty();
     }),
     useDev.subscribe((s, p) => {
       if (s.conf === p.conf) return;

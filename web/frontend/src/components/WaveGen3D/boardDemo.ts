@@ -1,6 +1,8 @@
 // 範例電路：Va → 1N4007（防反接）→ LT1117-3.3 → 330 Ω 負載，三用電表量 3.3 V 輸出
 import type { BoardPart } from './boardParts.js';
 import { useBoard } from './boardStore.js';
+import { useWaveLab } from './waveStore.js';
+import { TIME_DIVS, VOLT_DIVS } from './waveform.js';
 import { usePsuLab } from './psuStore.js';
 import { LOAD_STEPS } from './psu.js';
 import { useDev } from './devboards/devStore.js';
@@ -110,4 +112,21 @@ export function loadFpgaCounter() {
   f.setProg({ mode: 'jtag', source: 'build' });
   f.compile();
   f.program(true);
+}
+
+/** 範例：函數產生器接麵包板做半波整流 — 10 Vpp 正弦 → 1N4007 → 1 kΩ 到地；CH1 看輸入、CH2 看電阻上的輸出（只剩正半週，少 0.7 V） */
+export function loadRectifierDemo() {
+  useBoard.getState().loadParts([
+    { id: 'rx-d1', kind: 'diode', pins: ['t:1:20:2', 't:1:26:2'], model: '1N4007', gen: 0 },
+    { id: 'rx-r1', kind: 'resistor', pins: ['t:1:26:3', 'b:1:1:26'], value: 1000, gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: null, dmm: 't:1:26:4', dmmBlack: 'p:GND' });
+  const b = useBoard.getState();
+  b.setLead('fg', ['t:1:20:0', 'b:1:1:20']);
+  b.setLead('ch1', ['t:1:20:1', 'b:1:1:21']);
+  b.setLead('ch2', ['t:1:26:1', 'b:1:1:27']);
+  const w = useWaveLab.getState();
+  w.setWaveform('sine');
+  w.setGen({ frequency: 1000, amplitude: 10, offset: 0, power: true, output: true });
+  w.setScope({ timeDivIdx: TIME_DIVS.indexOf(0.0002), voltDivIdx: VOLT_DIVS.indexOf(2), position: 1.5, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: -3, trigSource: 'CH1', trigLevel: 0, coupling: 'DC', running: true });
 }

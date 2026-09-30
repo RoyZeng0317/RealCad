@@ -35,6 +35,37 @@ export function sampleWave(s: GenSettings, t: number): number {
   return Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, out));
 }
 
+/** 一個週期的平均值（直流成分）：三用電表等直流量測用 */
+export function waveMean(s: GenSettings): number {
+  if (!s.power || !s.output) return 0;
+  if (s.waveform === 'noise') return Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, s.offset));
+  let sum = 0;
+  const N = 200;
+  for (let i = 0; i < N; i++) sum += sampleWave(s, (i + 0.5) / N / s.frequency);
+  return sum / N;
+}
+
+/** 輸出電壓的範圍（最低、最高；已含 ±10 V 削峰） */
+export function waveRange(s: GenSettings): [number, number] {
+  if (!s.power || !s.output) return [0, 0];
+  const lim = (v: number) => Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, v));
+  return [lim(s.offset - s.amplitude / 2), lim(s.offset + s.amplitude / 2)];
+}
+
+/** 一般化的上升緣觸發：對任意訊號 v(t) 找穿越點（麵包板上量到的波形用） */
+export function findTriggerFn(v: (t: number) => number, period: number, level: number, tStart: number): number | null {
+  const N = 400;
+  const dt = period / N;
+  let prev = v(tStart);
+  for (let i = 1; i <= N + 1; i++) {
+    const t = tStart + i * dt;
+    const x = v(t);
+    if (prev < level && x >= level) return t - dt + ((level - prev) / (x - prev || 1)) * dt;
+    prev = x;
+  }
+  return null;
+}
+
 /**
  * 從 tStart 往後找第一個「上升穿越 level」的時間點（示波器上升緣觸發）。
  * 找不到（例如觸發準位超出訊號範圍、或是雜訊）回傳 null，示波器改用自由觸發（畫面會跑動）。

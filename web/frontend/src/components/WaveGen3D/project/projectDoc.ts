@@ -1,7 +1,7 @@
 // 專案內容 ↔ 各 store：存檔時收集、開檔時「逐欄驗證後」才寫回（別人給的 .rc 檔也不會塞進奇怪的資料）
 import { useWaveLab } from '../waveStore.js';
 import { usePsuLab } from '../psuStore.js';
-import { useBoard } from '../boardStore.js';
+import { useBoard, type Leads } from '../boardStore.js';
 import { useDev, type DevConf } from '../devboards/devStore.js';
 import { DEV_KINDS, DEV_BOARDS, type DevKind } from '../devboards/boardDefs.js';
 import { useFpga, exampleConf, MAX_FILE, type FpgaConf } from '../devboards/fpga/fpgaStore.js';
@@ -25,7 +25,7 @@ export interface LabDoc {
   savedAt: string;
   gen: unknown; scope: unknown; psu: unknown;
   load: { idx: number; burnt: boolean };
-  board: { parts: BoardPart[]; dmm: string | null; dmmBlack?: string | null };
+  board: { parts: BoardPart[]; dmm: string | null; dmmBlack?: string | null; leads?: Leads };
   dev: Record<DevKind, DevConf>;
   fpga?: FpgaConf;
 }
@@ -36,7 +36,7 @@ export function collectDoc(name: string): LabDoc {
     format: DOC_FORMAT, version: DOC_VERSION, name, savedAt: new Date().toISOString(),
     gen: w.gen, scope: w.scope, psu: p.psu,
     load: { idx: p.loadIdx, burnt: p.burnt },
-    board: { parts: b.parts, dmm: b.dmm, dmmBlack: b.dmmBlack },
+    board: { parts: b.parts, dmm: b.dmm, dmmBlack: b.dmmBlack, leads: b.leads },
     dev: d.conf,
     fpga: (({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }) =>
       ({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }))(useFpga.getState()),
@@ -161,7 +161,12 @@ export function applyDoc(raw: unknown): string {
   const dmm = typeof b.dmm === 'string' && isValidHole(b.dmm) ? b.dmm : null;
   // 舊檔沒有黑棒位置：當時黑棒固定接 GND
   const dmmBlack = b.dmmBlack === null ? null : typeof b.dmmBlack === 'string' && isValidHole(b.dmmBlack) ? b.dmmBlack : 'p:GND';
-  useBoard.setState({ dmm, dmmBlack, probeSide: 'red', tool: 'select', temps: {}, tsd: {}, message: '' });
+  // 儀器接到麵包板的線：兩端都要是合法的孔
+  const rl = obj(b.leads);
+  const lead = (v: unknown): [string, string] | null =>
+    Array.isArray(v) && v.length === 2 && v.every((h) => typeof h === 'string' && isValidHole(h)) ? [v[0], v[1]] : null;
+  const leads: Leads = { fg: lead(rl.fg), ch1: lead(rl.ch1), ch2: lead(rl.ch2) };
+  useBoard.setState({ dmm, dmmBlack, probeSide: 'red', leads, tool: 'select', temps: {}, tsd: {}, message: '' });
 
   return str(d.name, 100, '未命名專案') || '未命名專案';
 }

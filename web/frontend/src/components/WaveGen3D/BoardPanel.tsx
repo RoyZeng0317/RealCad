@@ -4,13 +4,14 @@ import { useBoard, type Tool } from './boardStore.js';
 import { ChipCard } from './chips/ChipPanels.js';
 import { ResistorInput } from './ResistorInput.js';
 import { loadAtmegaDemo } from './chips/chipDemo.js';
-import { useBench, meterV } from './bench.js';
+import { useBench } from './bench.js';
+import { dmmReading } from './scopeLink.js';
 import { holeName } from './boardModel.js';
 import {
   DIODE_MODELS, DIODE_PIV, RESISTOR_RATING, WIRE_COLORS, THERMAL, LDO_VIN_MAX,
   partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
-import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink } from './boardDemo.js';
+import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadRectifierDemo } from './boardDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -25,10 +26,14 @@ export const TOOL_HINT: Record<Tool, string> = {
   atmega: '點一個端子排的孔：第 1 腳（RESET，缺口那端）放在那一列，14 隻腳沿 e 欄往下、另 14 隻在 f 欄（跨在中間的溝上）。',
   ch340: '點一個端子排的孔：第 1 腳（GND）放在那一列，8 隻腳沿 e 欄往下、另 8 隻在 f 欄；Micro USB 線已接到電腦。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
+  fg: '函數產生器輸出線：先點紅色 +（訊號）要插的孔，再點黑色 −（地）要插的孔。產生器輸出內阻 50 Ω。',
+  ch1: '示波器 CH1 探棒：先點探針要勾的孔（量這一點），再點接地夾要夾的孔（通常是 GND）。',
+  ch2: '示波器 CH2 探棒：先點探針要勾的孔（量這一點），再點接地夾要夾的孔（通常是 GND）。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
   select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', atmega: 'ATmega328P', ch340: 'CH340G',
+  fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒',
 };
 
 /**
@@ -99,6 +104,9 @@ const PART_ITEMS: LibItem[] = [
 const TOOL_ITEMS: LibItem[] = [
   { tool: 'select', name: '選取（S）', sub: '拖曳移動零件・X 刪除', icon: '↖' },
   { tool: 'probe', name: '三用電表', sub: 'DC V・紅棒 / 黑棒兩支探棒', icon: 'V' },
+  { tool: 'fg', name: '函數產生器輸出線', sub: 'BNC → 紅 + / 黑 −，接到麵包板', icon: '∿' },
+  { tool: 'ch1', name: '示波器 CH1 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '①' },
+  { tool: 'ch2', name: '示波器 CH2 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '②' },
 ];
 
 function LibRow({ item }: { item: LibItem }) {
@@ -185,6 +193,9 @@ export function PartLibrary() {
         <button style={chip(false, '', '#12345a')} onClick={() => { loadDemoCircuit(); useLabUi.getState().focus('breadboard'); }}>
           3.3 V 穩壓電路（1N4007 + LT1117）
         </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadRectifierDemo(); useLabUi.getState().focus('scope'); }}>
+          函數產生器 → 麵包板：半波整流
+        </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
           Arduino Uno：LED 閃爍（Blink）
         </button>
@@ -218,8 +229,8 @@ export function ToolStatus() {
 export function DmmCard() {
   const dmm = useBoard((s) => s.dmm);
   const black = useBoard((s) => s.dmmBlack);
-  const bench = useBench();
-  const v = meterV(bench, dmm, black);
+  useBench(); // 電路或產生器改變時重新讀值
+  const v = dmmReading(dmm, black);
   const small = { ...chip(false), flex: 'none', padding: '1px 8px', fontSize: 11 };
   const where = (h: string | null) => (h ? holeName(h) : '未插');
   return (

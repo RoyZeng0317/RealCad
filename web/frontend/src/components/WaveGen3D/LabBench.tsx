@@ -10,6 +10,8 @@ import { PowerLoad3D } from './PowerLoad3D.js';
 import { ScopeProbe } from './ScopeProbe.js';
 import { LabBreadboard } from './LabBreadboard.js';
 import { BoardLeads } from './BoardLeads.js';
+import { InstrumentLeads } from './InstrumentLeads.js';
+import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { VIEWS } from './layout.js';
 
@@ -47,6 +49,7 @@ function CameraRig({ controls }: { controls: RefObject<OrbitImpl | null> }) {
 }
 
 export function LabBench() {
+  const leads = useBoard((s) => s.leads);
   const controls = useRef<OrbitImpl>(null);
   const dragging = useWaveLab((s) => s.dragging);
   const knobHover = useWaveLab((s) => s.knobHover);
@@ -80,12 +83,13 @@ export function LabBench() {
 
       <FunctionGenerator3D />
       <Oscilloscope3D />
-      <BncCable />
+      {!leads.ch1 && <BncCable />}
       <PowerSupply3D />
       <PowerLoad3D />
-      <ScopeProbe />
+      {!leads.ch2 && <ScopeProbe />}
       <LabBreadboard />
       <BoardLeads />
+      <InstrumentLeads />
 
       <OrbitControls
         ref={controls}

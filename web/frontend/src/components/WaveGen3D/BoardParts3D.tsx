@@ -8,7 +8,8 @@ import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { BREADBOARD } from './layout.js';
 import { useDev } from './devboards/devStore.js';
-import { getBench, meterV } from './bench.js';
+import { getBench, useBench } from './bench.js';
+import { dmmReading } from './scopeLink.js';
 import { holePos, type HoleKey } from './boardModel.js';
 import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
@@ -403,9 +404,8 @@ export function BoardMarkers() {
   const pending = useBoard((s) => s.pending);
   const dmm = useBoard((s) => s.dmm);
   const black = useBoard((s) => s.dmmBlack);
-  useBoard((s) => s.parts);
-  const bench = getBench();
-  const v = meterV(bench, dmm, black);
+  useBench(); // 電路或產生器改變時重新讀值
+  const v = dmmReading(dmm, black);
   return (
     <>
       {pending && (
