@@ -5,9 +5,10 @@ import { useWaveLab, type ViewPreset } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
 import { useLabUi } from './labUi.js';
 import { T } from './panelUi.js';
+import { MenuBar, ProjectTitle } from './project/MenuBar.js';
 
 const VIEWS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'],
+  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'], ['devboards', '開發板'],
 ];
 
 export function LabToolbar() {
@@ -24,8 +25,10 @@ export function LabToolbar() {
       <button style={btn(leftOpen)} onClick={toggleLeft} title="元件庫">☰</button>
       <div style={brand}>
         <span style={{ color: T.accent, fontWeight: 800 }}>RealCad Lab</span>
-        <span style={{ color: T.muted, fontSize: 12 }}>Explore Demos · 函數波產生器實驗桌</span>
+        <span style={{ color: T.muted, fontSize: 11 }}>Explore Demos</span>
       </div>
+      <MenuBar />
+      <ProjectTitle />
       <div style={sep} />
       <div style={group}>
         {VIEWS.map(([v, name]) => (
@@ -55,8 +58,8 @@ export function LabToolbar() {
 }
 
 const bar: CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: T.bg,
-  borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto', fontFamily: T.font,
+  display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: T.bg, position: 'relative', zIndex: 20,
+  borderBottom: `1px solid ${T.border}`, flexShrink: 0, fontFamily: T.font, flexWrap: 'wrap',
 };
 const brand: CSSProperties = { display: 'flex', flexDirection: 'column', lineHeight: 1.2, whiteSpace: 'nowrap', marginLeft: 4 };
 const sep: CSSProperties = { width: 1, alignSelf: 'stretch', background: T.border, margin: '0 4px', flexShrink: 0 };

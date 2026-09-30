@@ -6,6 +6,8 @@ import { useBench } from './bench.js';
 import { useLabUi } from './labUi.js';
 import { formatSI } from './waveform.js';
 import { PartLibrary, ToolStatus, DmmCard, PartCard } from './BoardPanel.js';
+import { DevLibrary, DevBoardCard } from './devboards/DevPanels.js';
+import { useDev } from './devboards/devStore.js';
 import { Section, Stat, T } from './panelUi.js';
 
 const INSTRUMENTS: [ViewPreset, string, string, string][] = [
@@ -13,6 +15,7 @@ const INSTRUMENTS: [ViewPreset, string, string, string][] = [
   ['scope', '示波器', 'DS-1102・雙通道 100 MHz', '⌁'],
   ['psu', '直流電源供應器', 'PS-3005・0–30 V / 0–5 A', '⎓'],
   ['breadboard', '麵包板', 'RB-2・2 × 830 孔', '▦'],
+  ['devboards', '開發板區', 'Uno・ESP32・STM32・Pi 5', '⌗'],
 ];
 
 function InstrumentList() {
@@ -54,6 +57,7 @@ export function LabLibrary() {
     <aside style={side('left', narrow)}>
       <div style={sideHead}>元件庫</div>
       <InstrumentList />
+      <DevLibrary />
       <PartLibrary />
     </aside>
   );
@@ -80,14 +84,17 @@ export function LabInspector() {
   const parts = useBoard((s) => s.parts);
   const selectedId = useBoard((s) => s.selectedId);
   const selected = parts.find((p) => p.id === selectedId) ?? null;
+  const devSel = useDev((s) => s.selected);
   const narrow = useNarrow();
   return (
     <aside style={side('right', narrow)}>
       <div style={sideHead}>檢視器</div>
       <ToolStatus />
       <DmmCard />
+      {devSel && !selected && <DevBoardCard kind={devSel} />}
       {selected
         ? <PartCard part={selected} />
+        : devSel ? null
         : <Section title="選取零件"><p style={{ fontSize: 12, color: T.muted, margin: 0 }}>點麵包板上的零件，這裡會顯示它的電壓、電流、功率與溫度。</p></Section>}
       <LiveReadings />
     </aside>

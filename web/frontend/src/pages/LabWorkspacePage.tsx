@@ -10,11 +10,13 @@ import { LabDock, LabStatusBar } from '../components/WaveGen3D/LabDock.js';
 import { useLabUi } from '../components/WaveGen3D/labUi.js';
 import { useBoardKeys } from '../components/WaveGen3D/BoardPanel.js';
 import { T } from '../components/WaveGen3D/panelUi.js';
+import { useProjectShell, ProjectOverlays } from '../components/WaveGen3D/project/MenuBar.js';
 
 export function LabWorkspacePage() {
   const leftOpen = useLabUi((s) => s.leftOpen);
   const rightOpen = useLabUi((s) => s.rightOpen);
   useBoardKeys();
+  useProjectShell();
 
   return (
     <div style={page}>
@@ -36,6 +38,7 @@ export function LabWorkspacePage() {
         {rightOpen && <LabInspector />}
       </div>
       <LabStatusBar />
+      <ProjectOverlays />
     </div>
   );
 }

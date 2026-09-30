@@ -9,6 +9,16 @@
 - 中間 3D 實驗桌；右側檢視器：工具提示、三用電表、選取零件的工作點、即時讀值
 - 下方可拖曳高度的面板：函數波產生器／示波器／電源供應器／電路節點（節點電壓與零件工作點）／操作說明；最下方狀態列
 - 視窗較窄（手機）時左右側欄改成浮動抽屜（☰、ⓘ 開關）
+- **檔案選單與 .rc 專案檔**：檔案（新增／開啟／儲存／另存新檔／重新命名／範例）、編輯（復原／重做／刪除／清空）、檢視、說明；Ctrl+S、Ctrl+Shift+S、Ctrl+O、Ctrl+Z、Ctrl+Y；可把 .rc 檔拖進頁面開啟；有未儲存變更時關閉頁面會提醒
+  - `.rc` 格式（`project/rcFormat.ts`）：8 bytes 簽章 `RCLAB 1A 0D 0A` + 版本 + 旗標 + IV + AES-256-GCM 加密的 gzip JSON，只有本網站能開啟；內容被改過會驗證失敗、拒絕開啟；開檔時每個欄位都重新驗證（`project/projectDoc.ts`）
+  - 支援 File System Access API 的瀏覽器（Chrome、Edge）會直接覆寫原檔，其他瀏覽器改用下載
+- **開發板**（`devboards/`）：Arduino Uno R3、ESP32 DevKitC、STM32 Blue Pill、Raspberry Pi 5，依真實排針位置建模，用杜邦線從排針接到麵包板
+  - 內建 C 子集直譯器（`sketchLang.ts`／`sketchRun.ts`，不使用 eval）：pinMode／digitalWrite／digitalRead／analogWrite／analogRead／delay／millis／Serial.print(ln)／printf、if／for／while／switch、函式、陣列、#define；Uno 的 int 為 16 位元；Pi 5 用 WiringPi 風格 `main()` 與 BCM 編號
+  - GPIO 以戴維寧等效接進電路求解器（輸出內阻、內建上拉／下拉、USB 5V／3.3V 供電），digitalRead／analogRead 讀的是模擬出來的電壓
+  - 接線錯誤會顯示 ERROR：GPIO 過電流、3.3 V 板子被接 5 V、負電壓、5V／3V3 短路（USB 保險絲跳脫）、3V3 被倒灌、沒上電卻有電壓、ESP32 Flash 腳；持續 0.3 秒以上腳位會燒毀
+  - 開發板 GND 沒跟麵包板 GND 接在一起時兩邊不共地（只有 1 MΩ 漏電），可以模擬「忘記共地」
+  - 下方「程式碼」分頁（上傳並執行 Ctrl+Enter、停止、重新開機、範例）、「序列埠」分頁看輸出
+- 新零件：5 mm LED（紅／黃／綠／藍／白，亮度依電流，超過約 100 mA 會燒毀）
 
 網頁前端 `web/frontend` 新增 3D 實驗桌：函數波產生器 FG-2000 以 BNC 線接到示波器 DS-1100，旁邊是直流電源供應器 PS-3005 接電阻負載。
 - 產生器：正弦／方波／三角／鋸齒／脈波（可調工作週期）／雜訊，頻率 0.1 Hz–10 MHz、振幅、直流偏移（輸出上限 ±10 V，超過會削峰）
@@ -21,6 +31,6 @@
   - 電源供應器 + 接麵包板 Va、− 接 GND（與負載電阻並聯，負載可調成開路）
   - 求解器：`circuit.ts`（MNA + 牛頓法），含電源 CV/CC、二極體 Shockley 模型與逆向崩潰、LT1117 穩壓／壓降不足／1 A 限流／熱關斷
   - 三用電表工具量任一孔對地電壓；選取零件看電壓、電流、功率、溫度；電阻過功率會燒斷、二極體燒毀變短路、LT1117 輸入超過 15 V 損壞
-  - 「載入範例電路」：7 V → 1N4007 → LT1117-3.3 → 330 Ω，輸出 3.300 V
+  - 範例（檔案選單或左側元件庫）：3.3 V 穩壓電路（7 V → 1N4007 → LT1117-3.3 → 330 Ω，輸出 3.300 V）、Arduino Uno LED 閃爍、錯誤示範（5 V 接到 ESP32 GPIO）
 - 操作：3D 面板上的按鍵可直接點；旋鈕按住上下拖曳或滾輪轉動（Shift 微調）；右側 HTML 面板與 3D 面板共用同一份狀態
 - 程式碼：`web/frontend/src/components/WaveGen3D/`（依功能拆分：`waveform.ts` 波形數學、`waveStore.ts` 狀態、`parts.tsx` 旋鈕/按鍵、`FunctionGenerator3D.tsx`、`Oscilloscope3D.tsx`、`BncCable.tsx`、`BananaLead.tsx`、`BoardLeads.tsx`、`ScopeProbe.tsx`、`psu.ts`／`psuStore.ts`／`psuDisplay.ts`／`PowerSupply3D.tsx`／`PowerLoad3D.tsx`／`PsuPanel.tsx` 電源與負載、`breadboardGrid.ts`／`boardModel.ts`／`boardParts.ts`／`boardStore.ts`／`circuit.ts`／`bench.ts`／`BoardParts3D.tsx`／`BoardPanel.tsx` 麵包板與電路模擬、`LabBench.tsx` 場景），頁面入口 `web/frontend/src/pages/LabWorkspacePage.tsx`（工作區元件：`LabToolbar.tsx`、`LabSidebars.tsx`、`LabDock.tsx`、`GenPanel.tsx`、`ScopePanel.tsx`、`NodesPanel.tsx`、`labUi.ts`）

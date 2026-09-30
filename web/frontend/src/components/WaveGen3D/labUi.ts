@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { useWaveLab, type ViewPreset } from './waveStore.js';
 
-export type DockTab = 'generator' | 'scope' | 'psu' | 'nodes' | 'help';
+export type DockTab = 'generator' | 'scope' | 'psu' | 'nodes' | 'code' | 'serial' | 'help';
 
 interface LabUiState {
   dockTab: DockTab;
@@ -15,7 +15,7 @@ interface LabUiState {
   focus: (v: ViewPreset) => void;
 }
 
-const DOCK_OF: Partial<Record<ViewPreset, DockTab>> = { generator: 'generator', scope: 'scope', psu: 'psu', breadboard: 'nodes' };
+const DOCK_OF: Partial<Record<ViewPreset, DockTab>> = { generator: 'generator', scope: 'scope', psu: 'psu', breadboard: 'nodes', devboards: 'code' };
 const wide = typeof window === 'undefined' || window.innerWidth >= 1000;
 
 export const useLabUi = create<LabUiState>((set) => ({

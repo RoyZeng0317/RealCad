@@ -5,9 +5,10 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
+import { useDev } from './devboards/devStore.js';
 import { getBench } from './bench.js';
 import { holePos, type HoleKey } from './boardModel.js';
-import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF } from './boardParts.js';
+import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 
@@ -110,6 +111,7 @@ function usePartEvents(part: BoardPart) {
       if (useBoard.getState().tool !== 'select') return; // 放置工具時讓點擊穿透到下面的孔
       e.stopPropagation();
       useBoard.getState().selectPart(part.id);
+      useDev.getState().select(null);
     },
   };
 }
@@ -177,6 +179,52 @@ export function Diode3D({ part, selected }: { part: BoardPart; selected: boolean
       <Rod a={lay.bodyA} b={lay.bodyB} r={R} mat={mat} />
       {/* 陰極環（銀色）在第二腳那端 */}
       <Rod a={at(0.8)} b={at(0.92)} r={R * 1.02} color="#d8dde3" />
+    </group>
+  );
+}
+
+/** 5 mm LED：本體立在兩隻腳的中間，亮度 ∝ 模擬出來的電流（20 mA = 全亮） */
+export function Led3D({ part, selected }: { part: BoardPart; selected: boolean }) {
+  const color = LED_SPEC[part.ledColor ?? 'red'].hex;
+  const g = useMemo(() => {
+    const [A, B] = part.pins.map(holePos);
+    const base = A.clone().add(B).multiplyScalar(0.5).setY(TOP_Y + 0.07);
+    const dir = new THREE.Vector3(B.x - A.x, 0, B.z - A.z).normalize();
+    const footA = base.clone().addScaledVector(dir, -0.012), footB = base.clone().addScaledVector(dir, 0.012);
+    return {
+      base,
+      leads: [
+        [A.clone().setY(TOP_Y - 0.02), A.clone().setY(TOP_Y + 0.03), footA],
+        [B.clone().setY(TOP_Y - 0.02), B.clone().setY(TOP_Y + 0.03), footB],
+      ],
+    };
+  }, [part.pins]);
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.85, roughness: 0.15 }), [color]);
+  useEffect(() => () => mat.dispose(), [mat]);
+  const light = useRef<THREE.PointLight>(null);
+  useFrame(() => {
+    const i = part.burnt ? 0 : Math.max(0, getBench().sol.el[part.id]?.i ?? 0);
+    const k = Math.min(1, i / 0.02);
+    mat.color.set(part.burnt ? '#2a2420' : color);
+    mat.emissive.set(selected ? '#2f8cff' : color);
+    mat.emissiveIntensity = selected ? 0.4 : k * 2.2;
+    if (light.current) light.current.intensity = k * 0.6;
+  });
+  return (
+    <group {...usePartEvents(part)}>
+      {g.leads.map((pts, i) => <Bent key={i} pts={pts} r={0.005} color={LEAD} />)}
+      <group position={g.base}>
+        <mesh position={[0, 0.006, 0]} material={mat}>
+          <cylinderGeometry args={[0.05, 0.05, 0.012, 24]} />
+        </mesh>
+        <mesh position={[0, 0.05, 0]} material={mat} castShadow>
+          <cylinderGeometry args={[0.044, 0.044, 0.08, 24]} />
+        </mesh>
+        <mesh position={[0, 0.09, 0]} material={mat}>
+          <sphereGeometry args={[0.044, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        </mesh>
+        <pointLight ref={light} color={color} distance={0.8} intensity={0} position={[0, 0.12, 0]} />
+      </group>
     </group>
   );
 }
@@ -316,7 +364,7 @@ export function BoardMarkers() {
             <coneGeometry args={[0.018, 0.1, 12]} />
             <meshStandardMaterial color="#d42a2a" />
           </mesh>
-          <Html position={[0, 0.16, 0]} center style={{ pointerEvents: 'none' }}>
+          <Html zIndexRange={[10, 0]} position={[0, 0.16, 0]} center style={{ pointerEvents: 'none' }}>
             <div style={{
               whiteSpace: 'nowrap', background: '#101418', color: '#7dffb0', fontFamily: 'Consolas, monospace',
               fontSize: 13, padding: '3px 8px', borderRadius: 6, border: '1px solid #2c5a3c',
@@ -339,6 +387,7 @@ export function BoardParts3D() {
         const sel = p.id === selectedId;
         if (p.kind === 'resistor') return <Resistor3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'diode') return <Diode3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'led') return <Led3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ldo') return <Ldo3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}

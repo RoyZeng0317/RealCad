@@ -1,11 +1,12 @@
 // 麵包板上的「孔」：字串 key、所屬導通網路（net）、在板子本地座標的位置
 import * as THREE from 'three';
+import { DEV_BOARDS, devPin, devNet, pinTopY, type DevKind } from './devboards/boardDefs.js';
 import {
   STRIPS, STRIP_Z, TOP_Y, PLATE, ROWS, termColX, rowZ, busZ, busRailX, BUS_SLOTS, COLS, type HoleHit,
 } from './breadboardGrid.js';
 
 export type PostName = 'Va' | 'Vb' | 'GND';
-/** 孔的 key：t:端子排:列:欄、b:電源軌:軌:位置、p:接線柱 */
+/** 孔的 key：t:端子排:列:欄、b:電源軌:軌:位置、p:接線柱、h:開發板:腳位 */
 export type HoleKey = string;
 
 export const POST_XS: Record<PostName, number> = { Va: 0.2, Vb: 0.55, GND: 0.9 };
@@ -24,6 +25,7 @@ export function netOf(k: HoleKey): string {
   const [t, a, b, c] = k.split(':');
   if (t === 't') return `T${a}:${b}:${Number(c) < 5 ? 'L' : 'R'}`;
   if (t === 'b') return `B${a}:${b}`;
+  if (t === 'h') { const p = devPin(a as DevKind, b); return p ? devNet(a as DevKind, p) : `H:${a}:${b}`; }
   return `P:${a}`;
 }
 
@@ -32,6 +34,10 @@ export function holePos(k: HoleKey): THREE.Vector3 {
   const [t, a, b, c] = k.split(':');
   if (t === 't') return new THREE.Vector3(termStrip(+a).x + termColX(+c), TOP_Y, STRIP_Z + rowZ(+b));
   if (t === 'b') return new THREE.Vector3(busStrip(+a).x + busRailX(+b as 0 | 1), TOP_Y, STRIP_Z + busZ(+c));
+  if (t === 'h') {
+    const d = DEV_BOARDS[a as DevKind], p = devPin(a as DevKind, b);
+    return new THREE.Vector3(d.slot.x + (p?.x ?? 0), pinTopY(d), d.slot.z + (p?.z ?? 0));
+  }
   return new THREE.Vector3(POST_XS[a as PostName], POST_TOP, POST_Z);
 }
 
@@ -39,6 +45,7 @@ export function isValidHole(k: HoleKey): boolean {
   const [t, a, b, c] = k.split(':');
   if (t === 't') return +a >= 0 && +a < 2 && +b >= 0 && +b < ROWS && +c >= 0 && +c < 10;
   if (t === 'b') return +a >= 0 && +a < 3 && (b === '0' || b === '1') && BUS_SLOTS.includes(+c);
+  if (t === 'h') return a in DEV_BOARDS && !!devPin(a as DevKind, b);
   return t === 'p' && a in POST_XS;
 }
 
@@ -47,5 +54,6 @@ export function holeName(k: HoleKey): string {
   const [t, a, b, c] = k.split(':');
   if (t === 't') return `端子排${+a + 1} ${+b + 1}${COLS[+c]}`;
   if (t === 'b') return `電源軌${'ABC'[+a]} ${b === '0' ? '+' : '−'}`;
+  if (t === 'h') return `${DEV_BOARDS[a as DevKind]?.name ?? a} ${devPin(a as DevKind, b)?.label ?? b}`;
   return a === 'GND' ? 'GND 接線柱' : `${a} 接線柱`;
 }

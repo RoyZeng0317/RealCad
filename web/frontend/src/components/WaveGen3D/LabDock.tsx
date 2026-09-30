@@ -9,11 +9,13 @@ import { GeneratorControls } from './GenPanel.js';
 import { ScopeControls } from './ScopePanel.js';
 import { PsuSection } from './PsuPanel.js';
 import { NodesPanel, HelpPanel } from './NodesPanel.js';
+import { CodePanel, SerialPanel } from './devboards/DevPanels.js';
 import { TOOL_NAME } from './BoardPanel.js';
 import { T } from './panelUi.js';
 
 const TABS: [DockTab, string][] = [
-  ['generator', '函數波產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['nodes', '電路節點'], ['help', '操作說明'],
+  ['generator', '函數波產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['nodes', '電路節點'],
+  ['code', '程式碼'], ['serial', '序列埠'], ['help', '操作說明'],
 ];
 
 export function LabDock() {
@@ -55,6 +57,8 @@ export function LabDock() {
           {dockTab === 'scope' && <ScopeControls />}
           {dockTab === 'psu' && <PsuSection />}
           {dockTab === 'nodes' && <NodesPanel />}
+          {dockTab === 'code' && <CodePanel />}
+          {dockTab === 'serial' && <SerialPanel />}
           {dockTab === 'help' && <HelpPanel />}
         </div>
       )}

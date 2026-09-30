@@ -79,6 +79,12 @@ export function HelpPanel() {
       <Section title="儀器操作">
         <p style={help}>3D 面板上的按鍵可以直接點；旋鈕用「按住上下拖曳」或「滑鼠滾輪」轉動，按住 Shift 微調。下方面板與 3D 面板是同一份狀態。</p>
       </Section>
+      <Section title="開發板">
+        <p style={help}>左側「開發板」加入 Arduino Uno / ESP32 / STM32 Blue Pill / Raspberry Pi 5，用杜邦線從排針接到麵包板。下方「程式碼」分頁寫程式後按「上傳並執行」，「序列埠」看輸出。接錯（例如 5 V 接到 3.3 V 晶片的腳、GPIO 短路、LED 沒串電阻）板子上方會出現 ERROR，持續太久腳位會燒毀。</p>
+      </Section>
+      <Section title="檔案">
+        <p style={help}>上方「檔案」選單可以新增、開啟、儲存 .rc 專案（Ctrl+S / Ctrl+O），也可以直接把 .rc 檔拖進頁面開啟。.rc 是本網站專屬格式，其他程式無法開啟。</p>
+      </Section>
       <Section title="麵包板">
         <p style={help}>左側選零件後點孔放置：電阻 / 二極體 / 杜邦線點兩個孔，LT1117 點第 1 腳。滑鼠移到孔上會標出相通的孔與電壓。Esc 取消、Delete 刪除選取的零件。</p>
       </Section>

@@ -1,7 +1,7 @@
 // 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、跳線
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'ldo' | 'wire';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire';
 
 export interface BoardPart {
   id: string;
@@ -9,6 +9,7 @@ export interface BoardPart {
   pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]
   value?: number; // 電阻 Ω
   model?: DiodeModel;
+  ledColor?: LedColor;
   color?: string; // 跳線顏色
   burnt?: boolean;
   gen: number; // 更換零件時 +1（讓溫度重新從室溫開始）
@@ -20,6 +21,19 @@ export type DiodeModel = (typeof DIODE_MODELS)[number];
 export const DIODE_PIV: Record<DiodeModel, number> = {
   '1N4001': 50, '1N4002': 100, '1N4003': 200, '1N4004': 400, '1N4005': 600, '1N4006': 800, '1N4007': 1000,
 };
+
+// 5 mm LED：Vf 為 20 mA 時的順向電壓；牛頓法用的理想因子依 Vf 縮放，讓各色 LED 都落在指數模型的有效範圍
+export const LED_COLORS = ['red', 'yellow', 'green', 'blue', 'white'] as const;
+export type LedColor = (typeof LED_COLORS)[number];
+export const LED_SPEC: Record<LedColor, { name: string; vf: number; hex: string }> = {
+  red: { name: '紅', vf: 2.0, hex: '#ff2a1a' },
+  yellow: { name: '黃', vf: 2.1, hex: '#ffc21a' },
+  green: { name: '綠', vf: 2.2, hex: '#2aff4a' },
+  blue: { name: '藍', vf: 3.1, hex: '#2a7aff' },
+  white: { name: '白', vf: 3.2, hex: '#f4f7ff' },
+};
+export const ledModel = (c: LedColor) => ({ nvt: LED_SPEC[c].vf / 32, is: 0.02 / Math.exp(32), bv: 5 });
+export const LED_IMAX = 0.03; // 連續最大電流 30 mA
 
 // E12 系列 10 Ω ~ 1 MΩ
 export const RESISTOR_VALUES: number[] = [1, 2, 3, 4, 5].flatMap((e) =>
@@ -44,6 +58,7 @@ export function colorBands(ohms: number): string[] {
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
   resistor: { rth: 280, tau: 4, burn: 330 }, // 1/4 W：約 1 W 以上會燒
   diode: { rth: 60, tau: 5, burn: 260 }, // 1N400x：約 4 W 以上會燒
+  led: { rth: 1200, tau: 1.5, burn: 300 }, // 5 mm LED：約 0.23 W（~100 mA）以上會燒
   ldo: { rth: 50, tau: 8, burn: Infinity }, // TO-220 無散熱片：150 °C 熱關斷，不會燒
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
@@ -52,6 +67,7 @@ export const LDO_VIN_MAX = 15; // 超過就損壞
 export function partLabel(p: BoardPart): string {
   if (p.kind === 'resistor') return `電阻 ${fmtOhm(p.value!)}`;
   if (p.kind === 'diode') return `二極體 ${p.model}`;
+  if (p.kind === 'led') return `${LED_SPEC[p.ledColor ?? 'red'].name}色 LED`;
   if (p.kind === 'ldo') return 'LT1117-3.3 穩壓 IC';
   return '杜邦線';
 }

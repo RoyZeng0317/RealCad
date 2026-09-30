@@ -5,9 +5,9 @@ import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
   DIODE_MODELS, DIODE_PIV, RESISTOR_VALUES, RESISTOR_RATING, WIRE_COLORS, THERMAL, LDO_VIN_MAX,
-  fmtOhm, partLabel, type BoardPart,
+  fmtOhm, partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
-import { loadDemoCircuit } from './boardDemo.js';
+import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake } from './boardDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -17,11 +17,12 @@ export const TOOL_HINT: Record<Tool, string> = {
   wire: '杜邦線：先點第一個孔（或 Va / Vb / GND 接線柱），再點第二個孔。',
   resistor: '先點第一隻腳的孔，再點第二隻腳的孔（兩孔不能在同一組相通的孔）。',
   diode: '先點陽極（A）的孔，再點陰極（K，有銀色環那端）的孔。',
+  led: '先點陽極（長腳 +）的孔，再點陰極（短腳 −）的孔；記得串限流電阻。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', ldo: 'LT1117-3.3',
+  select: '選取', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3',
 };
 
 /** Esc 取消放置、Delete 刪除選取的零件 */
@@ -43,6 +44,7 @@ interface LibItem { tool: Tool; name: string; sub: string; icon: string }
 const PART_ITEMS: LibItem[] = [
   { tool: 'resistor', name: '電阻', sub: '碳膜 1/4 W・E12 10 Ω–1 MΩ', icon: '▭' },
   { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
+  { tool: 'led', name: 'LED', sub: '5 mm・紅 / 黃 / 綠 / 藍 / 白', icon: '◉' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
   { tool: 'wire', name: '杜邦線', sub: '公對公・接孔或接線柱', icon: '〰' },
 ];
@@ -86,6 +88,16 @@ function ToolParams() {
       {DIODE_MODELS.map((m) => <option key={m} value={m}>{m}（PIV {DIODE_PIV[m]} V）</option>)}
     </select>
   );
+  if (s.tool === 'led') return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      {LED_COLORS.map((c) => (
+        <button key={c} onClick={() => s.setParam({ ledColor: c })} title={LED_SPEC[c].name} style={{
+          flex: 1, height: 22, borderRadius: 11, background: LED_SPEC[c].hex, cursor: 'pointer',
+          border: s.ledColor === c ? `2px solid ${T.accent}` : '1px solid #2a2a5a',
+        }} />
+      ))}
+    </div>
+  );
   if (s.tool === 'wire') return (
     <div style={{ display: 'flex', gap: 4 }}>
       {WIRE_COLORS.map((c) => (
@@ -120,6 +132,12 @@ export function PartLibrary() {
       <Section title="範例">
         <button style={chip(false, '', '#12345a')} onClick={() => { loadDemoCircuit(); useLabUi.getState().focus('breadboard'); }}>
           3.3 V 穩壓電路（1N4007 + LT1117）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
+          Arduino Uno：LED 閃爍（Blink）
+        </button>
+        <button style={chip(false, '', '#4a1a1a')} onClick={() => { loadEsp32Mistake(); useLabUi.getState().focus('devboards'); }}>
+          錯誤示範：5 V 接到 ESP32 GPIO
         </button>
         <button style={chip(false, '', '#3a1a2a')} onClick={() => { if (confirm('清空麵包板上所有零件？')) clearBoard(); }}>清空麵包板</button>
       </Section>
@@ -177,6 +195,12 @@ export function PartCard({ part }: { part: BoardPart }) {
       ['功率', `${((r?.p ?? 0) * 1000).toFixed(1)} mW`], ['PIV', `${piv} V`]];
     status = v > 0.4 ? '順向導通' : v < -piv * 0.98 ? '逆向崩潰！' : '逆向截止';
     statusColor = v < -piv * 0.98 ? '#ff4d3a' : v > 0.4 ? '#3cff7a' : '#8fb4d0';
+  } else if (part.kind === 'led') {
+    const i = r?.i ?? 0;
+    rows = [['Vf', `${(r?.v ?? 0).toFixed(3)} V`], ['電流', `${(i * 1000).toFixed(2)} mA`, i > LED_IMAX ? '#ff4d3a' : undefined],
+      ['功率', `${((r?.p ?? 0) * 1000).toFixed(1)} mW`], ['亮度', `${Math.round(Math.min(1, Math.max(0, i) / 0.02) * 100)} %`]];
+    [status, statusColor] = i > LED_IMAX ? ['電流超過 30 mA，LED 會過熱燒毀（加限流電阻）', '#ff4d3a']
+      : i > 0.0005 ? ['發光中', '#3cff7a'] : (r?.v ?? 0) < -1 ? ['反接（不亮）', '#ffb020'] : ['不亮', '#8fb4d0'];
   } else if (part.kind === 'ldo') {
     rows = [['VIN（對 GND 腳）', `${(r?.vin ?? 0).toFixed(3)} V`, (r?.vin ?? 0) > LDO_VIN_MAX ? '#ff4d3a' : undefined],
       ['VOUT', `${(r?.v ?? 0).toFixed(3)} V`], ['輸出電流', `${((r?.i ?? 0) * 1000).toFixed(1)} mA`],
@@ -190,7 +214,7 @@ export function PartCard({ part }: { part: BoardPart }) {
       : ['未工作（沒有輸入電壓）', '#8fb4d0'];
   }
   if (part.burnt) {
-    status = part.kind === 'ldo' ? `損壞（輸入超過 ${LDO_VIN_MAX} V）` : part.kind === 'diode' ? '燒毀（短路）' : '燒毀（開路）';
+    status = part.kind === 'led' ? '燒毀（開路）' : part.kind === 'ldo' ? `損壞（輸入超過 ${LDO_VIN_MAX} V）` : part.kind === 'diode' ? '燒毀（短路）' : '燒毀（開路）';
     statusColor = '#ff4d3a';
   }
 
@@ -212,7 +236,7 @@ export function PartCard({ part }: { part: BoardPart }) {
       )}
       {part.kind !== 'wire' && part.kind !== 'ldo' && (
         <div style={help}>
-          {part.kind === 'diode' ? '陽極 ' : ''}{holeName(part.pins[0])} → {part.kind === 'diode' ? '陰極 ' : ''}{holeName(part.pins[1])}
+          {part.kind !== 'resistor' ? '陽極 ' : ''}{holeName(part.pins[0])} → {part.kind !== 'resistor' ? '陰極 ' : ''}{holeName(part.pins[1])}
           {part.kind !== 'resistor' ? '' : `　燒毀溫度約 ${THERMAL.resistor.burn} °C`}
         </div>
       )}

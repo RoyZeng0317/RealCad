@@ -1,9 +1,9 @@
 // 麵包板上的零件與操作狀態：工具、放置流程（兩點/一點）、選取、三用電表量測點、零件溫度
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole } from './boardModel.js';
-import { type BoardPart, type PartKind, type DiodeModel, WIRE_COLORS } from './boardParts.js';
+import { type BoardPart, type PartKind, type DiodeModel, type LedColor, WIRE_COLORS } from './boardParts.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'ldo' | 'wire';
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire';
 
 interface BoardState {
   parts: BoardPart[];
@@ -13,6 +13,7 @@ interface BoardState {
   dmm: HoleKey | null; // 三用電表紅棒位置（黑棒固定接 GND）
   resistorValue: number;
   diodeModel: DiodeModel;
+  ledColor: LedColor;
   wireColor: string;
   ldoDir: 1 | -1; // LT1117 從第 1 腳往下（+1）或往上（−1）排列
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
@@ -20,7 +21,7 @@ interface BoardState {
   message: string;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'wireColor' | 'ldoDir'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -57,6 +58,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   dmm: null,
   resistorValue: 330,
   diodeModel: '1N4007',
+  ledColor: 'red',
   wireColor: WIRE_COLORS[0],
   ldoDir: 1,
   temps: {},
@@ -78,7 +80,7 @@ export const useBoard = create<BoardState>((set, get) => ({
 
     const occ = occupied(s.parts);
     if (!k.startsWith('p:') && occ.has(k)) { set({ message: '這個孔已經插了零件腳' }); return; }
-    if (s.tool !== 'wire' && k.startsWith('p:')) { set({ message: '零件腳不能直接插在接線柱，請用杜邦線連接' }); return; }
+    if (s.tool !== 'wire' && (k.startsWith('p:') || k.startsWith('h:'))) { set({ message: '零件腳不能直接插在接線柱或開發板排針上，請用杜邦線連接' }); return; }
 
     if (s.tool === 'ldo') {
       const pins = ldoPins(k, s.ldoDir);
@@ -100,6 +102,7 @@ export const useBoard = create<BoardState>((set, get) => ({
     const part: BoardPart =
       s.tool === 'resistor' ? { id: newId('resistor'), kind: 'resistor', pins, value: s.resistorValue, gen: 0 }
       : s.tool === 'diode' ? { id: newId('diode'), kind: 'diode', pins, model: s.diodeModel, gen: 0 }
+      : s.tool === 'led' ? { id: newId('led'), kind: 'led', pins, ledColor: s.ledColor, gen: 0 }
       : { id: newId('wire'), kind: 'wire', pins, color: s.wireColor, gen: 0 };
     set({ parts: [...s.parts, part], pending: null, selectedId: part.kind === 'wire' ? s.selectedId : part.id, message: '' });
   },

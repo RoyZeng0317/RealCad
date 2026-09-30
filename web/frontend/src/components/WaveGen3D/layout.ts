@@ -65,5 +65,10 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x, 3.6, BREADBOARD.pos.z + 2.6),
     target: new THREE.Vector3(BREADBOARD.pos.x, 0, BREADBOARD.pos.z + 0.25),
   },
+  // 開發板區：麵包板右邊（麵包板本地 x 1.7 ~ 5.2）
+  devboards: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 3.4, 4.0, BREADBOARD.pos.z + 2.1),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 3.3, 0, BREADBOARD.pos.z - 0.1),
+  },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };
