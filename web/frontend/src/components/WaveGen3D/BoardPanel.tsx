@@ -116,6 +116,8 @@ function ToolParams() {
     </div>
   );
   if (s.tool === 'wire') return (
+    <>
+    <button style={chip(useLabUi.getState().paletteOpen)} onClick={() => useLabUi.getState().setPaletteOpen(true)}>🎨 開啟調色盤（RGB / 色碼）</button>
     <div style={{ display: 'flex', gap: 4 }}>
       {WIRE_COLORS.map((c) => (
         <button key={c} onClick={() => s.setParam({ wireColor: c })} style={{
@@ -124,6 +126,7 @@ function ToolParams() {
         }} />
       ))}
     </div>
+    </>
   );
   if (s.tool === 'probe') return (
     <div style={row}>

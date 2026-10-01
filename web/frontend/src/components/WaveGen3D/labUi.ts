@@ -9,9 +9,13 @@ interface LabUiState {
   dockTab: DockTab;
   leftOpen: boolean;
   rightOpen: boolean;
+  paletteOpen: boolean; // 杜邦線顏色懸浮視窗
+  recentColors: string[]; // 最近用過的自訂顏色
   setDockTab: (t: DockTab) => void;
   toggleLeft: () => void;
   toggleRight: () => void;
+  setPaletteOpen: (v: boolean) => void;
+  addRecentColor: (c: string) => void;
   /** 點左側儀器：鏡頭飛過去、下方面板切到該儀器 */
   focus: (v: ViewPreset) => void;
 }
@@ -23,9 +27,13 @@ export const useLabUi = create<LabUiState>((set) => ({
   dockTab: 'generator',
   leftOpen: wide,
   rightOpen: wide,
+  paletteOpen: false,
+  recentColors: [],
   setDockTab: (dockTab) => set({ dockTab }),
   toggleLeft: () => set((s) => ({ leftOpen: !s.leftOpen })),
   toggleRight: () => set((s) => ({ rightOpen: !s.rightOpen })),
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  addRecentColor: (c) => set((s) => ({ recentColors: [c, ...s.recentColors.filter((x) => x !== c)].slice(0, 8) })),
   focus: (v) => {
     useWaveLab.getState().setView(v);
     const t = DOCK_OF[v];
