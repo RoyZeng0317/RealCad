@@ -33,6 +33,17 @@ export const PSU = {
   jackMinus: new THREE.Vector2(1.14, -0.4),
 };
 
+// 桌上型萬用電表 DM-5050（跟電源供應器一樣大，放在實驗桌左前方）：右側 2×2 香蕉插座 HI / mA / LO(COM) / 10A
+export const DM = {
+  pos: new THREE.Vector3(-7.0, 0, 3.9),
+  rotY: 0.42,
+  size: { w: 2.6, h: 1.5, d: 2.2 },
+  jackHi: new THREE.Vector2(0.78, -0.08),
+  jackMa: new THREE.Vector2(1.08, -0.08),
+  jackLo: new THREE.Vector2(0.78, -0.42),
+  jack10: new THREE.Vector2(1.08, -0.42),
+};
+
 // 電阻負載（放在電源前方桌面上，接線端子朝上）
 export const LOAD = {
   pos: new THREE.Vector3(-4.7, 0, 3.0),
@@ -93,6 +104,7 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 7.5, BREADBOARD.pos.z + 3.2),
     target: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 0, BREADBOARD.pos.z - 2.6),
   },
+  dmm: { pos: panelToWorld(DM, 0, 0.3, 4.2), target: panelToWorld(DM, 0, 0, 0) },
   spectrum: { pos: panelToWorld(SA, 0, 0.2, 4.2), target: panelToWorld(SA, 0, 0, 0) },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

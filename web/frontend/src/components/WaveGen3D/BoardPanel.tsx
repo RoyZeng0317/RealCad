@@ -36,12 +36,13 @@ export const TOOL_HINT: Record<Tool, string> = {
   fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
   ch1: '示波器 CH1 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
   ch2: '示波器 CH2 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
+  dm: '桌上型萬用電表測試線：先點紅棒（+）要接的孔，再點黑棒（−）。量電壓並聯（黑棒接 GND）；量電流要串聯（把線路斷開接在中間）；功能在下方「萬用電表」分頁或 3D 面板上切換。',
   sa: '頻譜分析儀紅黑測試線：先點紅棒（+，要量的點），再點黑棒（−，通常接 GND）。分析的是紅棒減黑棒電壓的頻譜；黑棒經儀器外殼接大地（跟示波器接地夾共地）。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
   select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', atmega: 'ATmega328P', ch340: 'CH340G',
-  fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線',
+  fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線', dm: '桌上型萬用電表測試線',
 };
 
 // 快捷鍵（shortcutLetter / isTyping / boardActions / useBoardKeys）已集中到 shortcuts.ts；這裡轉出去給舊的 import 使用
@@ -67,6 +68,7 @@ const TOOL_ITEMS: LibItem[] = [
   { tool: 'fg', name: '函數產生器輸出線', sub: 'BNC → 紅 + / 黑 −，接到麵包板', icon: '∿' },
   { tool: 'ch1', name: '示波器 CH1 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '①' },
   { tool: 'ch2', name: '示波器 CH2 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '②' },
+  { tool: 'dm', name: '桌上型萬用電表測試線', sub: 'DM-5050・紅棒 + / 黑棒 −，V / A / Ω / 二極體 / 頻率', icon: 'Ω' },
   { tool: 'sa', name: '頻譜分析儀紅黑測試線', sub: '紅棒 + / 黑棒 −，看麵包板上訊號的頻譜', icon: '≋' },
 ];
 
@@ -185,13 +187,13 @@ export function PartLibrary() {
 /** 右側檢視器上方：目前工具提示、放置中的第一點、錯誤訊息 */
 export function ToolStatus() {
   const { tool, pending, message, leadEnd } = useBoard();
-  const lead = tool === 'fg' || tool === 'ch1' || tool === 'ch2' || tool === 'sa' ? LEAD_TAG[tool] : null;
+  const lead = tool === 'fg' || tool === 'ch1' || tool === 'ch2' || tool === 'sa' || tool === 'dm' ? LEAD_TAG[tool] : null;
   return (
     <Section title={`工具：${TOOL_NAME[tool]}`}>
       <p style={help}>{TOOL_HINT[tool]}</p>
       {lead && leadEnd !== null && <p style={{ ...help, color: T.value }}>請點要把 {lead} {leadEnd === 0 ? '+ 端' : '− 端'}改接到的孔（Esc 取消）</p>}
-      {lead && leadEnd === null && !pending && <p style={{ ...help, color: T.value }}>第 1 步：點 {lead} 的 + 端（{tool === 'fg' ? '紅線' : tool === 'sa' ? '紅棒' : '探針'}）要接的孔</p>}
-      {lead && leadEnd === null && pending && <p style={{ ...help, color: T.value }}>+ 端已接在 {holeName(pending)}；第 2 步：點 {lead} 的 − 端（{tool === 'fg' ? '黑線' : tool === 'sa' ? '黑棒' : '接地夾'}）要接的孔（Esc 取消）</p>}
+      {lead && leadEnd === null && !pending && <p style={{ ...help, color: T.value }}>第 1 步：點 {lead} 的 + 端（{tool === 'fg' ? '紅線' : tool === 'sa' || tool === 'dm' ? '紅棒' : '探針'}）要接的孔</p>}
+      {lead && leadEnd === null && pending && <p style={{ ...help, color: T.value }}>+ 端已接在 {holeName(pending)}；第 2 步：點 {lead} 的 − 端（{tool === 'fg' ? '黑線' : tool === 'sa' || tool === 'dm' ? '黑棒' : '接地夾'}）要接的孔（Esc 取消）</p>}
       {!lead && pending && <p style={{ ...help, color: T.value }}>已選第一點 {holeName(pending)}，請點第二點（Esc 取消）</p>}
       {message && <div style={warn}>{message}</div>}
     </Section>

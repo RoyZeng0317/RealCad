@@ -5,6 +5,30 @@ import { V_MAX } from './psu.js';
 import { Section, Slider, chip, row, help } from './panelUi.js';
 import { LeadControl } from './LeadControls.js';
 import { useBoard } from './boardStore.js';
+import { useEffect, useState } from 'react';
+import { scopeMeas } from './Oscilloscope3D.js';
+import { measItems, CH1_COLOR, CH2_COLOR } from './scopeDisplay.js';
+import { T } from './panelUi.js';
+
+/** 量測 MEASURE：兩個通道的全部參數（每 0.3 秒更新，跟螢幕同一份資料） */
+function MeasureTable() {
+  const [, tick] = useState(0);
+  useEffect(() => { const id = setInterval(() => tick((n) => n + 1), 300); return () => clearInterval(id); }, []);
+  const a = scopeMeas.ch1 ? measItems(scopeMeas.ch1) : [], b = scopeMeas.ch2 ? measItems(scopeMeas.ch2) : [];
+  if (!a.length) return <p style={help}>示波器畫面還沒更新（切到示波器或全景視角）。</p>;
+  return (
+    <table style={{ width: '100%', fontFamily: T.mono, fontSize: 12, borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ color: T.muted }}><th style={{ textAlign: 'left' }}>參數</th><th style={{ textAlign: 'right', color: CH1_COLOR }}>CH1</th><th style={{ textAlign: 'right', color: CH2_COLOR }}>CH2</th></tr>
+      </thead>
+      <tbody>
+        {a.map(([k, v], i) => (
+          <tr key={k}><td style={{ color: T.muted }}>{k}</td><td style={{ textAlign: 'right', color: CH1_COLOR }}>{v}</td><td style={{ textAlign: 'right', color: CH2_COLOR }}>{b[i]?.[1] ?? '—'}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 
 export function ScopeControls() {
   const { scope, setScope, autoSet } = useWaveLab();
@@ -48,6 +72,17 @@ export function ScopeControls() {
           max={scope.trigSource === 'CH2' ? V_MAX : OUTPUT_LIMIT}
           step={0.01} v={scope.trigLevel}
           onChange={(x) => setScope({ trigLevel: x })} />
+      </Section>
+      <Section title="量測 MEASURE" right={
+        <span style={{ display: 'flex', gap: 4 }}>
+          {(['基本', 'CH1', 'CH2'] as const).map((t, i) => (
+            <button key={t} style={{ ...chip(scope.measPage === i, '#1f7f9f'), flex: 'none', padding: '2px 8px' }}
+              onClick={() => setScope({ measPage: i as 0 | 1 | 2 })}>{t}</button>
+          ))}
+        </span>
+      }>
+        <MeasureTable />
+        <p style={help}>上排按鈕（或 3D 面板的 MEAS 鍵）切換螢幕上顯示哪個通道的全部參數；量的是螢幕上的波形，TIME/DIV 調到能看到 2 個以上週期，頻率、工作週期才量得到。</p>
       </Section>
       <Section title="操作">
         <div style={row}>

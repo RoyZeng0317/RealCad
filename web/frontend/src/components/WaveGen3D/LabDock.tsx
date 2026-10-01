@@ -9,6 +9,7 @@ import { formatSI } from './waveform.js';
 import { GeneratorControls } from './GenPanel.js';
 import { ScopeControls } from './ScopePanel.js';
 import { SaControls } from './SaPanel.js';
+import { DmControls } from './DmPanel.js';
 import { PsuSection } from './PsuPanel.js';
 import { NodesPanel, HelpPanel } from './NodesPanel.js';
 import { CodePanel, SerialPanel } from './devboards/DevPanels.js';
@@ -16,7 +17,7 @@ import { TOOL_NAME } from './BoardPanel.js';
 import { T } from './panelUi.js';
 
 const TABS: [DockTab, string][] = [
-  ['generator', '函數波產生器'], ['scope', '示波器'], ['spectrum', '頻譜分析儀'], ['psu', '電源供應器'], ['nodes', '電路節點'],
+  ['generator', '函數波產生器'], ['scope', '示波器'], ['spectrum', '頻譜分析儀'], ['dmm', '萬用電表'], ['psu', '電源供應器'], ['nodes', '電路節點'],
   ['code', '程式碼'], ['serial', '序列埠'], ['help', '操作說明'],
 ];
 
@@ -58,6 +59,7 @@ export function LabDock() {
           {dockTab === 'generator' && <GeneratorControls />}
           {dockTab === 'scope' && <ScopeControls />}
           {dockTab === 'spectrum' && <SaControls />}
+          {dockTab === 'dmm' && <DmControls />}
           {dockTab === 'psu' && <PsuSection />}
           {dockTab === 'nodes' && <NodesPanel />}
           {dockTab === 'code' && <CodePanel />}

@@ -24,6 +24,18 @@ const TOP = 48, BOTTOM = 84;
 export const CH1_COLOR = '#ffd21f';
 export const CH2_COLOR = '#2fd4ff';
 
+/** 一個通道的全部量測參數（螢幕 MEASURE 頁與下方面板共用） */
+export function measItems(m: Measurements): [string, string][] {
+  const t = (v: number | null) => (v === null ? '--' : formatSI(v, 's', 4));
+  return [
+    ['頻率 Freq', m.freq ? formatSI(m.freq, 'Hz', 5) : '--'], ['週期 Period', t(m.period)],
+    ['峰對峰 Vpp', formatSI(m.vpp, 'V', 4)], ['最大 Vmax', formatSI(m.vmax, 'V', 4)], ['最小 Vmin', formatSI(m.vmin, 'V', 4)],
+    ['平均 Vavg', formatSI(m.vavg, 'V', 4)], ['有效值 Vrms', formatSI(m.vrms, 'V', 4)],
+    ['工作週期 Duty', m.duty === null ? '--' : `${(m.duty * 100).toFixed(2)} %`], ['正脈寬 +Width', t(m.pwidth)],
+    ['上升時間 Rise', t(m.rise)], ['下降時間 Fall', t(m.fall)],
+  ];
+}
+
 export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f: ScopeFrame) {
   ctx.fillStyle = '#04070a';
   ctx.fillRect(0, 0, W, H);
@@ -136,6 +148,33 @@ export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f
       ctx.fillText(v, ix + ctx.measureText(k).width + 26, y);
     });
   };
+  // MEASURE 頁：右上角半透明框列出一個通道的全部參數
+  const page = f.scope.measPage === 1 ? f.ch1 : f.scope.measPage === 2 ? f.ch2 : null;
+  if (page) {
+    const color = f.scope.measPage === 1 ? CH1_COLOR : CH2_COLOR;
+    const items = measItems(page.meas);
+    const bw = 300, lh = 26, bh = 40 + items.length * lh, bx = gx + gw - bw - 6, by = gy + 6;
+    ctx.fillStyle = 'rgba(6,10,16,0.82)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = color;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = color;
+    ctx.font = `800 18px ${FONT}`;
+    ctx.fillText(`MEASURE  CH${f.scope.measPage}`, bx + 12, by + 20);
+    items.forEach(([k, v], i) => {
+      const y = by + 46 + i * lh;
+      ctx.fillStyle = '#9fb3c8';
+      ctx.font = `600 16px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.fillText(k, bx + 12, y);
+      ctx.fillStyle = color;
+      ctx.font = `700 17px ${MONO}`;
+      ctx.textAlign = 'right';
+      ctx.fillText(v, bx + bw - 12, y);
+    });
+  }
+
   const m1 = f.ch1.meas;
   row(H - BOTTOM + 24, 'CH1', CH1_COLOR, [
     ['Freq', m1.freq ? formatSI(m1.freq, 'Hz', 4) : '--'],

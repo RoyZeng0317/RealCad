@@ -15,6 +15,7 @@ import { devElements, devIssues, type DevState, type Damage } from './devboards/
 import { DEV_KINDS, type DevKind } from './devboards/boardDefs.js';
 import { useChips, type ChipRt } from './chips/chipStore.js';
 import { chipElements } from './chips/chipCircuit.js';
+import { useDm, dmSpec, type MeterSpec } from './dmStore.js';
 
 export interface Bench {
   sol: Solution;
@@ -64,7 +65,7 @@ export function earthHoles(): HoleKey[] {
 const EARTH = 'EARTH';
 
 /** 整張實驗桌的電路元件（直流解與暫態模擬共用）；net = 孔 → 網路名稱 */
-export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []) {
+export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = [], meter: MeterSpec | null = null) {
   const merged = mergeNets(parts);
   const net = merged.hole;
   const VA = net(postKey('Va')), GND = net(postKey('GND'));
@@ -116,6 +117,12 @@ export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[
     earth.forEach((h, i) => els.push({ kind: 'res', id: `earth:${i}`, a: net(h), b: EARTH, r: 0.05 }));
     els.push({ kind: 'res', id: 'earth:leak', a: EARTH, b: GND, r: 1e6 });
   }
+  // 桌上型萬用電表（浮接，不接大地）：電流檔串入分流電阻、電阻 / 二極體檔送出測試電流
+  if (meter) {
+    const [a, b] = meter.pins.map(net);
+    if (meter.kind === 'shunt') els.push({ kind: 'res', id: 'dm:shunt', a, b, r: meter.r });
+    else els.push({ kind: 'src', id: 'dm:test', p: a, n: b, v: meter.v, r: meter.r });
+  }
   return { els, merged, net, GND };
 }
 
@@ -129,8 +136,8 @@ export function mergePotResults(parts: BoardPart[], sol: Solution) {
   }
 }
 
-export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []): Bench {
-  const { els, merged, net, GND } = benchElements(psu, loadR, parts, tsd, dev, chips, fg, earth);
+export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = [], meter: MeterSpec | null = null): Bench {
+  const { els, merged, net, GND } = benchElements(psu, loadR, parts, tsd, dev, chips, fg, earth, meter);
   const sol = solveCircuit(els, GND);
   mergePotResults(parts, sol);
   const di = devIssues(dev, sol, merged.net);
@@ -180,10 +187,10 @@ export function getBench(): Bench {
   const ds = useDev.getState();
   // 只有會影響電路的開發板狀態才放進快取 key（序列埠輸出改變不用重算電路）
   const cs = useChips.getState();
-  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec, bs.leads, bs.leads.fg ? wl.gen : null,
+  const key = [ps.psu, ps.loadIdx, ps.burnt, bs.parts, bs.tsd, ds.conf, cs.elec, bs.leads, bs.leads.fg ? wl.gen : null, useDm.getState().dm,
     ...DEV_KINDS.flatMap((k) => [ds.rt[k].pins, ds.rt[k].dead, ds.rt[k].tripped])];
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.bench;
-  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fgDc(), earthHoles());
+  const bench = computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fgDc(), earthHoles(), dmSpec());
   cache = { key, bench };
   return bench;
 }
@@ -200,5 +207,6 @@ export function useBench(): Bench {
   useChips((s) => s.elec);
   useBoard((s) => s.leads);
   useWaveLab((s) => s.gen);
+  useDm((s) => s.dm);
   return getBench();
 }

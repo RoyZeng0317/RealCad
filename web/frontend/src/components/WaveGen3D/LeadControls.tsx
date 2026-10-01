@@ -7,14 +7,15 @@ import { getTransfers, probeConnected, transferOf } from './scopeLink.js';
 import { chip, row, help } from './panelUi.js';
 
 /** 3D 標籤與提示用的簡稱 */
-export const LEAD_TAG: Record<LeadKind, string> = { fg: 'FG', ch1: 'CH1', ch2: 'CH2', sa: 'SA' };
+export const LEAD_TAG: Record<LeadKind, string> = { fg: 'FG', ch1: 'CH1', ch2: 'CH2', sa: 'SA', dm: 'DM' };
 const DEFAULT: Record<LeadKind, string> = {
   fg: '目前：BNC 線直接接示波器 CH1',
   ch1: '目前：BNC 線直接接函數產生器輸出',
   ch2: '目前：探棒夾在電源供應器的負載接線柱上',
   sa: '目前：BNC 線經 T 頭直接接函數產生器輸出',
+  dm: '目前：測試線沒有接到麵包板',
 };
-const ENDS: Record<LeadKind, [string, string]> = { fg: ['紅線', '黑線'], ch1: ['探針', '接地夾'], ch2: ['探針', '接地夾'], sa: ['紅棒', '黑棒'] };
+const ENDS: Record<LeadKind, [string, string]> = { fg: ['紅線', '黑線'], ch1: ['探針', '接地夾'], ch2: ['探針', '接地夾'], sa: ['紅棒', '黑棒'], dm: ['紅棒', '黑棒'] };
 
 export function LeadControl({ kind }: { kind: LeadKind }) {
   const lead = useBoard((s) => s.leads[kind]);
@@ -22,7 +23,7 @@ export function LeadControl({ kind }: { kind: LeadKind }) {
   useBench(); // 電路改變時重新檢查探棒有沒有接到電路
   const s = useBoard.getState();
   const start = (end?: 0 | 1) => { s.startLead(kind, end); useLabUi.getState().focus('breadboard'); };
-  const tr = kind === 'ch1' || kind === 'ch2' ? getTransfers()[kind] : kind === 'sa' && lead ? transferOf(lead[0], lead[1]) : null;
+  const tr = kind === 'ch1' || kind === 'ch2' ? getTransfers()[kind] : (kind === 'sa' || kind === 'dm') && lead ? transferOf(lead[0], lead[1]) : null;
   const tag = LEAD_TAG[kind];
   return (
     <>
@@ -34,7 +35,7 @@ export function LeadControl({ kind }: { kind: LeadKind }) {
         </p>
       ) : <p style={help}>{DEFAULT[kind]}</p>}
       {placing && <p style={{ ...help, color: '#ffd21f' }}>接線中：請看右上「工具」的提示，在麵包板上點孔</p>}
-      {lead && kind !== 'fg' && !probeConnected(tr) && <p style={{ ...help, color: '#ffd9a0' }}>{kind === 'sa' ? '紅棒夾的點沒有接到電路，頻譜只剩雜訊底線' : '探針插的點沒有接到電路，示波器只會看到一條平線'}</p>}
+      {lead && kind !== 'fg' && !probeConnected(tr) && <p style={{ ...help, color: '#ffd9a0' }}>{kind === 'dm' ? '紅棒夾的點沒有接到電路，電表讀不到東西' : kind === 'sa' ? '紅棒夾的點沒有接到電路，頻譜只剩雜訊底線' : '探針插的點沒有接到電路，示波器只會看到一條平線'}</p>}
       <div style={row}>
         <button style={chip(placing, '#0086b3', '#12345a')} onClick={() => start()}>{lead ? '兩端重新接線' : `接到麵包板（${LEAD_NAME[kind]}）`}</button>
         {lead && <button style={chip(false, '', '#3a1a2a')} onClick={() => s.setLead(kind, null)}>拔掉，改回原本接法</button>}

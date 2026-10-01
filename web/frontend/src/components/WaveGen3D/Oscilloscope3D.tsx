@@ -5,7 +5,7 @@ import { RoundedBox } from '@react-three/drei';
 import { useWaveLab } from './waveStore.js';
 import { getBench } from './bench.js';
 import { DcTrace } from './ch2Signal.js';
-import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS } from './waveform.js';
+import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS, type Measurements } from './waveform.js';
 import { getTransfers, probeAt, channelLead } from './scopeLink.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
 import { drawScope, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
@@ -18,6 +18,9 @@ const PW = W - 0.1, PH = H - 0.1;
 const N_SAMPLES = 800;
 // 垂直區兩個通道的旋鈕位置：[VOLTS/DIV x, POSITION x]
 const COL1 = [0.66, 0.97], COL2 = [1.3, 1.61];
+
+/** 最新一次畫面的量測結果（下方面板的 MEASURE 表格讀這裡） */
+export const scopeMeas: { ch1: Measurements | null; ch2: Measurements | null } = { ch1: null, ch2: null };
 
 function drawPanel(p: PanelCtx) {
   p.ctx.fillStyle = '#3a4048';
@@ -98,10 +101,12 @@ export function Oscilloscope3D() {
     }
 
     const c = screen.image as HTMLCanvasElement;
+    scopeMeas.ch1 = measure(s1.current, dt);
+    scopeMeas.ch2 = sc.ch2On ? measure(s2.current, dt) : null;
     drawScope(c.getContext('2d')!, c.width, c.height, {
-      ch1: { samples: s1.current, voltDiv: VOLT_DIVS[sc.voltDivIdx], position: sc.position, meas: measure(s1.current, dt) },
-      ch2: sc.ch2On
-        ? { samples: s2.current, voltDiv: VOLT_DIVS[sc.ch2VoltDivIdx], position: sc.ch2Position, meas: measure(s2.current, dt) }
+      ch1: { samples: s1.current, voltDiv: VOLT_DIVS[sc.voltDivIdx], position: sc.position, meas: scopeMeas.ch1 },
+      ch2: sc.ch2On && scopeMeas.ch2
+        ? { samples: s2.current, voltDiv: VOLT_DIVS[sc.ch2VoltDivIdx], position: sc.ch2Position, meas: scopeMeas.ch2 }
         : null,
       timeDiv, scope: sc, status: status.current,
     });
@@ -162,6 +167,10 @@ export function Oscilloscope3D() {
         <Knob3D position={[COL2[1], 0.38, 0.002]} radius={0.08}
           onStep={(s, fine) => setScope({ ch2Position: stepPos(useWaveLab.getState().scope.ch2Position, s, fine) })} />
 
+        {/* MEASURE：螢幕上切換 基本 → CH1 全部參數 → CH2 全部參數 */}
+        <Button3D position={[1.12, -0.12, 0.002]} size={[0.26, 0.1]} text={scope.measPage === 0 ? 'MEAS' : `MEAS ${scope.measPage}`}
+          active={scope.measPage !== 0} activeColor="#1f7f9f" color="#3a4a5a"
+          onPress={() => setScope({ measPage: ((scope.measPage + 1) % 3) as 0 | 1 | 2 })} />
         <Knob3D position={[0.75, -0.28, 0.002]} radius={0.18}
           onStep={(s) => stepTimeDiv(-s)} />
         <Knob3D position={[1.5, -0.28, 0.002]} radius={0.12} capColor="#ff8a1f"

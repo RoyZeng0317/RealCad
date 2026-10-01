@@ -14,6 +14,7 @@ const INSTRUMENTS: [ViewPreset, string, string, string][] = [
   ['generator', '函數波產生器', 'FG-2000・0.1 Hz – 10 MHz', '∿'],
   ['scope', '示波器', 'DS-1102・雙通道 100 MHz', '⌁'],
   ['spectrum', '頻譜分析儀', 'SA-1010・DC – 100 MHz', '⫶'],
+  ['dmm', '桌上型萬用電表', 'DM-5050・50,000 count・雙顯示', 'Ω'],
   ['psu', '直流電源供應器', 'PS-3005・0–30 V / 0–5 A', '⎓'],
   ['breadboard', '麵包板', 'RB-2・2 × 830 孔', '▦'],
   ['bbgrid', '麵包板矩陣 4 × 4', '16 片 830 孔・側桌', '▩'],

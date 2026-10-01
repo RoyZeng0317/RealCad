@@ -1,11 +1,15 @@
-// 儀器接到麵包板的線：函數產生器、頻譜分析儀 BNC → 紅 / 黑鱷魚夾線；示波器 CH1 / CH2 探棒（探針勾在孔上 + 接地夾）
+// 儀器接到麵包板的線：函數產生器、頻譜分析儀 BNC → 紅 / 黑鱷魚夾線；示波器 CH1 / CH2 探棒（探針勾在孔上 + 接地夾）；
+// 桌上型萬用電表：香蕉插頭紅黑測試線（電流檔時紅色插頭改插 mA / 10A 插座）
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
-import { GEN, SCOPE, SA, panelToWorld, boardToWorld } from './layout.js';
+import { GEN, SCOPE, SA, DM, panelToWorld, boardToWorld } from './layout.js';
 import { useBoard, type LeadKind } from './boardStore.js';
 import { holePos, type HoleKey } from './boardModel.js';
 import { Plug } from './BncCable.js';
+import { BananaLead } from './BananaLead.js';
+import { useDm, isCurrentMode, SHUNT } from './dmStore.js';
+import { getBench, meterV } from './bench.js';
 import { CH1_COLOR, CH2_COLOR } from './scopeDisplay.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -129,12 +133,38 @@ function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2'; pins: [HoleKey, HoleKey] }
   );
 }
 
+/** 桌上型萬用電表的紅黑測試線：香蕉插頭 → 鱷魚夾；線上光點速度 ∝ 電流檔量到的電流 */
+function DmLeads({ pins }: { pins: [HoleKey, HoleKey] }) {
+  const dm = useDm((s) => s.dm);
+  const cur = isCurrentMode(dm.mode);
+  const red = !cur ? DM.jackHi : dm.jack === 'mA' ? DM.jackMa : DM.jack10;
+  const g = useMemo(() => pins.map((h) => {
+    const p = at(h);
+    return { p, end: p.clone().setY(p.y + 0.1), above: p.clone().add(new THREE.Vector3(-0.15, 0.45, 0.1)) };
+  }), [pins[0], pins[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  const amps = () => {
+    const s = useDm.getState().dm;
+    return isCurrentMode(s.mode) ? (meterV(getBench(), pins[0], pins[1]) ?? 0) / SHUNT[s.jack] : 0;
+  };
+  return (
+    <group>
+      <BananaLead inst={DM} from={red} end={g[0].end} above={g[0].above} color="#c8201c" getCurrent={amps} />
+      <BananaLead inst={DM} from={DM.jackLo} end={g[1].end} above={g[1].above} color="#1c1e21" reverse getCurrent={amps} />
+      <Clip p={g[0].p} color="#c8201c" />
+      <Clip p={g[1].p} color="#1c1e21" />
+      <Tag p={g[0].p} text="DM +" color="#ff6a5a" y={0.26} />
+      <Tag p={g[1].p} text="DM −" color="#c8c8c8" y={0.26} />
+    </group>
+  );
+}
+
 export function InstrumentLeads() {
   const leads = useBoard((s) => s.leads);
   return (
     <>
       {leads.fg && <ClipLead pins={leads.fg} inst={GEN} tag="FG" />}
       {leads.sa && <ClipLead pins={leads.sa} inst={SA} tag="SA" />}
+      {leads.dm && <DmLeads pins={leads.dm} />}
       {(['ch1', 'ch2'] as LeadKind[]).map((k) => leads[k] && <ScopeLead key={k} ch={k as 'ch1' | 'ch2'} pins={leads[k]!} />)}
     </>
   );
