@@ -1,4 +1,4 @@
-// 下方面板「頻譜分析儀」分頁：頻率 / 準位設定、標記、諧波表與 THD、探棒接線
+// 下方面板「頻譜分析儀」分頁：頻率 / 準位設定、標記、諧波表與 THD、紅黑測試線接線
 //   這裡刻意不用文字輸入框（全部用滑桿 / 按鈕 / 下拉選單），避免焦點停在輸入框讓快捷鍵失效（見 SHORTCUTS.md）
 import { useEffect, useState } from 'react';
 import { useSa } from './saStore.js';
@@ -26,7 +26,7 @@ function HarmonicTable() {
   const h1 = inp.harmonics.find((x) => x.k === 1);
   const rows = inp.harmonics.filter((x) => x.k >= 1 && x.k <= 10);
   const d = thd(inp.harmonics);
-  if (!h1) return <p style={help}>沒有週期訊號（產生器關閉、選 NOISE，或探棒沒接到電路）。</p>;
+  if (!h1) return <p style={help}>沒有週期訊號（產生器關閉、選 NOISE，或紅棒沒接到電路）。</p>;
   const ref = harmonicDb(h1, unit);
   return (
     <>
@@ -118,9 +118,9 @@ export function SaControls() {
       <Section title="諧波分析">
         <HarmonicTable />
       </Section>
-      <Section title={hasProbe ? '輸入（探棒量麵包板）' : '輸入（BNC 接產生器）'}>
+      <Section title={hasProbe ? '輸入（紅黑測試線量麵包板）' : '輸入（BNC 接產生器）'}>
         <LeadControl kind="sa" />
-        <p style={help}>沒接探棒時量的是產生器輸出；接上探棒（+ / −）就量麵包板上那兩點，整流、削波產生的諧波都看得到。</p>
+        <p style={help}>沒接測試線時量的是產生器輸出；接上紅黑測試線（紅棒 + / 黑棒 −），就量麵包板上紅棒對黑棒的電壓，整流、削波產生的諧波都看得到。黑棒經儀器外殼接大地，通常夾在電路的 GND。</p>
       </Section>
     </>
   );

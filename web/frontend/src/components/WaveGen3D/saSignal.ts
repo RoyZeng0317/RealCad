@@ -53,7 +53,7 @@ export function getSaInput(): SaInput {
     harmonics = harmonicsOf(v, gen.frequency);
   }
   const source = lead
-    ? (useBoard.getState().leads.sa ? '探棒量麵包板' : '產生器輸出端（接在麵包板上）')
+    ? (useBoard.getState().leads.sa ? '紅黑測試線量麵包板' : '產生器輸出端（接在麵包板上）')
     : `BNC 直接接產生器（輸入 ${z50 ? '50 Ω' : '1 MΩ'}）`;
   const input = { harmonics, noiseV2PerHz, f0: gen.frequency, source };
   cache = { key, input };

@@ -14,7 +14,7 @@ const DEFAULT: Record<LeadKind, string> = {
   ch2: '目前：探棒夾在電源供應器的負載接線柱上',
   sa: '目前：BNC 線經 T 頭直接接函數產生器輸出',
 };
-const ENDS: Record<LeadKind, [string, string]> = { fg: ['紅線', '黑線'], ch1: ['探針', '接地夾'], ch2: ['探針', '接地夾'], sa: ['探針', '接地夾'] };
+const ENDS: Record<LeadKind, [string, string]> = { fg: ['紅線', '黑線'], ch1: ['探針', '接地夾'], ch2: ['探針', '接地夾'], sa: ['紅棒', '黑棒'] };
 
 export function LeadControl({ kind }: { kind: LeadKind }) {
   const lead = useBoard((s) => s.leads[kind]);
@@ -34,7 +34,7 @@ export function LeadControl({ kind }: { kind: LeadKind }) {
         </p>
       ) : <p style={help}>{DEFAULT[kind]}</p>}
       {placing && <p style={{ ...help, color: '#ffd21f' }}>接線中：請看右上「工具」的提示，在麵包板上點孔</p>}
-      {lead && kind !== 'fg' && !probeConnected(tr) && <p style={{ ...help, color: '#ffd9a0' }}>探針插的點沒有接到電路，示波器只會看到一條平線</p>}
+      {lead && kind !== 'fg' && !probeConnected(tr) && <p style={{ ...help, color: '#ffd9a0' }}>{kind === 'sa' ? '紅棒夾的點沒有接到電路，頻譜只剩雜訊底線' : '探針插的點沒有接到電路，示波器只會看到一條平線'}</p>}
       <div style={row}>
         <button style={chip(placing, '#0086b3', '#12345a')} onClick={() => start()}>{lead ? '兩端重新接線' : `接到麵包板（${LEAD_NAME[kind]}）`}</button>
         {lead && <button style={chip(false, '', '#3a1a2a')} onClick={() => s.setLead(kind, null)}>拔掉，改回原本接法</button>}

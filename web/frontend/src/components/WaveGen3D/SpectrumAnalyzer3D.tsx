@@ -41,7 +41,7 @@ function stepSpan(cur: number, s: number) {
   return steps[Math.max(0, Math.min(steps.length - 1, i + s))];
 }
 
-/** 沒接頻譜分析儀探棒、產生器也沒接麵包板時：產生器 OUT → SA RF IN 的短 BNC 線 */
+/** 沒接頻譜分析儀紅黑測試線、產生器也沒接麵包板時：產生器 OUT → SA RF IN 的短 BNC 線 */
 function SaCable() {
   const { geo, a, b } = useMemo(() => {
     const a = panelToWorld(GEN, GEN.bnc.x, GEN.bnc.y, 0);

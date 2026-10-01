@@ -1,4 +1,4 @@
-// 儀器接到麵包板的線：函數產生器 BNC → 紅 / 黑鱷魚夾線、示波器 CH1 / CH2 探棒（探針勾在孔上 + 接地夾）
+// 儀器接到麵包板的線：函數產生器、頻譜分析儀 BNC → 紅 / 黑鱷魚夾線；示波器 CH1 / CH2 探棒（探針勾在孔上 + 接地夾）
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Html } from '@react-three/drei';
@@ -7,8 +7,6 @@ import { useBoard, type LeadKind } from './boardStore.js';
 import { holePos, type HoleKey } from './boardModel.js';
 import { Plug } from './BncCable.js';
 import { CH1_COLOR, CH2_COLOR } from './scopeDisplay.js';
-
-const SA_COLOR = '#c48bff'; // 頻譜分析儀探棒的顏色環
 
 const UP = new THREE.Vector3(0, 1, 0);
 const at = (k: HoleKey) => boardToWorld(holePos(k));
@@ -62,36 +60,39 @@ function route(from: THREE.Vector3, rotY: number, to: THREE.Vector3): THREE.Vect
   ];
 }
 
-function GenLead({ pins }: { pins: [HoleKey, HoleKey] }) {
+type Inst = typeof GEN | typeof SA;
+
+/** BNC → 分岔成紅（+）/ 黑（−）兩條鱷魚夾線：函數產生器輸出、頻譜分析儀輸入都用這種線 */
+function ClipLead({ pins, inst, tag }: { pins: [HoleKey, HoleKey]; inst: Inst; tag: string }) {
   const g = useMemo(() => {
-    const bnc = panelToWorld(GEN, GEN.bnc.x, GEN.bnc.y, 0);
+    const bnc = panelToWorld(inst, inst.bnc.x, inst.bnc.y, 0);
     const p = at(pins[0]), n = at(pins[1]);
     const split = p.clone().add(n).multiplyScalar(0.5).add(new THREE.Vector3(0, 0.45, 0.2));
     return {
       bnc, p, n,
-      coax: [...route(bnc, GEN.rotY, split), split],
+      coax: [...route(bnc, inst.rotY, split), split],
       red: [split, p.clone().add(new THREE.Vector3(0, 0.3, 0.05)), p.clone().setY(p.y + 0.1)],
       blk: [split, n.clone().add(new THREE.Vector3(0, 0.3, 0.05)), n.clone().setY(n.y + 0.1)],
     };
-  }, [pins[0], pins[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [inst, pins[0], pins[1]]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <group>
-      <Plug at={g.bnc} rotY={GEN.rotY} />
+      <Plug at={g.bnc} rotY={inst.rotY} />
       <Tube pts={g.coax} r={0.03} color="#15171a" />
       <Tube pts={g.red} r={0.012} color="#c8201c" />
       <Tube pts={g.blk} r={0.012} color="#1c1e21" />
       <Clip p={g.p} color="#c8201c" />
       <Clip p={g.n} color="#1c1e21" />
-      <Tag p={g.p} text="FG +" color="#ff6a5a" />
-      <Tag p={g.n} text="FG −" color="#c8c8c8" />
+      <Tag p={g.p} text={`${tag} +`} color="#ff6a5a" y={tag === 'SA' ? 0.34 : 0.2} />
+      <Tag p={g.n} text={`${tag} −`} color="#c8c8c8" y={tag === 'SA' ? 0.34 : 0.2} />
     </group>
   );
 }
 
-function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2' | 'sa'; pins: [HoleKey, HoleKey] }) {
-  const inst = ch === 'sa' ? SA : SCOPE;
+function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2'; pins: [HoleKey, HoleKey] }) {
+  const inst = SCOPE;
   const g = useMemo(() => {
-    const b = ch === 'sa' ? SA.bnc : ch === 'ch1' ? SCOPE.bnc : SCOPE.bnc2;
+    const b = ch === 'ch1' ? SCOPE.bnc : SCOPE.bnc2;
     const bnc = panelToWorld(inst, b.x, b.y, 0);
     const tip = at(pins[0]), gnd = at(pins[1]);
     const body = tip.clone().add(new THREE.Vector3(0, 0.2, 0.05)); // 探棒本體（筆型）立在探針上方
@@ -101,7 +102,7 @@ function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2' | 'sa'; pins: [HoleKey, Hol
       ground: [body.clone().setY(body.y + 0.05), body.clone().lerp(gnd, 0.5).setY(body.y + 0.15), gnd.clone().setY(gnd.y + 0.1)],
     };
   }, [ch, inst, pins[0], pins[1]]); // eslint-disable-line react-hooks/exhaustive-deps
-  const color = ch === 'sa' ? SA_COLOR : ch === 'ch1' ? CH1_COLOR : CH2_COLOR;
+  const color = ch === 'ch1' ? CH1_COLOR : CH2_COLOR;
   const { body, tip } = g;
   return (
     <group>
@@ -122,7 +123,7 @@ function ScopeLead({ ch, pins }: { ch: 'ch1' | 'ch2' | 'sa'; pins: [HoleKey, Hol
       </mesh>
       <Tube pts={g.ground} r={0.008} color="#1c1e21" />
       <Clip p={g.gnd} color="#1c1e21" />
-      <Tag p={tip} text={`${ch.toUpperCase()} +`} color={color} y={ch === 'ch1' ? 0.46 : ch === 'sa' ? 0.56 : 0.36} />
+      <Tag p={tip} text={`${ch.toUpperCase()} +`} color={color} y={ch === 'ch1' ? 0.46 : 0.36} />
       <Tag p={g.gnd} text={`${ch.toUpperCase()} −`} color="#c8c8c8" />
     </group>
   );
@@ -132,8 +133,9 @@ export function InstrumentLeads() {
   const leads = useBoard((s) => s.leads);
   return (
     <>
-      {leads.fg && <GenLead pins={leads.fg} />}
-      {(['ch1', 'ch2', 'sa'] as LeadKind[]).map((k) => leads[k] && <ScopeLead key={k} ch={k as 'ch1' | 'ch2' | 'sa'} pins={leads[k]!} />)}
+      {leads.fg && <ClipLead pins={leads.fg} inst={GEN} tag="FG" />}
+      {leads.sa && <ClipLead pins={leads.sa} inst={SA} tag="SA" />}
+      {(['ch1', 'ch2'] as LeadKind[]).map((k) => leads[k] && <ScopeLead key={k} ch={k as 'ch1' | 'ch2'} pins={leads[k]!} />)}
     </>
   );
 }
