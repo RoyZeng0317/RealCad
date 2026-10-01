@@ -5,7 +5,7 @@ import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useSa } from './saStore.js';
 import { getBench, fgDc } from './bench.js';
-import { transferOf, probeValue } from './scopeLink.js';
+import { transferOf, probeValue, probeAt } from './scopeLink.js';
 import { sampleWave } from './waveform.js';
 import { harmonicsOf, peaksInView, harmonicDb, effectiveRbw, type Harmonic } from './spectrum.js';
 import type { HoleKey } from './boardModel.js';
@@ -38,11 +38,11 @@ export function getSaInput(): SaInput {
   const direct = !lead && !fgDc();
   const gain = direct && z50 ? 0.5 : 1;
   const tr = lead ? transferOf(lead[0], lead[1]) : null;
-  const v = (t: number) => (tr ? probeValue(tr, sampleWave(gen, t)) : sampleWave(gen, t) * gain);
+  const v = (t: number) => (tr ? probeAt(tr, t) : sampleWave(gen, t) * gain);
   let harmonics: Harmonic[];
   let noiseV2PerHz = 0;
   if (!on) {
-    harmonics = [{ k: 0, f: 0, vpk: tr ? probeValue(tr, 0) : 0 }];
+    harmonics = [{ k: 0, f: 0, vpk: tr ? probeAt(tr, 0) : 0 }];
   } else if (gen.waveform === 'noise') {
     // 雜訊不是週期訊號：直流成分 = 偏移，其餘是平坦的白雜訊（產生器頻寬 10 MHz）
     const sigma = (gen.amplitude / 2) * (0.5 / 1.5) * gain;

@@ -1,5 +1,6 @@
 // 麵包板直流電路求解器（MNA + 牛頓法）：電源供應器 CV/CC、電阻、1N400x 二極體、LT1117-3.3 穩壓 IC
 // 純函式，不依賴 React/three；每次麵包板或電源設定改變時重算一次
+// 電容、電感、電晶體（Ebers-Moll）：直流時電容開路、電感 = 直流電阻；給 opts.dt 時用後向尤拉法做一個時間步（暫態模擬，見 transient.ts）
 
 export type LdoMode = 'reg' | 'drop' | 'ilim' | 'off';
 
@@ -9,7 +10,30 @@ export type Element =
   | { kind: 'diode'; id: string; a: string; k: string; bv: number; is?: number; nvt?: number }
   // 戴維寧電壓源（電壓 v、內阻 r）：開發板 GPIO 輸出、5V/3V3 電源腳；以諾頓等效蓋進矩陣，不需要額外電流變數
   | { kind: 'src'; id: string; p: string; n: string; v: number; r: number }
-  | { kind: 'ldo'; id: string; vin: string; vout: string; gnd: string; enabled: boolean };
+  | { kind: 'ldo'; id: string; vin: string; vout: string; gnd: string; enabled: boolean }
+  | { kind: 'cap'; id: string; a: string; b: string; c: number }
+  | { kind: 'ind'; id: string; a: string; b: string; l: number; r: number }
+  // 雙極性電晶體：pol = 1 NPN、−1 PNP
+  | { kind: 'bjt'; id: string; c: string; b: string; e: string; pol: 1 | -1; is: number; bf: number; br: number };
+
+/** 暫態模擬一步：dt 秒；vc = 上一步電容電壓（a−b）、il = 上一步電感電流（a→b） */
+export interface SolveOpts {
+  dt?: number;
+  vc?: Record<string, number>;
+  il?: Record<string, number>;
+  guess?: Solution; // 上一步的解：當牛頓法的起點，收斂比較快
+}
+
+/** 每種元件接到哪些節點 */
+function terminals(e: Element): string[] {
+  switch (e.kind) {
+    case 'psu': case 'src': return [e.p, e.n];
+    case 'res': case 'cap': case 'ind': return [e.a, e.b];
+    case 'diode': return [e.a, e.k];
+    case 'bjt': return [e.c, e.b, e.e];
+    default: return [e.vin, e.vout, e.gnd];
+  }
+}
 
 export interface ElementResult {
   i: number; // 元件電流（電阻 a→b、二極體 陽極→陰極、LDO 輸出電流、電源輸出電流）
@@ -17,6 +41,8 @@ export interface ElementResult {
   p: number; // 消耗功率 W
   mode?: string;
   vin?: number; // LDO 輸入電壓（對 GND 腳）
+  ib?: number; // 電晶體基極電流（NPN 流入為正）
+  vbe?: number; // 電晶體 VBE（PNP 為 VEB）
 }
 
 export interface Solution {
@@ -31,6 +57,7 @@ const BV_IS = 1e-3, BV_NVT = 0.05;
 // LT1117-3.3：輸出 3.3 V、壓降 1.1 V、限流 1 A、靜態電流以 1.2 kΩ 近似（6 V 時約 5 mA）
 export const LDO_VOUT = 3.3, LDO_DROPOUT = 1.1, LDO_ILIM = 1.0, LDO_RQ = 1200;
 const GMIN = 1e-9;
+const VT = 0.025852;
 
 /** 超過 40 的指數線性外插，避免牛頓法溢位（SPICE 的 limexp） */
 const limexp = (x: number) => (x < 40 ? Math.exp(x) : Math.exp(40) * (1 + x - 40));
@@ -76,15 +103,10 @@ function solveLinear(A: number[][], b: number[]): number[] | null {
 /**
  * @param ground 參考節點（0 V），通常是電源供應器「−」＝ 麵包板 GND 接線柱
  */
-export function solveCircuit(elements: Element[], ground: string): Solution {
+export function solveCircuit(elements: Element[], ground: string, opts: SolveOpts = {}): Solution {
   const nets = new Set<string>();
-  for (const e of elements) {
-    if (e.kind === 'psu') { nets.add(e.p); nets.add(e.n); }
-    else if (e.kind === 'res') { nets.add(e.a); nets.add(e.b); }
-    else if (e.kind === 'diode') { nets.add(e.a); nets.add(e.k); }
-    else if (e.kind === 'src') { nets.add(e.p); nets.add(e.n); }
-    else { nets.add(e.vin); nets.add(e.vout); nets.add(e.gnd); }
-  }
+  for (const e of elements) for (const n of terminals(e)) nets.add(n);
+  const { dt, vc = {}, il = {}, guess } = opts;
   nets.delete(ground);
   const nodeList = [...nets];
   const idx = new Map(nodeList.map((n, i) => [n, i]));
@@ -95,13 +117,24 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
   const psuMode = new Map<string, 'CV' | 'CC'>();
   const ldoMode = new Map<string, LdoMode>();
   const vd = new Map<string, number>();
+  const gv = (n: string) => (guess && n in guess.nodeV ? guess.nodeV[n] : null);
+  // 電晶體兩個接面的電壓（已乘上極性，NPN 正常放大時 vbe > 0、vbc < 0）
+  const jbe = new Map<string, number>(), jbc = new Map<string, number>();
   for (const e of elements) {
-    if (e.kind === 'psu') psuMode.set(e.id, 'CV');
-    if (e.kind === 'ldo') ldoMode.set(e.id, e.enabled ? 'reg' : 'off');
-    if (e.kind === 'diode') vd.set(e.id, 0.6);
+    if (e.kind === 'psu') psuMode.set(e.id, guess?.el[e.id]?.mode === 'CC' ? 'CC' : 'CV');
+    if (e.kind === 'ldo') ldoMode.set(e.id, e.enabled ? ((guess?.el[e.id]?.mode as LdoMode) || 'reg') : 'off');
+    if (e.kind === 'diode') {
+      const a = gv(e.a), k = gv(e.k);
+      vd.set(e.id, a !== null && k !== null ? a - k : 0.6);
+    }
+    if (e.kind === 'bjt') {
+      const b = gv(e.b), c = gv(e.c), em = gv(e.e);
+      jbe.set(e.id, b !== null && em !== null ? e.pol * (b - em) : 0.6);
+      jbc.set(e.id, b !== null && c !== null ? e.pol * (b - c) : -1);
+    }
   }
 
-  let x: number[] = new Array(N).fill(0);
+  let x: number[] = nodeList.map((n) => gv(n) ?? 0);
   let branchOf = new Map<string, number>();
   let converged = false;
   const V = (sol: number[], n: string) => (n === ground ? 0 : sol[idx.get(n)!]);
@@ -137,6 +170,19 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
 
       for (const e of elements) {
         if (e.kind === 'res') G(e.a, e.b, 1 / e.r);
+        else if (e.kind === 'cap') {
+          // 後向尤拉：i = C/dt·(v − v前)；直流時開路
+          if (!dt) continue;
+          const g = e.c / dt;
+          G(e.a, e.b, g);
+          I(e.a, e.b, -g * (vc[e.id] ?? 0));
+        } else if (e.kind === 'ind') {
+          // v = R·i + L/dt·(i − i前) → i = (v + L/dt·i前) / (R + L/dt)；直流時就是 R
+          if (!dt) { G(e.a, e.b, 1 / e.r); continue; }
+          const k = e.l / dt, g = 1 / (e.r + k);
+          G(e.a, e.b, g);
+          I(e.a, e.b, g * k * (il[e.id] ?? 0));
+        } else if (e.kind === 'bjt') stampBjt(e, jbe.get(e.id)!, jbc.get(e.id)!, G, I, A, b, ni);
         else if (e.kind === 'src') { G(e.p, e.n, 1 / e.r); I(e.n, e.p, e.v / e.r); }
         else if (e.kind === 'diode') {
           const v = vd.get(e.id)!;
@@ -173,16 +219,20 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
       }
       const sol = solveLinear(A, b);
       if (!sol) break;
-      // 二極體電壓更新（限制每步變化量，幫助收斂）
+      // 二極體 / 電晶體接面電壓更新（限制每步變化量，幫助收斂）
       let maxDv = 0;
-      for (const e of elements) {
-        if (e.kind !== 'diode') continue;
-        const old = vd.get(e.id)!;
-        let nv = V(sol, e.a) - V(sol, e.k);
+      const limit = (old: number, nv: number) => {
         const step = nv - old;
         if (Math.abs(step) > 0.3) nv = old + Math.sign(step) * (0.3 + Math.log1p(Math.abs(step) - 0.3) * 0.1);
         maxDv = Math.max(maxDv, Math.abs(nv - old));
-        vd.set(e.id, nv);
+        return nv;
+      };
+      for (const e of elements) {
+        if (e.kind === 'diode') vd.set(e.id, limit(vd.get(e.id)!, V(sol, e.a) - V(sol, e.k)));
+        if (e.kind === 'bjt') {
+          jbe.set(e.id, limit(jbe.get(e.id)!, e.pol * (V(sol, e.b) - V(sol, e.e))));
+          jbc.set(e.id, limit(jbc.get(e.id)!, e.pol * (V(sol, e.b) - V(sol, e.c))));
+        }
       }
       x = sol;
       if (maxDv < 1e-7) { converged = true; break; }
@@ -231,6 +281,15 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
       const v = nodeV[e.a] - nodeV[e.k];
       const { i } = diodeI(v, e.bv, e.is, e.nvt);
       el[e.id] = { v, i, p: v * i };
+    } else if (e.kind === 'cap') {
+      const v = nodeV[e.a] - nodeV[e.b];
+      el[e.id] = { v, i: dt ? (e.c / dt) * (v - (vc[e.id] ?? 0)) : 0, p: 0 };
+    } else if (e.kind === 'ind') {
+      const v = nodeV[e.a] - nodeV[e.b];
+      const i = dt ? (v + (e.l / dt) * (il[e.id] ?? 0)) / (e.r + e.l / dt) : v / e.r;
+      el[e.id] = { v, i, p: i * i * e.r };
+    } else if (e.kind === 'bjt') {
+      el[e.id] = bjtResult(e, e.pol * (nodeV[e.b] - nodeV[e.e]), e.pol * (nodeV[e.b] - nodeV[e.c]));
     } else if (e.kind === 'src') {
       // i = 從「+」端流出的電流；p = 內阻上的消耗
       const v = nodeV[e.p] - nodeV[e.n];
@@ -252,4 +311,50 @@ export function solveCircuit(elements: Element[], ground: string): Solution {
     }
   }
   return { nodeV, el, converged };
+}
+
+type BjtEl = Extract<Element, { kind: 'bjt' }>;
+
+/**
+ * Ebers-Moll（傳輸模型）：B–E、B–C 兩個二極體（飽和電流 Is/βF、Is/βR）＋ C→E 的受控電流 Is·(e^(vbe/Vt) − e^(vbc/Vt))。
+ * PNP 把電壓、電流方向全部反過來（pol = −1）。在目前的接面電壓附近線性化後蓋進 MNA 矩陣
+ */
+function stampBjt(
+  e: BjtEl, vbe: number, vbc: number,
+  G: (p: string, q: string, g: number) => void, I: (p: string, q: string, cur: number) => void,
+  A: number[][], b: number[], ni: (n: string) => number,
+) {
+  const s = e.pol;
+  // 兩個接面二極體：NPN 陽極在基極；PNP 陽極在射極 / 集極
+  const junction = (v: number, isj: number, other: string) => {
+    const { i, g } = diodeI(v, 1e3, isj, VT);
+    const [an, ca] = s > 0 ? [e.b, other] : [other, e.b];
+    G(an, ca, g);
+    I(an, ca, i - g * v);
+  };
+  junction(vbe, e.is / e.bf, e.e);
+  junction(vbc, e.is / e.br, e.c);
+  // C→E 受控電流 Ice = s·Ict(vbe, vbc)，線性化：Ice = K + gf·(Vb − Ve) − gr·(Vb − Vc)
+  const ef = limexp(vbe / VT), er = limexp(vbc / VT);
+  const ict = e.is * (ef - er);
+  const gf = (e.is * dlimexp(vbe / VT)) / VT, gr = (e.is * dlimexp(vbc / VT)) / VT;
+  const K = s * (ict - gf * vbe + gr * vbc);
+  const c = ni(e.c), bb = ni(e.b), em = ni(e.e);
+  const add = (row: number, col: number, v: number) => { if (row >= 0 && col >= 0) A[row][col] += v; };
+  for (const [row, sign] of [[c, 1], [em, -1]] as const) {
+    add(row, bb, sign * (gf - gr));
+    add(row, em, -sign * gf);
+    add(row, c, sign * gr);
+    if (row >= 0) b[row] -= sign * K;
+  }
+}
+
+/** 電晶體工作點：i = 集極電流（NPN 流入為正、PNP 流出為正）、v = VCE（PNP 為 VEC）、模式 */
+function bjtResult(e: BjtEl, vbe: number, vbc: number): ElementResult {
+  const ef = limexp(vbe / VT), er = limexp(vbc / VT);
+  const ibe = (e.is / e.bf) * (ef - 1), ibc = (e.is / e.br) * (er - 1);
+  const ic = e.is * (ef - er) - ibc, ib = ibe + ibc;
+  const vce = vbe - vbc;
+  const mode = vbe > 0.5 ? (vbc > 0.4 ? 'sat' : 'active') : vbc > 0.5 ? 'reverse' : 'cutoff';
+  return { i: ic, ib, v: vce, vbe, p: Math.max(0, ic * vce + ib * vbe), mode };
 }

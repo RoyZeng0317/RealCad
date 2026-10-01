@@ -6,7 +6,7 @@ import { useWaveLab } from './waveStore.js';
 import { getBench } from './bench.js';
 import { DcTrace } from './ch2Signal.js';
 import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS } from './waveform.js';
-import { getTransfers, probeValue, channelLead } from './scopeLink.js';
+import { getTransfers, probeAt, channelLead } from './scopeLink.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
 import { drawScope, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
 import { Knob3D, Button3D, Led3D, Bnc3D } from './parts.js';
@@ -65,8 +65,8 @@ export function Oscilloscope3D() {
     // 通道接到麵包板時：波形 = 轉換曲線（產生器電壓 → 探棒電壓）套在產生器波形上
     const tr = getTransfers();
     const on1 = channelLead('ch1') ? tr.ch1 : null, on2 = channelLead('ch2') ? tr.ch2 : null;
-    const v1 = (t: number) => (on1 ? probeValue(on1, sampleWave(gen, t)) : sampleWave(gen, t));
-    const v2 = on2 ? (t: number) => probeValue(on2, sampleWave(gen, t)) : null;
+    const v1 = (t: number) => (on1 ? probeAt(on1, t) : sampleWave(gen, t));
+    const v2 = on2 ? (t: number) => probeAt(on2, t) : null;
     const live = gen.power && gen.output && gen.waveform !== 'noise';
     const period = 1 / gen.frequency;
     let mean1 = gen.offset;

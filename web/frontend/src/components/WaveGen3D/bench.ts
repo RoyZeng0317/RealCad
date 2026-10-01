@@ -6,7 +6,9 @@ import { useWaveLab } from './waveStore.js';
 import { waveMean } from './waveform.js';
 import { netOf, postKey, type HoleKey } from './boardModel.js';
 import { solveCircuit, type Element, type Solution } from './circuit.js';
-import { DIODE_PIV, LDO_VIN_MAX, ledModel, type BoardPart } from './boardParts.js';
+import {
+  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, type BoardPart,
+} from './boardParts.js';
 import type { PsuReading, PsuSettings } from './psu.js';
 import { useDev, type Issue } from './devboards/devStore.js';
 import { devElements, devIssues, type DevState, type Damage } from './devboards/devCircuit.js';
@@ -20,7 +22,7 @@ export interface Bench {
   loadP: number;
   netOfHole: (k: HoleKey) => string;
   holeV: (k: HoleKey) => number | null; // 沒接到任何元件的孔回傳 null
-  overVoltage: string[]; // 輸入超過 15 V 的 LT1117（要標成損壞）
+  overVoltage: string[]; // 要標成損壞的零件：輸入超過 15 V 的 LT1117、過壓或反接的電解電容
   devIssues: Record<DevKind, Issue[]>;
   devDamage: Damage[];
 }
@@ -61,7 +63,8 @@ export function earthHoles(): HoleKey[] {
 }
 const EARTH = 'EARTH';
 
-export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []): Bench {
+/** 整張實驗桌的電路元件（直流解與暫態模擬共用）；net = 孔 → 網路名稱 */
+export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []) {
   const merged = mergeNets(parts);
   const net = merged.hole;
   const VA = net(postKey('Va')), GND = net(postKey('GND'));
@@ -87,6 +90,21 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
         enabled: !p.burnt && !tsd[p.id],
       });
     }
+    // 類比零件（燒毀 / 損壞都當開路）
+    if (p.burnt) continue;
+    const [a, b, c] = p.pins.map(net);
+    if (p.kind === 'pot') {
+      // 可變電阻 = 兩顆串聯電阻：腳 1–W 是 R·pos、W–腳 3 是 R·(1 − pos)
+      const r = p.value!, k = p.pos ?? 0.5;
+      els.push({ kind: 'res', id: `${p.id}:1`, a, b, r: Math.max(POT_END_R, r * k) });
+      els.push({ kind: 'res', id: `${p.id}:2`, a: b, b: c, r: Math.max(POT_END_R, r * (1 - k)) });
+    }
+    if (p.kind === 'cap') els.push({ kind: 'cap', id: p.id, a, b, c: CAP_MODELS[p.capModel ?? '100u50'].c });
+    if (p.kind === 'ind') els.push({ kind: 'ind', id: p.id, a, b, l: p.value!, r: indDcr(p.value!) });
+    if (p.kind === 'bjt') {
+      const m = BJT_MODELS[p.bjtModel ?? '2N3904'];
+      els.push({ kind: 'bjt', id: p.id, e: a, b, c, pol: m.pol, is: m.is, bf: m.bf, br: m.br });
+    }
   }
   els.push(...devElements(dev, merged.net, GND));
   els.push(...chipElements(parts, chips, net));
@@ -98,12 +116,30 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
     earth.forEach((h, i) => els.push({ kind: 'res', id: `earth:${i}`, a: net(h), b: EARTH, r: 0.05 }));
     els.push({ kind: 'res', id: 'earth:leak', a: EARTH, b: GND, r: 1e6 });
   }
+  return { els, merged, net, GND };
+}
+
+/** 可變電阻拆成兩顆電阻求解，結果合併回零件 id（給檢視器、熱模型用） */
+export function mergePotResults(parts: BoardPart[], sol: Solution) {
+  for (const p of parts) {
+    if (p.kind !== 'pot') continue;
+    const r1 = sol.el[`${p.id}:1`], r2 = sol.el[`${p.id}:2`];
+    if (!r1 || !r2) continue;
+    sol.el[p.id] = { v: r1.v + r2.v, i: r1.i, p: r1.p + r2.p }; // v = 腳 1 對腳 3、i = 從腳 1 流進
+  }
+}
+
+export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[], tsd: Record<string, boolean>, dev: DevState, chips: Record<string, ChipRt> = {}, fg: FgSource | null = null, earth: HoleKey[] = []): Bench {
+  const { els, merged, net, GND } = benchElements(psu, loadR, parts, tsd, dev, chips, fg, earth);
   const sol = solveCircuit(els, GND);
+  mergePotResults(parts, sol);
   const di = devIssues(dev, sol, merged.net);
   const r = sol.el.psu;
   const mode = r.mode === 'CC' ? 'CC' : r.mode === 'CV' ? 'CV' : 'OFF';
   const overVoltage = parts
-    .filter((p) => p.kind === 'ldo' && !p.burnt && (sol.el[p.id]?.vin ?? 0) > LDO_VIN_MAX)
+    .filter((p) => !p.burnt && (
+      (p.kind === 'ldo' && (sol.el[p.id]?.vin ?? 0) > LDO_VIN_MAX)
+      || (p.kind === 'cap' && capDamaged(p, sol.el[p.id]?.v ?? 0))))
     .map((p) => p.id);
   return {
     sol,
@@ -119,6 +155,9 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
     devDamage: di.damage,
   };
 }
+
+/** 電解電容：超過額定電壓、或反接超過 1 V 就損壞（真實電容會鼓起、漏液） */
+export const capDamaged = (p: BoardPart, v: number) => v > CAP_MODELS[p.capModel ?? '100u50'].v || v < -CAP_REVERSE_MAX;
 
 /** 三用電表讀值 = 紅棒電壓 − 黑棒電壓；任一支探棒沒插、或插的點沒有接到電路就回傳 null */
 export function meterV(b: Bench, red: HoleKey | null, black: HoleKey | null): number | null {

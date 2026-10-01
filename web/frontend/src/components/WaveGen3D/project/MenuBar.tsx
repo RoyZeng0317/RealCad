@@ -6,6 +6,7 @@ import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadFpgaCounter, loadRectifierDemo } from '../boardDemo.js';
+import { loadRcDemo, loadBjtDemo } from '../analogDemo.js';
 import { loadAtmegaDemo } from '../chips/chipDemo.js';
 import { T } from '../panelUi.js';
 
@@ -65,6 +66,8 @@ export function MenuBar() {
       { label: '範例', header: true },
       { label: '3.3 V 穩壓電路（1N4007 + LT1117）', onClick: () => { loadDemoCircuit(); ui.focus('breadboard'); } },
       { label: '函數產生器 → 麵包板：半波整流（示波器看波形）', onClick: () => { loadRectifierDemo(); ui.focus('scope'); } },
+      { label: 'RC 充放電：1 kΩ + 100 µF（示波器看電容電壓）', onClick: () => { loadRcDemo(); ui.focus('scope'); } },
+      { label: '可變電阻 + 2N3904 電晶體開關 LED', onClick: () => { loadBjtDemo(); ui.focus('breadboard'); } },
       { label: 'Arduino Uno：LED 閃爍', onClick: () => { loadUnoBlink(); ui.focus('devboards'); } },
       { label: 'Raspberry Pi 5：MicroPython LED 閃爍', onClick: () => { loadPi5Blink(); ui.focus('devboards'); } },
       { label: '錯誤示範：5 V 接到 ESP32 GPIO', onClick: () => { loadEsp32Mistake(); ui.focus('devboards'); } },

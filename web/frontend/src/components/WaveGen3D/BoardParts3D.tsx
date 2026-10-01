@@ -15,6 +15,7 @@ import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC 
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 import { Chip3D } from './chips/Chip3D.js';
+import { Pot3D, Cap3D, Ind3D, Bjt3D } from './AnalogParts3D.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
@@ -64,7 +65,7 @@ export function BoardThermal() {
 }
 
 // ---- 共用幾何 ----
-function Rod({ a, b, r, color, metal = false, mat }: {
+export function Rod({ a, b, r, color, metal = false, mat }: {
   a: THREE.Vector3; b: THREE.Vector3; r: number; color?: string; metal?: boolean; mat?: THREE.Material;
 }) {
   const { pos, quat, len } = useMemo(() => {
@@ -83,7 +84,7 @@ function Rod({ a, b, r, color, metal = false, mat }: {
   );
 }
 
-function Bent({ pts, r, color }: { pts: THREE.Vector3[]; r: number; color: string }) {
+export function Bent({ pts, r, color }: { pts: THREE.Vector3[]; r: number; color: string }) {
   const geo = useMemo(
     () => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.3), 48, r, 8, false),
     [pts, r],
@@ -448,6 +449,10 @@ export function BoardParts3D() {
         if (p.kind === 'led') return <Led3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ldo') return <Ldo3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'atmega' || p.kind === 'ch340') return <Chip3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'pot') return <Pot3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'cap') return <Cap3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'ind') return <Ind3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'bjt') return <Bjt3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}
       <BoardMarkers />

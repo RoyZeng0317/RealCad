@@ -15,6 +15,7 @@ import { LOAD_STEPS } from '../psu.js';
 import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
 import {
   DIODE_MODELS, LED_COLORS, WIRE_COLORS, RESISTOR_VALUES, R_MIN, R_MAX, type BoardPart, type PartKind,
+  POT_VALUES, IND_VALUES, CAP_MODEL_IDS, BJT_MODEL_IDS,
 } from '../boardParts.js';
 
 export const DOC_FORMAT = 'realcad-lab';
@@ -56,7 +57,7 @@ const bool = (v: unknown, dflt: boolean) => (typeof v === 'boolean' ? v : dflt);
 const str = (v: unknown, max: number, dflt = '') => (typeof v === 'string' ? v.slice(0, max) : dflt);
 const oneOf = <T extends string>(v: unknown, list: readonly T[], dflt: T): T => (list.includes(v as T) ? (v as T) : dflt);
 
-const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3, atmega: 28, ch340: 16 };
+const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3, atmega: 28, ch340: 16, pot: 3, cap: 2, ind: 2, bjt: 3 };
 
 function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[] {
   if (!Array.isArray(raw)) return [];
@@ -65,7 +66,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
   const used = new Set<string>();
   for (const r of raw.slice(0, 2000)) {
     const o = obj(r);
-    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire', 'atmega', 'ch340'] as const, 'wire');
+    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire', 'atmega', 'ch340', 'pot', 'cap', 'ind', 'bjt'] as const, 'wire');
     if (o.kind !== kind) continue;
     const pins = Array.isArray(o.pins) ? o.pins.map((x) => str(x, 40)) : [];
     if (pins.length !== PIN_COUNT[kind] || !pins.every(isValidHole)) continue;
@@ -78,6 +79,10 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
     if (kind === 'resistor') p.value = RESISTOR_VALUES.includes(o.value as number) ? (o.value as number) : num(o.value, R_MIN, R_MAX, 330);
     if (kind === 'diode') p.model = oneOf(o.model, DIODE_MODELS, '1N4007');
     if (kind === 'led') p.ledColor = oneOf(o.ledColor, LED_COLORS, 'red');
+    if (kind === 'pot') { p.value = POT_VALUES.includes(o.value as number) ? (o.value as number) : 10e3; p.pos = num(o.pos, 0, 1, 0.5); }
+    if (kind === 'cap') p.capModel = oneOf(o.capModel, CAP_MODEL_IDS, '100u50');
+    if (kind === 'ind') p.value = IND_VALUES.includes(o.value as number) ? (o.value as number) : 1e-3;
+    if (kind === 'bjt') p.bjtModel = oneOf(o.bjtModel, BJT_MODEL_IDS, '2N3904');
     if (kind === 'atmega') { p.code = str(o.code, 100_000, ''); p.flash = str(o.flash, 100_000, ''); }
     if (kind === 'wire') p.color = typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : WIRE_COLORS[0];
     ids.add(id);
