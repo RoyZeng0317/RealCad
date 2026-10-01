@@ -87,6 +87,16 @@ await menu(/FLEX 10K FPGA：計數器/); await p.waitForTimeout(2000);
 await p.getByRole('button', { name: /FLEX 10K FPGA 實驗板/ }).first().click();
 await p.locator('select').filter({ has: p.locator('option[value="1000"]') }).selectOption('10');
 await expectShortcuts('用過下拉選單（CLK_SEL）');
+// 杜邦線調色盤（懸浮視窗）：色碼文字框、R 數值框，Enter 之後快捷鍵要馬上恢復
+await p.keyboard.press('w'); await p.waitForTimeout(250);
+const hex = p.getByLabel('16 進位色碼');
+await hex.click(); await expectTyping('游標在杜邦線色碼輸入框');
+await hex.fill('#12ab34'); await hex.press('Enter'); await p.waitForTimeout(150);
+await expectShortcuts('色碼按 Enter 之後');
+const rNum = p.getByLabel('R 數值');
+await rNum.click(); await expectTyping('游標在 R 數值框');
+await rNum.press('Enter'); await p.waitForTimeout(150);
+await expectShortcuts('R 數值按 Enter 之後');
 
 console.log(fails ? `\n✖ ${fails} 個情境失敗` : '\n✔ 全部通過');
 if (errs.length) console.log('頁面錯誤：\n' + errs.join('\n'));
