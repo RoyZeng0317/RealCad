@@ -30,11 +30,12 @@ export const TOOL_HINT: Record<Tool, string> = {
   fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
   ch1: '示波器 CH1 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
   ch2: '示波器 CH2 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
+  sa: '頻譜分析儀探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。分析的是 + 端減 − 端電壓的頻譜。',
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
   select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', atmega: 'ATmega328P', ch340: 'CH340G',
-  fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒',
+  fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀探棒',
 };
 
 // 快捷鍵（shortcutLetter / isTyping / boardActions / useBoardKeys）已集中到 shortcuts.ts；這裡轉出去給舊的 import 使用
@@ -56,6 +57,7 @@ const TOOL_ITEMS: LibItem[] = [
   { tool: 'fg', name: '函數產生器輸出線', sub: 'BNC → 紅 + / 黑 −，接到麵包板', icon: '∿' },
   { tool: 'ch1', name: '示波器 CH1 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '①' },
   { tool: 'ch2', name: '示波器 CH2 探棒', sub: '探針 + 接地夾，量麵包板上的波形', icon: '②' },
+  { tool: 'sa', name: '頻譜分析儀探棒', sub: '探針 + 接地夾，看麵包板上訊號的頻譜', icon: '≋' },
 ];
 
 function LibRow({ item }: { item: LibItem }) {
@@ -166,7 +168,7 @@ export function PartLibrary() {
 /** 右側檢視器上方：目前工具提示、放置中的第一點、錯誤訊息 */
 export function ToolStatus() {
   const { tool, pending, message, leadEnd } = useBoard();
-  const lead = tool === 'fg' || tool === 'ch1' || tool === 'ch2' ? LEAD_TAG[tool] : null;
+  const lead = tool === 'fg' || tool === 'ch1' || tool === 'ch2' || tool === 'sa' ? LEAD_TAG[tool] : null;
   return (
     <Section title={`工具：${TOOL_NAME[tool]}`}>
       <p style={help}>{TOOL_HINT[tool]}</p>

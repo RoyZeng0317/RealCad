@@ -8,6 +8,14 @@ export const GEN = {
   bnc: new THREE.Vector2(1.2, -0.45), // 前面板座標
 };
 
+// 頻譜分析儀 SA-1010：疊放在函數波產生器上面（實驗室常見擺法），面板朝向一樣
+export const SA = {
+  pos: new THREE.Vector3(-2.3, 1.4, 0.4),
+  rotY: 0.12,
+  size: { w: 3.2, h: 1.3, d: 2.3 },
+  bnc: new THREE.Vector2(1.22, -0.4), // RF IN（前面板座標）
+};
+
 export const SCOPE = {
   pos: new THREE.Vector3(1.95, 0, 0.1),
   rotY: -0.16,
@@ -75,5 +83,6 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 3.0, BREADBOARD.pos.z + 1.7),
     target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.1),
   },
+  spectrum: { pos: panelToWorld(SA, 0, 0.2, 4.2), target: panelToWorld(SA, 0, 0, 0) },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

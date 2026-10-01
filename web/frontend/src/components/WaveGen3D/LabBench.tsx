@@ -4,6 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { FunctionGenerator3D } from './FunctionGenerator3D.js';
 import { Oscilloscope3D } from './Oscilloscope3D.js';
+import { SpectrumAnalyzer3D } from './SpectrumAnalyzer3D.js';
 import { BncCable } from './BncCable.js';
 import { PowerSupply3D } from './PowerSupply3D.js';
 import { PowerLoad3D } from './PowerLoad3D.js';
@@ -83,6 +84,8 @@ export function LabBench() {
 
       <FunctionGenerator3D />
       <Oscilloscope3D />
+      {/* 沒接頻譜分析儀探棒、產生器也沒接麵包板時，用短 BNC 線把產生器接到頻譜分析儀 */}
+      <SpectrumAnalyzer3D cable={!leads.sa && !leads.fg} />
       {!leads.ch1 && <BncCable />}
       <PowerSupply3D />
       <PowerLoad3D />

@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { useWaveLab } from '../waveStore.js';
 import { usePsuLab } from '../psuStore.js';
+import { useSa } from '../saStore.js';
 import { useBoard } from '../boardStore.js';
 import { useDev } from '../devboards/devStore.js';
 import { DEV_KINDS, type DevKind } from '../devboards/boardDefs.js';
@@ -130,6 +131,7 @@ export function startTracking(): () => void {
       else markDirty();
     }),
     useWaveLab.subscribe((s, p) => { if (s.gen !== p.gen || s.scope !== p.scope) markDirty(); }),
+    useSa.subscribe((s, p) => { if (s.sa !== p.sa) markDirty(); }),
     usePsuLab.subscribe((s, p) => { if (s.psu !== p.psu || s.loadIdx !== p.loadIdx) markDirty(); }),
     useFpga.subscribe((s, p) => {
       if (s.files !== p.files || s.top !== p.top || s.slowHz !== p.slowHz || s.sw !== p.sw || s.epc !== p.epc

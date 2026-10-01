@@ -81,6 +81,7 @@ export function HelpPanel() {
         <p style={help}>左鍵拖曳旋轉、滾輪縮放、右鍵平移。上方工具列或左側元件庫點儀器，鏡頭會飛過去。</p>
       </Section>
       <Section title="儀器操作">
+        <p style={help}>頻譜分析儀（疊在函數產生器上）：PEAK 峰值搜尋、NEXT PK 下一個峰值、FUND 對準基頻、HARM×10 看前 10 次諧波；CENTER / SPAN / REF 三顆旋鈕。下方「頻譜分析儀」分頁有諧波表與 THD，左側「頻譜分析儀探棒」可改量麵包板上的兩點。</p>
         <p style={help}>3D 面板上的按鍵可以直接點；旋鈕用「按住上下拖曳」或「滑鼠滾輪」轉動，按住 Shift 微調。下方面板與 3D 面板是同一份狀態。</p>
       </Section>
       <Section title="開發板">
