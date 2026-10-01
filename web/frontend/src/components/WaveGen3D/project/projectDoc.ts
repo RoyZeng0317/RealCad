@@ -1,5 +1,7 @@
 // 專案內容 ↔ 各 store：存檔時收集、開檔時「逐欄驗證後」才寫回（別人給的 .rc 檔也不會塞進奇怪的資料）
 import { useWaveLab } from '../waveStore.js';
+import { useSa, SA_DEFAULT } from '../saStore.js';
+import { RBW_CHOICES, SA_FMAX } from '../spectrum.js';
 import { usePsuLab } from '../psuStore.js';
 import { useBoard, type Leads } from '../boardStore.js';
 import { useDev, type DevConf } from '../devboards/devStore.js';
@@ -28,6 +30,7 @@ export interface LabDoc {
   board: { parts: BoardPart[]; dmm: string | null; dmmBlack?: string | null; leads?: Leads };
   dev: Record<DevKind, DevConf>;
   fpga?: FpgaConf;
+  sa?: unknown; // 頻譜分析儀設定（舊檔沒有 → 用預設值）
 }
 
 export function collectDoc(name: string): LabDoc {
@@ -38,6 +41,7 @@ export function collectDoc(name: string): LabDoc {
     load: { idx: p.loadIdx, burnt: p.burnt },
     board: { parts: b.parts, dmm: b.dmm, dmmBlack: b.dmmBlack, leads: b.leads },
     dev: d.conf,
+    sa: useSa.getState().sa,
     fpga: (({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }) =>
       ({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }))(useFpga.getState()),
   };
@@ -135,6 +139,16 @@ export function applyDoc(raw: unknown): string {
     ch2Position: num(s.ch2Position, -4, 4, -3), trigSource: oneOf(s.trigSource, ['CH1', 'CH2'] as const, 'CH1'),
   });
 
+  // 頻譜分析儀
+  const a = obj(d.sa);
+  const sp = num(a.span, 10, SA_FMAX, SA_DEFAULT.span);
+  useSa.setState({ sa: {
+    center: num(a.center, 0, SA_FMAX, SA_DEFAULT.center), span: sp, ref: num(a.ref, -80, 40, SA_DEFAULT.ref),
+    rbw: a.rbw === 0 || RBW_CHOICES.includes(a.rbw as number) ? (a.rbw as number) : 0,
+    unit: oneOf(a.unit, ['dBm', 'dBV'] as const, 'dBm'), z50: bool(a.z50, true), running: bool(a.running, true),
+    marker: a.marker === null || a.marker === undefined ? null : num(a.marker, 0, SA_FMAX, 0),
+  } });
+
   // 電源與負載
   const ps = obj(d.psu), load = obj(d.load);
   const p = usePsuLab.getState();
@@ -165,7 +179,7 @@ export function applyDoc(raw: unknown): string {
   const rl = obj(b.leads);
   const lead = (v: unknown): [string, string] | null =>
     Array.isArray(v) && v.length === 2 && v.every((h) => typeof h === 'string' && isValidHole(h)) ? [v[0], v[1]] : null;
-  const leads: Leads = { fg: lead(rl.fg), ch1: lead(rl.ch1), ch2: lead(rl.ch2) };
+  const leads: Leads = { fg: lead(rl.fg), ch1: lead(rl.ch1), ch2: lead(rl.ch2), sa: lead(rl.sa) };
   useBoard.setState({ dmm, dmmBlack, probeSide: 'red', leads, tool: 'select', temps: {}, tsd: {}, message: '' });
 
   return str(d.name, 100, '未命名專案') || '未命名專案';

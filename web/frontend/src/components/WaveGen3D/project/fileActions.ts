@@ -5,6 +5,7 @@ import { collectDoc, applyDoc } from './projectDoc.js';
 import { useProject, withoutTracking } from './projectStore.js';
 import { useWaveLab } from '../waveStore.js';
 import { usePsuLab } from '../psuStore.js';
+import { useSa, SA_DEFAULT } from '../saStore.js';
 import { useBoard } from '../boardStore.js';
 import { useDev } from '../devboards/devStore.js';
 import { DEV_KINDS, DEV_BOARDS, type DevKind } from '../devboards/boardDefs.js';
@@ -38,6 +39,7 @@ export function newProject() {
     w.setGen(INITIAL.gen);
     w.setWaveform(INITIAL.gen.waveform);
     w.setScope(INITIAL.scope);
+    useSa.setState({ sa: SA_DEFAULT });
     const p = usePsuLab.getState();
     p.setPsu(INITIAL.psu);
     p.setLoadIdx(INITIAL.loadIdx);

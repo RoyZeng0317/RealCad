@@ -16,10 +16,10 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const MOD = isMac ? '⌘' : 'Ctrl+';
 
 const VIEW_ITEMS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['breadboard', '麵包板'], ['devboards', '開發板區'], ['fpga', 'FPGA 實驗板'],
+  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['spectrum', '頻譜分析儀'], ['psu', '電源供應器'], ['breadboard', '麵包板'], ['bbgrid', '麵包板矩陣 4×4'], ['bbgrid2', '麵包板組 2×2'], ['devboards', '開發板區'], ['fpga', 'FPGA 實驗板'],
 ];
 const DOCK_ITEMS: [DockTab, string][] = [
-  ['generator', '函數波產生器'], ['scope', '示波器'], ['psu', '電源供應器'], ['nodes', '電路節點'], ['code', '程式碼'], ['serial', '序列埠'],
+  ['generator', '函數波產生器'], ['scope', '示波器'], ['spectrum', '頻譜分析儀'], ['psu', '電源供應器'], ['nodes', '電路節點'], ['code', '程式碼'], ['serial', '序列埠'],
 ];
 
 const SHORTCUTS = `${MOD}N　新增專案（部分瀏覽器保留此鍵，請改用選單）

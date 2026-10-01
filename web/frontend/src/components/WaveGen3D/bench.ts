@@ -51,13 +51,13 @@ export interface FgSource { p: HoleKey; n: HoleKey; v: number }
 export const FG_ROUT = 50; // 產生器輸出內阻 Ω
 
 /**
- * 儀器的地（大地）：函數產生器 BNC 外殼（黑線 −）與示波器探棒接地夾，在真實實驗室裡都經過儀器外殼、電源線接到同一個大地。
+ * 儀器的地（大地）：函數產生器 BNC 外殼（黑線 −）與示波器、頻譜分析儀探棒接地夾，在真實實驗室裡都經過儀器外殼、電源線接到同一個大地。
  * 所以產生器 − 與示波器 − 夾在不同地方時，電流可以經由大地流回產生器（這也是「接地夾夾錯地方會短路」的原因）。
  * 電源供應器輸出是浮接的，只經過漏電跟大地相連。
  */
 export function earthHoles(): HoleKey[] {
   const { leads } = useBoard.getState();
-  return [leads.fg?.[1], leads.ch1?.[1], leads.ch2?.[1]].filter((h): h is HoleKey => !!h);
+  return [leads.fg?.[1], leads.ch1?.[1], leads.ch2?.[1], leads.sa?.[1]].filter((h): h is HoleKey => !!h);
 }
 const EARTH = 'EARTH';
 

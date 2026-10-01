@@ -8,6 +8,14 @@ export const GEN = {
   bnc: new THREE.Vector2(1.2, -0.45), // 前面板座標
 };
 
+// 頻譜分析儀 SA-1010：疊放在函數波產生器上面（實驗室常見擺法），面板朝向一樣
+export const SA = {
+  pos: new THREE.Vector3(-2.3, 1.4, 0.4),
+  rotY: 0.12,
+  size: { w: 3.2, h: 1.3, d: 2.3 },
+  bnc: new THREE.Vector2(1.22, -0.4), // RF IN（前面板座標）
+};
+
 export const SCOPE = {
   pos: new THREE.Vector3(1.95, 0, 0.1),
   rotY: -0.16,
@@ -75,5 +83,16 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 3.0, BREADBOARD.pos.z + 1.7),
     target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.1),
   },
+  // 4×4 麵包板矩陣（側桌，麵包板本地 x 8.4 ~ 13.7、z -9.2 ~ 3.9），從斜上方看整片
+  bbgrid: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 11.0, 15.5, BREADBOARD.pos.z + 5.0),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 11.0, 0, BREADBOARD.pos.z - 1.2),
+  },
+  // 2×2 麵包板組（再往右的小側桌，麵包板本地 x 14.6 ~ 16.95、z -5.9 ~ 0.6）
+  bbgrid2: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 7.5, BREADBOARD.pos.z + 3.2),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 0, BREADBOARD.pos.z - 2.6),
+  },
+  spectrum: { pos: panelToWorld(SA, 0, 0.2, 4.2), target: panelToWorld(SA, 0, 0, 0) },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

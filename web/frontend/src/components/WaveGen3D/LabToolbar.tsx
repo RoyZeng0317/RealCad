@@ -11,7 +11,7 @@ import { boardActions, useTypingFocus } from './shortcuts.js';
 import { useProject, undo, redo } from './project/projectStore.js';
 
 const VIEWS: [ViewPreset, string][] = [
-  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['psu', '電源'], ['breadboard', '麵包板'], ['devboards', '開發板'], ['fpga', 'FPGA'],
+  ['overview', '全景'], ['generator', '函數產生器'], ['scope', '示波器'], ['spectrum', '頻譜'], ['psu', '電源'], ['breadboard', '麵包板'], ['bbgrid', '4×4 板'], ['bbgrid2', '2×2 板'], ['devboards', '開發板'], ['fpga', 'FPGA'],
 ];
 
 export function LabToolbar() {
