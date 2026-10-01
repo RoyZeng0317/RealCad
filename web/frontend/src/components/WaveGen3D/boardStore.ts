@@ -2,10 +2,10 @@
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
 import { hitHole } from './breadboardGrid.js';
-import { type BoardPart, type PartKind, type DiodeModel, type LedColor, WIRE_COLORS } from './boardParts.js';
+import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'erase' | LeadKind;
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
@@ -25,7 +25,11 @@ interface BoardState {
   diodeModel: DiodeModel;
   ledColor: LedColor;
   wireColor: string;
-  ldoDir: 1 | -1; // LT1117 從第 1 腳往下（+1）或往上（−1）排列
+  ldoDir: 1 | -1; // LT1117 從第 1 腳往下（+1）或往上（−1）排列（可變電阻、電晶體也用這個方向）
+  potValue: number;
+  capModel: CapModel;
+  indValue: number;
+  bjtModel: BjtModel;
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
   tsd: Record<string, boolean>; // LT1117 熱關斷中
   message: string;
@@ -33,7 +37,9 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel'>>) => void;
+  /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -61,7 +67,7 @@ export function placementError(parts: BoardPart[], part: BoardPart, pins: HoleKe
   if (pins.some((h) => !h.startsWith('p:') && occ.has(h))) return '目標孔已經插了其他零件';
   if (part.kind === 'wire') return pins[0] === pins[1] ? '杜邦線兩端不能插同一個孔' : '';
   if (pins.some((h) => h.startsWith('p:') || h.startsWith('h:'))) return '零件腳只能插在麵包板的孔';
-  if (part.kind !== 'ldo' && part.kind !== 'atmega' && part.kind !== 'ch340' && netOf(pins[0]) === netOf(pins[1])) return '兩隻腳會在同一組相通的孔裡（短路）';
+  if (pins.length === 2 && netOf(pins[0]) === netOf(pins[1])) return '兩隻腳會在同一組相通的孔裡（短路）';
   return '';
 }
 
@@ -122,6 +128,10 @@ export const useBoard = create<BoardState>((set, get) => ({
   ledColor: 'red',
   wireColor: WIRE_COLORS[0],
   ldoDir: 1,
+  potValue: 10e3,
+  capModel: '100u50',
+  indValue: 1e-3,
+  bjtModel: '2N3904',
   temps: {},
   tsd: {},
   message: '',
@@ -130,6 +140,7 @@ export const useBoard = create<BoardState>((set, get) => ({
 
   setTool: (tool) => set({ tool, pending: null, message: '', leadEnd: null }),
   setParam: (patch) => set(patch),
+  updatePart: (id, patch) => set((s) => ({ parts: s.parts.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
   setMessage: (message) => set({ message }),
   setLead: (k, pins) => set((s) => ({ leads: { ...s.leads, [k]: pins } })),
   startLead: (k, end) => set((s) => ({ tool: k, pending: null, message: '', leadEnd: end !== undefined && s.leads[k] ? end : null })),
@@ -207,16 +218,20 @@ export const useBoard = create<BoardState>((set, get) => ({
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }
-    if (s.tool === 'ldo') {
+    if (s.tool === 'ldo' || s.tool === 'pot' || s.tool === 'bjt') {
+      const name = s.tool === 'ldo' ? 'LT1117' : s.tool === 'pot' ? '可變電阻' : '電晶體';
       const pins = ldoPins(k, s.ldoDir);
-      if (!pins) { set({ message: 'LT1117 要放在端子排，而且排列方向上還要有 2 列空位' }); return; }
-      if (pins.some((p) => occ.has(p))) { set({ message: 'LT1117 的第 2、3 腳位置已經有零件' }); return; }
-      const part: BoardPart = { id: newId('ldo'), kind: 'ldo', pins, gen: 0 };
+      if (!pins) { set({ message: `${name}要放在端子排，而且排列方向上還要有 2 列空位` }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: `${name}的第 2、3 腳位置已經有零件` }); return; }
+      const part: BoardPart =
+        s.tool === 'pot' ? { id: newId('pot'), kind: 'pot', pins, value: s.potValue, pos: 0.5, gen: 0 }
+        : s.tool === 'bjt' ? { id: newId('bjt'), kind: 'bjt', pins, bjtModel: s.bjtModel, gen: 0 }
+        : { id: newId('ldo'), kind: 'ldo', pins, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }
 
-    // 兩點零件：電阻、二極體、跳線
+    // 兩點零件：電阻、二極體、LED、電解電容、電感、跳線
     if (!s.pending) { set({ pending: k, message: '' }); return; }
     if (s.pending === k) { set({ pending: null }); return; }
     if (s.tool !== 'wire' && netOf(s.pending) === netOf(k)) {
@@ -228,6 +243,8 @@ export const useBoard = create<BoardState>((set, get) => ({
       s.tool === 'resistor' ? { id: newId('resistor'), kind: 'resistor', pins, value: s.resistorValue, gen: 0 }
       : s.tool === 'diode' ? { id: newId('diode'), kind: 'diode', pins, model: s.diodeModel, gen: 0 }
       : s.tool === 'led' ? { id: newId('led'), kind: 'led', pins, ledColor: s.ledColor, gen: 0 }
+      : s.tool === 'cap' ? { id: newId('cap'), kind: 'cap', pins, capModel: s.capModel, gen: 0 }
+      : s.tool === 'ind' ? { id: newId('ind'), kind: 'ind', pins, value: s.indValue, gen: 0 }
       : { id: newId('wire'), kind: 'wire', pins, color: s.wireColor, gen: 0 };
     set({ parts: [...s.parts, part], pending: null, selectedId: part.kind === 'wire' ? s.selectedId : part.id, message: '' });
   },

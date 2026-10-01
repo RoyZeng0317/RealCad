@@ -4,6 +4,7 @@ import { useBoard, type Tool } from './boardStore.js';
 import { LEAD_TAG } from './LeadControls.js';
 import { ChipCard } from './chips/ChipPanels.js';
 import { ResistorInput } from './ResistorInput.js';
+import { AnalogParams, AnalogCard, isAnalog } from './AnalogPanels.js';
 import { loadAtmegaDemo } from './chips/chipDemo.js';
 import { useBench } from './bench.js';
 import { dmmReading } from './scopeLink.js';
@@ -13,6 +14,7 @@ import {
   partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadRectifierDemo } from './boardDemo.js';
+import { loadRcDemo, loadBjtDemo } from './analogDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -27,6 +29,10 @@ export const TOOL_HINT: Record<Tool, string> = {
   atmega: '點一個端子排的孔：第 1 腳（RESET，缺口那端）放在那一列，14 隻腳沿 e 欄往下、另 14 隻在 f 欄（跨在中間的溝上）。',
   ch340: '點一個端子排的孔：第 1 腳（GND）放在那一列，8 隻腳沿 e 欄往下、另 8 隻在 f 欄；Micro USB 線已接到電腦。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
+  pot: '點第 1 腳的孔，滑動端 W、第 3 腳會沿同一欄自動排在接下來兩列。放好後在白色旋鈕上拖曳或滾輪就能轉。',
+  cap: '電解電容有極性：先點 + 腳（長腳）的孔，再點 − 腳（白色條紋那邊）的孔。反接或超過耐壓會損壞。',
+  ind: '先點第一隻腳的孔，再點第二隻腳的孔（電感沒有極性）。',
+  bjt: '點 E（射極）的孔，B（基極）、C（集極）會沿同一欄自動排在接下來兩列（平面朝自己時由左到右 E、B、C）。',
   fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
   ch1: '示波器 CH1 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
   ch2: '示波器 CH2 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
@@ -34,7 +40,7 @@ export const TOOL_HINT: Record<Tool, string> = {
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', atmega: 'ATmega328P', ch340: 'CH340G',
+  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', atmega: 'ATmega328P', ch340: 'CH340G',
   fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀探棒',
 };
 
@@ -46,6 +52,10 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'resistor', name: '電阻', sub: '碳膜 1/4 W・E12 10 Ω–1 MΩ', icon: '▭' },
   { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
   { tool: 'led', name: 'LED', sub: '5 mm・紅 / 黃 / 綠 / 藍 / 白', icon: '◉' },
+  { tool: 'pot', name: '可變電阻', sub: '1 kΩ / 10 kΩ / 100 kΩ・旋鈕可轉', icon: '⏚' },
+  { tool: 'cap', name: '電解電容', sub: '100 µF / 50 V・47 µF / 25 V・有極性', icon: '⊣⊢' },
+  { tool: 'ind', name: '電感', sub: '100 µH / 1 mH / 10 mH・工字電感', icon: '∞' },
+  { tool: 'bjt', name: '電晶體', sub: '2N3904 NPN・2N3906 PNP・TO-92', icon: '⋎' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
   { tool: 'atmega', name: 'ATmega328P-PU', sub: 'AVR 微控制器・DIP-28・可寫 Arduino C', icon: '▥' },
   { tool: 'ch340', name: 'CH340G', sub: 'USB 轉序列（上傳程式／序列埠）・DIP-16', icon: '⇄' },
@@ -119,6 +129,7 @@ function ToolParams() {
       <button style={chip(s.probeSide === 'black', '#3a3a44')} onClick={() => s.setParam({ probeSide: 'black' })}>下一次放黑棒</button>
     </div>
   );
+  if (s.tool === 'pot' || s.tool === 'cap' || s.tool === 'ind' || s.tool === 'bjt') return <AnalogParams />;
   if (s.tool === 'ldo') return (
     <div style={row}>
       <button style={chip(s.ldoDir === 1)} onClick={() => s.setParam({ ldoDir: 1 })}>腳位往下排</button>
@@ -146,6 +157,12 @@ export function PartLibrary() {
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadRectifierDemo(); useLabUi.getState().focus('scope'); }}>
           函數產生器 → 麵包板：半波整流
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadRcDemo(); useLabUi.getState().focus('scope'); }}>
+          RC 充放電（1 kΩ + 100 µF，示波器看電容電壓）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadBjtDemo(); useLabUi.getState().focus('breadboard'); }}>
+          可變電阻 + 2N3904 電晶體開關 LED
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
           Arduino Uno：LED 閃爍（Blink）
@@ -206,6 +223,7 @@ export function DmmCard() {
 }
 
 export function PartCard({ part }: { part: BoardPart }) {
+  if (isAnalog(part)) return <AnalogCard part={part} />;
   return part.kind === 'atmega' || part.kind === 'ch340' ? <ChipCard part={part} /> : <SimplePartCard part={part} />;
 }
 

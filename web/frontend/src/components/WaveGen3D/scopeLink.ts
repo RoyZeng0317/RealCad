@@ -2,12 +2,14 @@
 //   麵包板上的零件（電阻、二極體、LED、LT1117、IC 腳位）都沒有電容電感，每一瞬間的電壓只由當下的產生器電壓決定，
 //   所以把產生器電壓從最低掃到最高、每一點求一次直流解，得到「產生器電壓 → 探棒電壓」的轉換曲線，
 //   示波器取樣時再依產生器波形查表（二極體削波、LED 導通這類非線性都會正確出現）
+//   有電容 / 電感時電路有「記憶」，查表不成立 → 改用暫態模擬（transient.ts）算出一個週期的波形，依時間查
 import { useBoard, type LeadKind } from './boardStore.js';
 import { usePsuLab, loadResistance } from './psuStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useDev } from './devboards/devStore.js';
 import { useChips } from './chips/chipStore.js';
-import { computeBench, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
+import { computeBench, benchElements, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
+import { hasReactive, simulatePeriodic, type Periodic } from './transient.js';
 import { waveRange, sampleWave } from './waveform.js';
 import type { HoleKey } from './boardModel.js';
 
@@ -17,6 +19,8 @@ export interface Transfer {
   xs: number[]; // 產生器電壓（掃描點）
   ys: (number | null)[]; // 探棒電壓；null = 探棒插的點沒有接到電路
   dc: number | null; // 產生器沒接麵包板時：探棒量到的直流電壓
+  wave?: (number | null)[]; // 暫態模擬：一個週期內每個相位的電壓（有電容 / 電感時）
+  period?: number;
 }
 
 /** 這個通道實際量的是哪兩點：有自己的探棒就用探棒；CH1 沒接探棒、產生器又接在麵包板上時，等於用 BNC T 頭看產生器輸出端 */
@@ -27,7 +31,7 @@ export function channelLead(ch: 'ch1' | 'ch2'): [HoleKey, HoleKey] | null {
 }
 
 // 掃描結果（每個產生器電壓一份直流解）只在電路或產生器設定改變時重算；getBench() 只有在會影響電路的狀態改變時才換新物件
-let sweep: { key: unknown[]; xs: number[]; benches: Bench[] } | null = null;
+let sweep: { key: unknown[]; xs: number[]; benches: Bench[]; per: Periodic | null; net: ((k: HoleKey) => string) | null } | null = null;
 const pairCache = new Map<string, Transfer>();
 
 function getSweep() {
@@ -37,14 +41,19 @@ function getSweep() {
   if (!sweep || !sweep.key.every((v, i) => v === key[i])) {
     const fg = fgDc();
     let xs: number[] = [], benches: Bench[] = [];
-    if (fg) {
+    let per: Periodic | null = null, net: ((k: HoleKey) => string) | null = null;
+    if (fg && hasReactive(bs.parts) && gen.waveform !== 'noise') {
+      const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles());
+      per = simulatePeriodic(b.els, b.GND, gen);
+      net = b.net;
+    } else if (fg) {
       const [lo, hi] = waveRange(gen);
       const n = hi - lo < 1e-9 ? 1 : STEPS;
       xs = Array.from({ length: n }, (_, i) => (n === 1 ? lo : lo + ((hi - lo) * i) / (n - 1)));
       const earth = earthHoles();
       benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }, earth));
     }
-    sweep = { key, xs, benches };
+    sweep = { key, xs, benches, per, net };
     pairCache.clear();
   }
   return sweep;
@@ -56,7 +65,13 @@ export function transferOf(a: HoleKey, b: HoleKey): Transfer {
   const id = `${a}|${b}`;
   let tr = pairCache.get(id);
   if (!tr) {
-    tr = sw.benches.length
+    const per = sw.per, net = sw.net;
+    tr = per && net
+      ? {
+        xs: [], ys: [], dc: null, period: per.period,
+        wave: per.sols.map((s) => { const va = s.nodeV[net(a)], vb = s.nodeV[net(b)]; return va === undefined || vb === undefined ? null : va - vb; }),
+      }
+      : sw.benches.length
       ? { xs: sw.xs, ys: sw.benches.map((bn) => meterV(bn, a, b)), dc: null }
       : { xs: [], ys: [], dc: meterV(getBench(), a, b) };
     pairCache.set(id, tr);
@@ -74,11 +89,11 @@ export function dmmReading(red: HoleKey | null, black: HoleKey | null): number |
   if (!red || !black) return null;
   if (!fgDc()) return meterV(getBench(), red, black);
   const tr = transferOf(red, black);
-  if (!tr.ys.some((y) => y !== null)) return null;
+  if (!probeConnected(tr)) return null;
   const gen = useWaveLab.getState().gen;
   let sum = 0;
   const N = 200;
-  for (let i = 0; i < N; i++) sum += probeValue(tr, sampleWave(gen, (i + 0.5) / N / gen.frequency));
+  for (let i = 0; i < N; i++) sum += probeAt(tr, (i + 0.5) / N / gen.frequency);
   return sum / N;
 }
 
@@ -94,7 +109,20 @@ export function probeValue(tr: Transfer, vfg: number): number {
   return a + (b - a) * (t - i);
 }
 
+/** 時間 t 的探棒電壓：暫態模擬的結果依相位查；沒有電容電感時依產生器當下電壓查轉換曲線 */
+export function probeAt(tr: Transfer, t: number): number {
+  if (tr.wave && tr.period) {
+    const M = tr.wave.length;
+    const ph = (((t / tr.period) % 1) + 1) % 1 * M;
+    const i = Math.floor(ph) % M, f = ph - Math.floor(ph);
+    const a = tr.wave[i], b = tr.wave[(i + 1) % M];
+    return a === null || b === null ? 0 : a + (b - a) * f;
+  }
+  return probeValue(tr, sampleWave(useWaveLab.getState().gen, t));
+}
+
 /** 探棒插的點有沒有接到電路（給面板顯示提示） */
-export const probeConnected = (tr: Transfer | null) => !!tr && (tr.xs.length ? tr.ys.some((y) => y !== null) : tr.dc !== null);
+export const probeConnected = (tr: Transfer | null) =>
+  !!tr && (tr.wave ? tr.wave.some((y) => y !== null) : tr.xs.length ? tr.ys.some((y) => y !== null) : tr.dc !== null);
 
 export const LEAD_KINDS: LeadKind[] = ['fg', 'ch1', 'ch2'];

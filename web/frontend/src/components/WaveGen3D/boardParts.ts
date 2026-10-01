@@ -1,13 +1,17 @@
 // 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、ATmega328P／CH340G（DIP）、跳線
+// 類比零件：可變電阻（1k/10k/100k）、電解電容（100µF/50V、47µF/25V）、電感、電晶體 2N3904 / 2N3906
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt';
 
 export interface BoardPart {
   id: string;
   kind: PartKind;
-  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]
-  value?: number; // 電阻 Ω
+  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]
+  value?: number; // 電阻 Ω；可變電阻總阻值 Ω；電感 H
+  pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
+  capModel?: CapModel;
+  bjtModel?: BjtModel;
   model?: DiodeModel;
   ledColor?: LedColor;
   color?: string; // 跳線顏色
@@ -73,6 +77,35 @@ export function colorBands(ohms: number): string[] {
   return [BAND[d1], BAND[d2], mult, '#c9a24a'];
 }
 
+// ---- 可變電阻（3 腳，中間是滑動端 W）----
+export const POT_VALUES = [1e3, 10e3, 100e3];
+export const POT_RATING = 0.5; // W
+export const POT_END_R = 0.5; // 轉到底時滑動端與端腳之間仍有的接觸電阻 Ω
+
+// ---- 電解電容（有極性：腳 1 是 +，長腳；外殼白色條紋那邊是 −）----
+export const CAP_MODELS = {
+  '100u50': { c: 100e-6, v: 50, name: '100 µF / 50 V', d: 8, h: 11.5, color: '#1d3f8a' },
+  '47u25': { c: 47e-6, v: 25, name: '47 µF / 25 V', d: 6.3, h: 11, color: '#121418' },
+} as const;
+export type CapModel = keyof typeof CAP_MODELS;
+export const CAP_MODEL_IDS = Object.keys(CAP_MODELS) as CapModel[];
+export const CAP_REVERSE_MAX = 1; // 反接超過 1 V 就會損壞
+
+// ---- 電感（色碼電感 / 工字電感；直流電阻 DCR 隨電感量變大）----
+export const IND_VALUES = [100e-6, 1e-3, 10e-3];
+export const indDcr = (l: number) => Number((0.03 + 300 * l ** 0.8).toPrecision(2)); // 100 µH ≈ 0.2 Ω、1 mH ≈ 1.2 Ω、10 mH ≈ 7.6 Ω
+export const IND_IMAX = 0.5; // A
+
+// ---- 電晶體（TO-92，平面朝自己時腳位由左到右 E、B、C）----
+// Ebers-Moll 參數（取自常見 SPICE 模型、BF 取典型 hFE）
+export const BJT_MODELS = {
+  '2N3904': { pol: 1 as const, is: 6.73e-15, bf: 200, br: 0.74, name: '2N3904（NPN）' },
+  '2N3906': { pol: -1 as const, is: 1.41e-15, bf: 180, br: 4.98, name: '2N3906（PNP）' },
+};
+export type BjtModel = keyof typeof BJT_MODELS;
+export const BJT_MODEL_IDS = Object.keys(BJT_MODELS) as BjtModel[];
+export const BJT_PMAX = 0.625, BJT_ICMAX = 0.2; // W、A
+
 // 熱模型參數：穩態溫升 = P × Rth，燒毀溫度
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
   resistor: { rth: 280, tau: 4, burn: 330 }, // 1/4 W：約 1 W 以上會燒
@@ -81,6 +114,10 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   ldo: { rth: 50, tau: 8, burn: Infinity }, // TO-220 無散熱片：150 °C 熱關斷，不會燒
   atmega: { rth: 60, tau: 10, burn: Infinity }, // DIP-28
   ch340: { rth: 80, tau: 8, burn: Infinity },
+  pot: { rth: 110, tau: 6, burn: 280 }, // 0.5 W：約 2.3 W 以上會燒
+  cap: { rth: 1, tau: 1, burn: Infinity }, // 電容不發熱；過壓 / 反接由電路判斷損壞
+  ind: { rth: 60, tau: 6, burn: 250 }, // 電流流過 DCR 發熱
+  bjt: { rth: 200, tau: 3, burn: 200 }, // TO-92：約 0.9 W 以上會燒
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -92,6 +129,10 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'ldo') return 'LT1117-3.3 穩壓 IC';
   if (p.kind === 'atmega') return 'ATmega328P-PU';
   if (p.kind === 'ch340') return 'CH340G USB 轉序列';
+  if (p.kind === 'pot') return `可變電阻 ${fmtOhm(p.value!)}`;
+  if (p.kind === 'cap') return `電解電容 ${CAP_MODELS[p.capModel ?? '100u50'].name}`;
+  if (p.kind === 'ind') return `電感 ${fmtHenry(p.value!)}`;
+  if (p.kind === 'bjt') return `電晶體 ${BJT_MODELS[p.bjtModel ?? '2N3904'].name}`;
   return '杜邦線';
 }
 
@@ -99,4 +140,10 @@ export function fmtOhm(r: number): string {
   if (r >= 1e6) return `${+(r / 1e6).toPrecision(3)} MΩ`;
   if (r >= 1e3) return `${+(r / 1e3).toPrecision(3)} kΩ`;
   return `${+r.toPrecision(3)} Ω`;
+}
+
+export function fmtHenry(l: number): string {
+  if (l >= 1) return `${+l.toPrecision(3)} H`;
+  if (l >= 1e-3) return `${+(l * 1e3).toPrecision(3)} mH`;
+  return `${+(l * 1e6).toPrecision(3)} µH`;
 }
