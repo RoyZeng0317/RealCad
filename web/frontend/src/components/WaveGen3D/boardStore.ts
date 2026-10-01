@@ -9,7 +9,7 @@ export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | '
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
-export const LEAD_NAME: Record<LeadKind, string> = { fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀探棒' };
+export const LEAD_NAME: Record<LeadKind, string> = { fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線' };
 
 interface BoardState {
   parts: BoardPart[];

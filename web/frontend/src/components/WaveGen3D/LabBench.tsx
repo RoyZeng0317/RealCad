@@ -84,7 +84,7 @@ export function LabBench() {
 
       <FunctionGenerator3D />
       <Oscilloscope3D />
-      {/* 沒接頻譜分析儀探棒、產生器也沒接麵包板時，用短 BNC 線把產生器接到頻譜分析儀 */}
+      {/* 沒接頻譜分析儀紅黑測試線、產生器也沒接麵包板時，用短 BNC 線把產生器接到頻譜分析儀 */}
       <SpectrumAnalyzer3D cable={!leads.sa && !leads.fg} />
       {!leads.ch1 && <BncCable />}
       <PowerSupply3D />
