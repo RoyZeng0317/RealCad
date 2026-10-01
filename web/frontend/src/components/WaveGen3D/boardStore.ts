@@ -7,9 +7,9 @@ import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
 export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
-export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa';
+export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa' | 'dm';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
-export const LEAD_NAME: Record<LeadKind, string> = { fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線' };
+export const LEAD_NAME: Record<LeadKind, string> = { fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線', dm: '桌上型萬用電表測試線' };
 
 interface BoardState {
   parts: BoardPart[];
@@ -121,7 +121,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   dmm: null,
   dmmBlack: 'p:GND',
   probeSide: 'red',
-  leads: { fg: null, ch1: null, ch2: null, sa: null },
+  leads: { fg: null, ch1: null, ch2: null, sa: null, dm: null },
   leadEnd: null,
   resistorValue: 330,
   diodeModel: '1N4007',
@@ -184,7 +184,7 @@ export const useBoard = create<BoardState>((set, get) => ({
       return;
     }
     // 儀器的線：第一下是 + 端（紅線 / 探針），第二下是 − 端（黑線 / 接地夾）；夾在孔上，不佔用孔
-    if (s.tool === 'fg' || s.tool === 'ch1' || s.tool === 'ch2' || s.tool === 'sa') {
+    if (s.tool === 'fg' || s.tool === 'ch1' || s.tool === 'ch2' || s.tool === 'sa' || s.tool === 'dm') {
       const cur = s.leads[s.tool];
       if (s.leadEnd !== null && cur) {
         const pins: [HoleKey, HoleKey] = s.leadEnd === 0 ? [k, cur[1]] : [cur[0], k];
@@ -259,6 +259,6 @@ export const useBoard = create<BoardState>((set, get) => ({
     tsd,
     parts: burnt.length ? s.parts.map((p) => (burnt.includes(p.id) ? { ...p, burnt: true } : p)) : s.parts,
   })),
-  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, dmmBlack: 'p:GND', probeSide: 'red', leads: { fg: null, ch1: null, ch2: null, sa: null }, temps: {}, tsd: {} }),
+  clearBoard: () => set({ parts: [], selectedId: null, pending: null, dmm: null, dmmBlack: 'p:GND', probeSide: 'red', leads: { fg: null, ch1: null, ch2: null, sa: null, dm: null }, temps: {}, tsd: {} }),
   loadParts: (parts) => set({ parts, selectedId: null, pending: null }),
 }));

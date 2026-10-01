@@ -43,7 +43,7 @@ export function loadBjtDemo() {
   ]);
   useBoard.setState({ tool: 'select', selectedId: 'q-vr', dmm: 't:1:20:0', dmmBlack: 'p:GND' });
   const b = useBoard.getState();
-  (['fg', 'ch1', 'ch2', 'sa'] as const).forEach((k) => b.setLead(k, null));
+  (['fg', 'ch1', 'ch2', 'sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
   const psu = usePsuLab.getState();
   psu.setPsu({ vSet: 5, iSet: 0.5, power: true, output: true });
   psu.setLoadIdx(LOAD_STEPS.length - 1);

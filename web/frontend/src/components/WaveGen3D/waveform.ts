@@ -96,6 +96,11 @@ export interface Measurements {
   vrms: number;
   vavg: number;
   freq: number | null;
+  period: number | null;
+  duty: number | null; // 正脈寬 / 週期（0~1）
+  rise: number | null; // 10% → 90% 上升時間
+  fall: number | null; // 90% → 10% 下降時間
+  pwidth: number | null; // 正脈寬
 }
 
 /** 示波器自動量測：對畫面上顯示的取樣點計算 */
@@ -125,7 +130,33 @@ export function measure(samples: number[], dt: number): Measurements {
     const span = (edges[edges.length - 1] - edges[0]) * dt;
     freq = (edges.length - 1) / span;
   }
-  return { vmax, vmin, vpp: vmax - vmin, vrms: Math.sqrt(sq / n), vavg, freq };
+  // 工作週期：完整週期（第一個到最後一個上升緣）內高於中間準位的時間比例
+  let duty: number | null = null;
+  const per = rising.length >= 2 ? rising : falling.length >= 2 ? falling : null;
+  if (per) {
+    let hi = 0;
+    for (let i = per[0]; i < per[per.length - 1]; i++) if (samples[i] > mid) hi++;
+    duty = hi / (per[per.length - 1] - per[0]);
+  }
+  // 上升 / 下降時間（10% ↔ 90%，線性內插穿越點）
+  const lo = vmin + 0.1 * (vmax - vmin), hiL = vmin + 0.9 * (vmax - vmin);
+  /** 在第 idx 個取樣附近的邊緣：往回找起點準位、往後找終點準位，兩者時間差 */
+  const at = (i: number, level: number) => i - 1 + (level - samples[i - 1]) / (samples[i] - samples[i - 1] || 1);
+  const edgeTime = (idx: number | undefined, up: boolean) => {
+    if (idx === undefined || vmax - vmin < 1e-6) return null;
+    const [l0, l1] = up ? [lo, hiL] : [hiL, lo];
+    const passes = (i: number, level: number) => (up ? samples[i - 1] < level && samples[i] >= level : samples[i - 1] > level && samples[i] <= level);
+    let s: number | null = null, e: number | null = null;
+    for (let i = idx; i > 0; i--) if (passes(i, l0)) { s = at(i, l0); break; }
+    for (let i = Math.max(1, idx); i < samples.length; i++) if (passes(i, l1)) { e = at(i, l1); break; }
+    return s !== null && e !== null && e >= s ? (e - s) * dt : null;
+  };
+  const rise = edgeTime(rising[0], true), fall = edgeTime(falling[0], false);
+  const period = freq ? 1 / freq : null;
+  return {
+    vmax, vmin, vpp: vmax - vmin, vrms: Math.sqrt(sq / n), vavg, freq, period, duty,
+    rise, fall, pwidth: duty !== null && period ? duty * period : null,
+  };
 }
 
 /** 1-2-5 檔位（示波器 VOLTS/DIV、TIME/DIV 旋鈕） */

@@ -7,7 +7,7 @@ import {
 import { getBench } from './bench.js';
 
 export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
-export type ViewPreset = 'overview' | 'generator' | 'scope' | 'spectrum' | 'psu' | 'breadboard' | 'bbgrid' | 'bbgrid2' | 'devboards' | 'fpga';
+export type ViewPreset = 'overview' | 'generator' | 'scope' | 'spectrum' | 'dmm' | 'psu' | 'breadboard' | 'bbgrid' | 'bbgrid2' | 'devboards' | 'fpga';
 
 export interface ScopeSettings {
   timeDivIdx: number;
@@ -21,6 +21,7 @@ export interface ScopeSettings {
   ch2VoltDivIdx: number;
   ch2Position: number; // 格
   trigSource: 'CH1' | 'CH2';
+  measPage: 0 | 1 | 2; // 螢幕上的量測：0 = 基本（下方兩列）、1 = CH1 全部參數、2 = CH2 全部參數
 }
 
 interface WaveLabState {
@@ -68,7 +69,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   scope: {
     timeDivIdx: TIME_DIVS.indexOf(0.0002), voltDivIdx: VOLT_DIVS.indexOf(1),
     position: 0, trigLevel: 0, running: true, coupling: 'DC',
-    ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: -3, trigSource: 'CH1',
+    ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: -3, trigSource: 'CH1', measPage: 0,
   },
   view: 'overview',
   viewNonce: 0,

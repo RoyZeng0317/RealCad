@@ -10,6 +10,7 @@ import { useDev } from './devboards/devStore.js';
 import { useChips } from './chips/chipStore.js';
 import { computeBench, benchElements, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
 import { hasReactive, simulatePeriodic, type Periodic } from './transient.js';
+import { dmSpec } from './dmStore.js';
 import { waveRange, sampleWave } from './waveform.js';
 import type { HoleKey } from './boardModel.js';
 
@@ -43,7 +44,7 @@ function getSweep() {
     let xs: number[] = [], benches: Bench[] = [];
     let per: Periodic | null = null, net: ((k: HoleKey) => string) | null = null;
     if (fg && hasReactive(bs.parts) && gen.waveform !== 'noise') {
-      const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles());
+      const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles(), dmSpec());
       per = simulatePeriodic(b.els, b.GND, gen);
       net = b.net;
     } else if (fg) {
@@ -51,7 +52,8 @@ function getSweep() {
       const n = hi - lo < 1e-9 ? 1 : STEPS;
       xs = Array.from({ length: n }, (_, i) => (n === 1 ? lo : lo + ((hi - lo) * i) / (n - 1)));
       const earth = earthHoles();
-      benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }, earth));
+      const meter = dmSpec();
+      benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }, earth, meter));
     }
     sweep = { key, xs, benches, per, net };
     pairCache.clear();

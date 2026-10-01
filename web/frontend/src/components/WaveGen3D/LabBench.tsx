@@ -5,6 +5,7 @@ import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { FunctionGenerator3D } from './FunctionGenerator3D.js';
 import { Oscilloscope3D } from './Oscilloscope3D.js';
 import { SpectrumAnalyzer3D } from './SpectrumAnalyzer3D.js';
+import { DigitalMeter3D } from './DigitalMeter3D.js';
 import { BncCable } from './BncCable.js';
 import { PowerSupply3D } from './PowerSupply3D.js';
 import { PowerLoad3D } from './PowerLoad3D.js';
@@ -88,6 +89,7 @@ export function LabBench() {
       <SpectrumAnalyzer3D cable={!leads.sa && !leads.fg} />
       {!leads.ch1 && <BncCable />}
       <PowerSupply3D />
+      <DigitalMeter3D />
       <PowerLoad3D />
       {!leads.ch2 && <ScopeProbe />}
       <LabBreadboard />

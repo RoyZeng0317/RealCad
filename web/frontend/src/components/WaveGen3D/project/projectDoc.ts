@@ -1,6 +1,7 @@
 // 專案內容 ↔ 各 store：存檔時收集、開檔時「逐欄驗證後」才寫回（別人給的 .rc 檔也不會塞進奇怪的資料）
 import { useWaveLab } from '../waveStore.js';
 import { useSa, SA_DEFAULT } from '../saStore.js';
+import { useDm, DM_DEFAULT, DM_MODES } from '../dmStore.js';
 import { RBW_CHOICES, SA_FMAX } from '../spectrum.js';
 import { usePsuLab } from '../psuStore.js';
 import { useBoard, type Leads } from '../boardStore.js';
@@ -32,6 +33,7 @@ export interface LabDoc {
   dev: Record<DevKind, DevConf>;
   fpga?: FpgaConf;
   sa?: unknown; // 頻譜分析儀設定（舊檔沒有 → 用預設值）
+  dm?: unknown; // 桌上型萬用電表設定
 }
 
 export function collectDoc(name: string): LabDoc {
@@ -43,6 +45,7 @@ export function collectDoc(name: string): LabDoc {
     board: { parts: b.parts, dmm: b.dmm, dmmBlack: b.dmmBlack, leads: b.leads },
     dev: d.conf,
     sa: useSa.getState().sa,
+    dm: useDm.getState().dm,
     fpga: (({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }) =>
       ({ files, active, top, slowHz, sw, epc, slides, sdCard, tfCard, speaker }))(useFpga.getState()),
   };
@@ -154,6 +157,14 @@ export function applyDoc(raw: unknown): string {
     marker: a.marker === null || a.marker === undefined ? null : num(a.marker, 0, SA_FMAX, 0),
   } });
 
+  // 桌上型萬用電表
+  const m = obj(d.dm);
+  useDm.setState({ dm: {
+    power: bool(m.power, true), mode: oneOf(m.mode, DM_MODES.map(([k]) => k), 'dcv'),
+    jack: oneOf(m.jack, ['mA', '10A'] as const, 'mA'), fuseOk: bool(m.fuseOk, true), hold: false, rel: null,
+    ohmRange: int(m.ohmRange, 0, 5, DM_DEFAULT.ohmRange),
+  } });
+
   // 電源與負載
   const ps = obj(d.psu), load = obj(d.load);
   const p = usePsuLab.getState();
@@ -184,7 +195,7 @@ export function applyDoc(raw: unknown): string {
   const rl = obj(b.leads);
   const lead = (v: unknown): [string, string] | null =>
     Array.isArray(v) && v.length === 2 && v.every((h) => typeof h === 'string' && isValidHole(h)) ? [v[0], v[1]] : null;
-  const leads: Leads = { fg: lead(rl.fg), ch1: lead(rl.ch1), ch2: lead(rl.ch2), sa: lead(rl.sa) };
+  const leads: Leads = { fg: lead(rl.fg), ch1: lead(rl.ch1), ch2: lead(rl.ch2), sa: lead(rl.sa), dm: lead(rl.dm) };
   useBoard.setState({ dmm, dmmBlack, probeSide: 'red', leads, tool: 'select', temps: {}, tsd: {}, message: '' });
 
   return str(d.name, 100, '未命名專案') || '未命名專案';
