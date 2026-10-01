@@ -83,6 +83,16 @@ export const VIEWS = {
     pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 3.0, BREADBOARD.pos.z + 1.7),
     target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.1),
   },
+  // 4×4 麵包板矩陣（側桌，麵包板本地 x 8.4 ~ 13.7、z -9.2 ~ 3.9），從斜上方看整片
+  bbgrid: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 11.0, 15.5, BREADBOARD.pos.z + 5.0),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 11.0, 0, BREADBOARD.pos.z - 1.2),
+  },
+  // 2×2 麵包板組（再往右的小側桌，麵包板本地 x 14.6 ~ 16.95、z -5.9 ~ 0.6）
+  bbgrid2: {
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 7.5, BREADBOARD.pos.z + 3.2),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 15.9, 0, BREADBOARD.pos.z - 2.6),
+  },
   spectrum: { pos: panelToWorld(SA, 0, 0.2, 4.2), target: panelToWorld(SA, 0, 0, 0) },
   psu: { pos: panelToWorld(PSU, 0.6, 1.6, 4.8), target: panelToWorld(PSU, 0.6, -0.4, 0.9) },
 };

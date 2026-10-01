@@ -14,8 +14,9 @@ import { DevBoards3D } from './devboards/DevBoard3D.js';
 import { DevRuntime } from './devboards/DevRuntime.js';
 import { FpgaRuntime } from './devboards/fpga/FpgaRuntime.js';
 import { ChipRuntime } from './chips/ChipRuntime.js';
+import { BreadboardGrid3D } from './BreadboardGrid3D.js';
 import {
-  P, ROWS, STRIPS, STRIP_LEN, STRIP_Z, STRIP_H, PLATE, TOP_Y, TERM_W, BUS_W, COLS,
+  P, ROWS, STRIPS, STRIP_LEN, STRIP_H, PLATE, TOP_Y, TERM_W, BUS_W, COLS,
   termColX, rowZ, BUS_SLOTS, busZ, busRailX, hitHole, describeHit, type HoleHit,
 } from './breadboardGrid.js';
 
@@ -118,13 +119,13 @@ function highlightRect(h: HoleHit) {
   const s = STRIPS.filter((st) => st.kind === h.kind)[h.strip];
   if (h.kind === 'term') {
     return {
-      x: s.x + (h.col < 5 ? -3 : 3) * P, z: STRIP_Z + rowZ(h.row), w: 5 * P, d: 0.9 * P,
-      hx: s.x + termColX(h.col), hz: STRIP_Z + rowZ(h.row),
+      x: s.x + (h.col < 5 ? -3 : 3) * P, z: s.z + rowZ(h.row), w: 5 * P, d: 0.9 * P,
+      hx: s.x + termColX(h.col), hz: s.z + rowZ(h.row),
     };
   }
   return {
-    x: s.x + busRailX(h.rail), z: STRIP_Z + (busZ(0) + busZ(58)) / 2, w: 0.9 * P, d: 58.9 * P,
-    hx: s.x + busRailX(h.rail), hz: STRIP_Z + busZ(h.slot),
+    x: s.x + busRailX(h.rail), z: s.z + (busZ(0) + busZ(58)) / 2, w: 0.9 * P, d: 58.9 * P,
+    hx: s.x + busRailX(h.rail), hz: s.z + busZ(h.slot),
   };
 }
 
@@ -189,7 +190,7 @@ export function LabBreadboard() {
 
       {/* 端子排與電源軌 */}
       {STRIPS.map((s, i) => (
-        <group key={i} position={[s.x, PLATE.h, STRIP_Z]}>
+        <group key={i} position={[s.x, PLATE.h, s.z]}>
           <mesh position={[0, STRIP_H / 2, 0]} castShadow receiveShadow>
             <boxGeometry args={[s.w, STRIP_H, STRIP_LEN]} />
             <meshStandardMaterial color="#ece6d6" roughness={0.7} />
@@ -202,6 +203,8 @@ export function LabBreadboard() {
         </group>
       ))}
 
+      {/* 4×4 麵包板矩陣（側桌） */}
+      <BreadboardGrid3D />
       {POSTS.map(([name, color]) => <BindingPost key={name} name={name} color={color} />)}
       <BoardParts3D />
       <BoardThermal />

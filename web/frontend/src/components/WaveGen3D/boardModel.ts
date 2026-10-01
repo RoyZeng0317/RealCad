@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { DEV_BOARDS, devPin, devNet, pinTopY, type DevKind } from './devboards/boardDefs.js';
 import {
-  STRIPS, STRIP_Z, TOP_Y, PLATE, ROWS, termColX, rowZ, busZ, busRailX, BUS_SLOTS, COLS, type HoleHit,
+  STRIPS, TOP_Y, PLATE, ROWS, termColX, rowZ, busZ, busRailX, BUS_SLOTS, COLS, TERM_COUNT, BUS_COUNT, termLabel, busLabel,
+  type HoleHit,
 } from './breadboardGrid.js';
 
 export type PostName = 'Va' | 'Vb' | 'GND';
@@ -32,8 +33,8 @@ export function netOf(k: HoleKey): string {
 /** 孔（或接線柱頂端）在麵包板本地座標的位置 */
 export function holePos(k: HoleKey): THREE.Vector3 {
   const [t, a, b, c] = k.split(':');
-  if (t === 't') return new THREE.Vector3(termStrip(+a).x + termColX(+c), TOP_Y, STRIP_Z + rowZ(+b));
-  if (t === 'b') return new THREE.Vector3(busStrip(+a).x + busRailX(+b as 0 | 1), TOP_Y, STRIP_Z + busZ(+c));
+  if (t === 't') return new THREE.Vector3(termStrip(+a).x + termColX(+c), TOP_Y, termStrip(+a).z + rowZ(+b));
+  if (t === 'b') return new THREE.Vector3(busStrip(+a).x + busRailX(+b as 0 | 1), TOP_Y, busStrip(+a).z + busZ(+c));
   if (t === 'h') {
     const d = DEV_BOARDS[a as DevKind], p = devPin(a as DevKind, b);
     return new THREE.Vector3(d.slot.x + (p?.x ?? 0), pinTopY(d), d.slot.z + (p?.z ?? 0));
@@ -43,8 +44,8 @@ export function holePos(k: HoleKey): THREE.Vector3 {
 
 export function isValidHole(k: HoleKey): boolean {
   const [t, a, b, c] = k.split(':');
-  if (t === 't') return +a >= 0 && +a < 2 && +b >= 0 && +b < ROWS && +c >= 0 && +c < 10;
-  if (t === 'b') return +a >= 0 && +a < 3 && (b === '0' || b === '1') && BUS_SLOTS.includes(+c);
+  if (t === 't') return Number.isInteger(+a) && +a >= 0 && +a < TERM_COUNT && +b >= 0 && +b < ROWS && +c >= 0 && +c < 10;
+  if (t === 'b') return Number.isInteger(+a) && +a >= 0 && +a < BUS_COUNT && (b === '0' || b === '1') && BUS_SLOTS.includes(+c);
   if (t === 'h') return a in DEV_BOARDS && !!devPin(a as DevKind, b);
   return t === 'p' && a in POST_XS;
 }
@@ -52,8 +53,8 @@ export function isValidHole(k: HoleKey): boolean {
 /** 給人看的孔名稱，例如「端子排1 18d」「電源軌A +」「Va」 */
 export function holeName(k: HoleKey): string {
   const [t, a, b, c] = k.split(':');
-  if (t === 't') return `端子排${+a + 1} ${+b + 1}${COLS[+c]}`;
-  if (t === 'b') return `電源軌${'ABC'[+a]} ${b === '0' ? '+' : '−'}`;
+  if (t === 't') return `${termLabel(+a)} ${+b + 1}${COLS[+c]}`;
+  if (t === 'b') return `${busLabel(+a)} ${b === '0' ? '+' : '−'}`;
   if (t === 'h') return `${DEV_BOARDS[a as DevKind]?.name ?? a} ${devPin(a as DevKind, b)?.label ?? b}`;
   return a === 'GND' ? 'GND 接線柱' : `${a} 接線柱`;
 }
