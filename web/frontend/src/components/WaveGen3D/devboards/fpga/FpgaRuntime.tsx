@@ -7,7 +7,7 @@ import { HdlError } from './verilogLang.js';
 import { useFpga } from './fpgaStore.js';
 import { setTone } from './fpgaAudio.js';
 import type { Image, PinBit } from './fpgaBuild.js';
-import { IO_PINS } from './fpgaBoard.js';
+import { ALL_IO_PINS } from './fpgaBoard.js';
 import { DEV_BOARDS } from '../boardDefs.js';
 import { useDev, isPowered } from '../devStore.js';
 import { MODE } from '../sketchRun.js';
@@ -37,7 +37,7 @@ interface Live {
 const k = 'fpga' as const;
 const d = DEV_BOARDS.fpga;
 const gndId = d.pins.find((p) => p.kind === 'GND')!.id;
-const ioIndex = new Map(IO_PINS.map((p, i) => [p, i]));
+const ioIndex = new Map(ALL_IO_PINS.map((p, i) => [p, i])); // J1 + J2 ~ J4 的 IO 編號
 
 function create(img: Image, nonce: number): Live {
   const sim = new HdlSim(img.design);

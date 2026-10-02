@@ -174,7 +174,7 @@ export async function readFpgaFiles(list: FileList | File[]): Promise<{ files: F
     if (['sof', 'pof'].includes(e)) {
       const buf = new Uint8Array(await f.arrayBuffer());
       files.push({ name: f.name, text: null, size: f.size, device: sniffDevice(buf) });
-    } else if (['v', 'sv', 'vh', 'vlg', 'verilog', 'qsf', 'qpf', 'vhd', 'vhdl', 'bdf', 'gdf', 'tdf', 'txt'].includes(e)) {
+    } else if (['v', 'sv', 'vh', 'vlg', 'verilog', 'qsf', 'qpf', 'vhd', 'vhdl', 'bdf', 'gdf', 'tdf', 'txt', 'hex', 'mem', 'dat'].includes(e)) {
       if (f.size > MAX_FILE) { skipped.push(`${f.name}（超過 ${MAX_FILE / 1000} KB）`); continue; }
       files.push({ name: f.name, text: await f.text(), size: f.size });
     } else skipped.push(`${f.name}（不支援的檔案類型）`);

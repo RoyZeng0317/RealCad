@@ -12,6 +12,7 @@ export interface BoardPart {
   pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
   capModel?: CapModel;
   bjtModel?: BjtModel;
+  rot?: number; // 電晶體本體朝向：0~3，每格 90°（預設 1）
   model?: DiodeModel;
   ledColor?: LedColor;
   color?: string; // 跳線顏色

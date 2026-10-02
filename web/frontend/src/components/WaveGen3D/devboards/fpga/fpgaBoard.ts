@@ -1,6 +1,7 @@
 // RealCad FLEX 10K 實驗板（EPF10K50EQC240-1）的板上資源與腳位表，以及範例 Quartus 專案
 import { P } from '../../breadboardGrid.js';
 import type { PinDef } from '../boardDefs.js';
+import { USER_PINS, inputOnly, pinName, pinType } from './qc240.js';
 
 export type ResKind = 'clk50' | 'clkslow' | 'key' | 'sw' | 'led' | 'seg0' | 'seg1' | 'io' | 'rst' | 'slide' | 'spk' | 'sd' | 'tf';
 export interface Res { pin: number; kind: ResKind; index: number; label: string; dir: 'in' | 'out' | 'io' }
@@ -38,9 +39,28 @@ export const RESOURCES: Res[] = [
   ...SD_PINS.map((pin, i): Res => ({ pin, kind: 'sd', index: i, label: `SD_${CARD_SIGS[i]}${i === 4 ? '（插卡 = 0）' : ''}`, dir: cardDir(i) })),
   ...TF_PINS.map((pin, i): Res => ({ pin, kind: 'tf', index: i, label: `TF_${CARD_SIGS[i]}${i === 4 ? '（插卡 = 0）' : ''}`, dir: cardDir(i) })),
 ];
+// 擴充排針 J2 / J3 / J4：板上沒用到的使用者 I/O 全部拉出來（189 隻使用者 I/O 都能用到；專用輸入 / 全域時脈排在最後，只能當輸入）
+const ONBOARD = new Set(RESOURCES.map((r) => r.pin));
+const free = USER_PINS.filter((p) => !ONBOARD.has(p));
+export const EXP_PINS = [...free.filter((p) => !inputOnly(p)), ...free.filter(inputOnly)];
+/** 所有拉到排針上的 I/O：J1（IO0~31）+ J2~J4（IO32 起） */
+export const ALL_IO_PINS = [...IO_PINS, ...EXP_PINS];
+export const HEADER_OF = (n: number) => (n < 32 ? 'J1' : `J${2 + Math.floor((n - 32) / 36)}`);
+RESOURCES.push(...EXP_PINS.map((pin, i): Res => {
+  const n = 32 + i;
+  return { pin, kind: 'io', index: n, label: `${HEADER_OF(n)} IO${n}${inputOnly(pin) ? `（${pinName(pin)}，只能輸入）` : ''}`, dir: inputOnly(pin) ? 'in' : 'io' };
+}));
 export const RES_BY_PIN = new Map(RESOURCES.map((r) => [r.pin, r]));
 
 export const SLOW_CLOCKS = [1, 2, 5, 10, 100, 1000];
+
+/** 板子尺寸（加大深度放 J2 ~ J4）與擴充排針位置（板子本地座標） */
+export const FPGA_SIZE = { w: 1.8, d: 3.3 };
+export const HEADERS = [
+  { name: 'J2', x0: -0.45, z: -1.52 }, // 上緣第一排
+  { name: 'J3', x0: -0.45, z: -1.28 }, // 上緣第二排
+  { name: 'J4', x0: -0.45, z: 1.4 }, // 下緣
+];
 
 /** J1 擴充排針（2 × 20，公針）：32 隻 IO + 5V × 2、3.3V × 2、GND × 4，用杜邦線接麵包板 */
 export function fpgaHeaderPins(): PinDef[] {
@@ -56,6 +76,21 @@ export function fpgaHeaderPins(): PinDef[] {
       else pins.push({ id: `GND_${n}`, label: 'GND', kind: 'GND', x, z, net: 'GND' });
     }
   }
+  // J2 ~ J4（2 × 20，橫放）：每排 36 隻 IO + 3.3V × 2 + GND × 2
+  HEADERS.forEach((h, hi) => {
+    for (let c = 0; c < 20; c++) {
+      for (let r = 0; r < 2; r++) {
+        const k = c * 2 + r, x = h.x0 + c * P, z = h.z + r * P;
+        const n = 32 + hi * 36 + k;
+        if (k < 36) {
+          const pin = EXP_PINS[n - 32];
+          if (pin === undefined) pins.push({ id: `${h.name}_NC${k}`, label: 'NC', kind: 'NC', x, z });
+          else pins.push({ id: `IO${n}`, label: `IO${n}`, kind: 'gpio', x, z, gpio: pin, ft: true, inputOnly: inputOnly(pin), note: `${h.name}・FPGA PIN_${pin}${inputOnly(pin) ? `（${pinName(pin)}，只能輸入）` : ''}` });
+        } else if (k < 38) pins.push({ id: `${h.name}_3V3_${k}`, label: '3.3V', kind: '3V3', x, z, net: '3V3' });
+        else pins.push({ id: `${h.name}_GND_${k}`, label: 'GND', kind: 'GND', x, z, net: 'GND' });
+      }
+    }
+  });
   return pins;
 }
 
@@ -141,6 +176,7 @@ export const EXAMPLE_FILES = () => [
 export function boardPinTemplate(): string {
   return [
     '# RealCad FLEX 10K 實驗板（EPF10K50EQC240-1）腳位表',
-    ...RESOURCES.map((r) => `# PIN_${r.pin}\t${r.label}`),
+    `# 使用者 I/O ${USER_PINS.length} 隻（板上裝置 + J1 ~ J4 排針）；240 隻腳全部列出（腳位功能見 qc240.ts）`,
+    ...Array.from({ length: 240 }, (_, i) => i + 1).map((n) => `# PIN_${n}\t${pinName(n)}${pinType(n) === 'io' || pinType(n) === 'dual' || pinType(n) === 'ded' || pinType(n) === 'gclk' ? `\t${RES_BY_PIN.get(n)?.label ?? ''}` : ''}`),
   ].join('\n') + '\n';
 }

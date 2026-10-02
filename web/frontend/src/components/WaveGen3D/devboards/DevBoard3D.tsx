@@ -293,13 +293,15 @@ export function DevBoard3D({ kind }: { kind: DevKind }) {
       <Details d={d} powered={powered} ledOn={ledOn} ledK={ledK} running={rt.status === 'running' || rt.status === 'sleeping'} />
       {usb && <UsbCable d={d} />}
 
-      {/* 點擊 / 滑鼠感應面：排針頂端高度、整塊板子大小（透明） */}
-      <mesh position={[d.sensor?.x ?? 0, top + 0.002, d.sensor?.z ?? 0]} rotation={[-Math.PI / 2, 0, 0]}
-        onPointerMove={onMove} onClick={onClick}
-        onPointerOut={() => { setHover(null); useBoard.getState().setHoverHole(null); document.body.style.cursor = 'auto'; }}>
-        <planeGeometry args={[d.sensor?.w ?? d.size.w, d.sensor?.d ?? d.size.d]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
+      {/* 點擊 / 滑鼠感應面：排針頂端高度、整塊板子大小（透明）；FPGA 板另外還有 J2 ~ J4 的感應區 */}
+      {[d.sensor ?? { x: 0, z: 0, w: d.size.w, d: d.size.d }, ...(d.sensors ?? [])].map((r, i) => (
+        <mesh key={i} position={[r.x, top + 0.002, r.z]} rotation={[-Math.PI / 2, 0, 0]}
+          onPointerMove={onMove} onClick={onClick}
+          onPointerOut={() => { setHover(null); useBoard.getState().setHoverHole(null); document.body.style.cursor = 'auto'; }}>
+          <planeGeometry args={[r.w, r.d]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      ))}
       {hover && (
         <>
           <mesh position={[hover.x, top + 0.004, hover.z]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>

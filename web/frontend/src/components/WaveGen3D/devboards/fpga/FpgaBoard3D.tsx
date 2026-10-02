@@ -10,6 +10,7 @@ import { useFpga } from './fpgaStore.js';
 import { useDev } from '../devStore.js';
 import { audible } from './fpgaAudio.js';
 import { fpgaLive } from './FpgaRuntime.js';
+import { HEADERS } from './fpgaBoard.js';
 import { createCanvasTexture, FONT } from '../../panelTexture.js';
 
 const LED_X = (i: number) => 0.42 - i * 0.11;
@@ -54,6 +55,12 @@ function useSilk(d: DevBoardDef) {
     t('POWER', -0.6, -0.72 - 0.16, 0.026); t('CONF_DONE', 0.45, -0.52, 0.026);
     t('nCONFIG', 0.45, -0.3, 0.026); t('50 MHz', 0.45, -0.73, 0.026);
     t('J1', 0.745, -0.5, 0.04, 800);
+    // J2 ~ J4 擴充排針（板上沒用到的 I/O 全部拉出來）
+    HEADERS.forEach((h, i) => {
+      t(h.name, h.x0 - 0.1, h.z + 0.022, 0.04, 800);
+      t(`IO${32 + i * 36}`, h.x0 + 0.02, h.z + (h.z < 0 ? -0.05 : 0.1), 0.022);
+      t('3V3 GND', h.x0 + 18.5 * 0.045, h.z + (h.z < 0 ? -0.05 : 0.1), 0.022);
+    });
     t('PWR', PWR.x, PWR.z + 0.13, 0.026); t('ON ↑', PWR.x, PWR.z - 0.13, 0.022);
     t('TYPE-C 5V', -0.74, -1.05, 0.024);
     t('SPEAKER', SPK.x, SPK.z + 0.13, 0.026);

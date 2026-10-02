@@ -3,6 +3,7 @@
 //   產生的 JS 只包含「訊號陣列索引 + 數字常數 + 固定的輔助函式」，所有名字都在這裡轉成索引，
 //   不會把使用者寫的任何文字放進程式碼，所以開別人的專案也不會執行任意 JavaScript。
 import { HdlError, parseVerilog, type VExpr, type VStmt, type VModule, type VDecl } from './verilogLang.js';
+import { TIMING } from './qc240.js';
 
 export interface Sig {
   name: string; // 階層名稱，例如 u1.count
@@ -15,7 +16,11 @@ export interface Sig {
 export interface Mem { name: string; width: number; base: number; depth: number }
 export interface Port { name: string; dir: 'input' | 'output' | 'inout'; width: number; lsb: number; asc: boolean; sig: number }
 export interface SeqBlock { edges: { sig: number; edge: 'pos' | 'neg' }[]; code: string; line: number }
+/** 靜態時序：每個時序區塊（always @(posedge …)）最長的暫存器到暫存器路徑 */
+export interface TimingPath { clock: number; ns: number; reg: string; file: string; line: number }
 export interface Design {
+  timing: TimingPath[];
+  combBits: number; // 組合邏輯輸出的位元數（估計 LE 用）
   top: string;
   modules: string[];
   sigs: Sig[];
@@ -26,6 +31,10 @@ export interface Design {
   blocks: SeqBlock[];
   warnings: string[];
 }
+
+/** 時序分析用：一個指定的右邊、它所在的 if / case 條件、以及經過幾層多工器 */
+interface Term { e: VExpr | null; sc: Scope; conds: { e: VExpr; sc: Scope }[]; levels: number }
+interface TBlock { seq: boolean; writes: Set<string>; terms: Term[]; clock: number; file: string; line: number; regs: string[] }
 
 interface Scope {
   prefix: string;
@@ -45,10 +54,21 @@ class Elab {
   initCode: string[] = [];
   warnings: string[] = [];
   used = new Set<string>();
+  tblocks: TBlock[] = [];
+  private terms: Term[] | null = null;
+  private tctx: { conds: { e: VExpr; sc: Scope }[]; levels: number } = { conds: [], levels: 0 };
   private tmp = 0;
   private file = '';
 
-  constructor(private mods: Map<string, VModule>) {}
+  constructor(private mods: Map<string, VModule>, private data: Record<string, string> = {}) {}
+
+  /** 開始收集一個區塊的時序資料（之後 asgCode 遇到的指定都記進去） */
+  private tBegin() { this.terms = []; this.tctx = { conds: [], levels: 0 }; }
+  private tEnd(seq: boolean, writes: Set<string>, clock: number, line: number) {
+    const regs = [...writes].filter((w) => w.startsWith('s')).map((w) => this.sigs[+w.slice(1)].name);
+    this.tblocks.push({ seq, writes, terms: this.terms ?? [], clock, file: this.file, line, regs });
+    this.terms = null;
+  }
 
   fail(msg: string, line: number): never { throw new HdlError(msg, line, this.file); }
 
@@ -140,12 +160,16 @@ class Elab {
       this.file = mod.file;
       if (it.k === 'assign') {
         const reads = new Set<string>(), writes = new Set<string>();
+        this.tBegin();
         const code = this.asgCode(it.lhs, it.rhs, false, sc, reads, writes);
+        this.tEnd(false, writes, -1, it.line);
         this.combs.push({ code, reads, writes, line: it.line, file: mod.file, desc: `assign（${mod.file} 第 ${it.line} 行）` });
       } else if (it.k === 'always') {
         const reads = new Set<string>(), writes = new Set<string>();
         if (it.sens === 'star') {
+          this.tBegin();
           const code = this.stmtCode(it.body, sc, reads, writes, false);
+          this.tEnd(false, writes, -1, it.line);
           this.combs.push({ code, reads, writes, line: it.line, file: mod.file, desc: `always @(*)（${mod.file} 第 ${it.line} 行）` });
         } else {
           const edges = it.sens.map((s) => {
@@ -154,7 +178,9 @@ class Elab {
             this.used.add(`s${i}`);
             return { sig: i, edge: s.edge as 'pos' | 'neg' };
           });
+          this.tBegin();
           const code = this.stmtCode(it.body, sc, reads, writes, true);
+          this.tEnd(true, writes, edges[0].sig, it.line);
           this.blocks.push({ edges, code, line: it.line });
         }
       } else if (it.k === 'initial') {
@@ -190,11 +216,13 @@ class Elab {
         const ci = csc.sigs.get(port)!;
         code = `v[${ci}]=M(${rhs},${this.sigs[ci].width});`;
         writes.add(`s${ci}`);
+        this.tblocks.push({ seq: false, writes: new Set(writes), terms: [{ e: c.e, sc, conds: [], levels: 0 }], clock: -1, file: this.file, line: it.line, regs: [] });
       } else {
         // 父模組的訊號 = 子模組的 output
         const tmpScope: Scope = { ...csc };
         const rhs = this.exprCode(childSig, tmpScope, reads, this.sigs[csc.sigs.get(port)!].width);
         code = this.lhsCode(c.e, rhs, false, sc, writes);
+        this.tblocks.push({ seq: false, writes: new Set(writes), terms: [{ e: childSig, sc: csc, conds: [], levels: 0 }], clock: -1, file: this.file, line: it.line, regs: [] });
       }
       this.combs.push({ code, reads, writes, line: it.line, file: this.file, desc: `${it.name}.${port} 連線（${this.file} 第 ${it.line} 行）` });
     });
@@ -441,6 +469,7 @@ class Elab {
   }
   asgCode(lhs: VExpr, rhs: VExpr, nb: boolean, sc: Scope, reads: Set<string>, writes: Set<string>): string {
     const lw = this.selfWidth(lhs, sc);
+    this.terms?.push({ e: rhs, sc, conds: [...this.tctx.conds], levels: this.tctx.levels });
     return this.lhsCode(lhs, this.exprCode(rhs, sc, reads, lw), nb, sc, writes);
   }
 
@@ -453,11 +482,19 @@ class Elab {
         return this.asgCode(s.lhs, s.rhs, s.nb && seq, sc, reads, writes);
       case 'if': {
         const cw = this.selfWidth(s.c, sc);
-        return `if(M(${this.exprCode(s.c, sc, reads, cw)},${cw})!==0){${this.stmtCode(s.a, sc, reads, writes, seq)}}` +
+        // 時序：條件進多工器（時序區塊裡沒有 else 的 if 當成時脈致能，不多一層多工器）
+        const saved = this.tctx;
+        this.tctx = { conds: [...saved.conds, { e: s.c, sc }], levels: saved.levels + (s.b || !seq ? 1 : 0) };
+        const code = `if(M(${this.exprCode(s.c, sc, reads, cw)},${cw})!==0){${this.stmtCode(s.a, sc, reads, writes, seq)}}` +
           (s.b ? `else{${this.stmtCode(s.b, sc, reads, writes, seq)}}` : '');
+        this.tctx = saved;
+        return code;
       }
+      case 'readmem': return this.readmemCode(s, sc);
       case 'case': {
         const ew = Math.max(this.selfWidth(s.e, sc), ...s.items.flatMap((it) => it.labels.map((l) => this.selfWidth(l, sc))));
+        const savedCtx = this.tctx;
+        this.tctx = { conds: [...savedCtx.conds, { e: s.e, sc }], levels: savedCtx.levels + Math.max(1, Math.ceil(Math.log(s.items.length + 1) / Math.log(4))) };
         const t = `c${this.tmp++}`;
         let code = `{const ${t}=M(${this.exprCode(s.e, sc, reads, ew)},${ew});`;
         s.items.forEach((it, idx) => {
@@ -469,6 +506,7 @@ class Elab {
           code += `${idx ? 'else ' : ''}if(${conds.join('||')}){${this.stmtCode(it.body, sc, reads, writes, seq)}}`;
         });
         if (s.dflt) code += `${s.items.length ? 'else' : ''}{${this.stmtCode(s.dflt, sc, reads, writes, seq)}}`;
+        this.tctx = savedCtx;
         return code + '}';
       }
       case 'for': {
@@ -478,6 +516,98 @@ class Elab {
           `${this.stmtCode(s.body, sc, reads, writes, seq)}${this.stmtCode(s.step, sc, reads, writes, false)}}}`;
       }
     }
+  }
+
+  /** $readmemh / $readmemb：在展開時就把資料檔讀進來，產生「把一串數字填進記憶體」的程式（只有數字，不含使用者文字） */
+  readmemCode(s: Extract<VStmt, { k: 'readmem' }>, sc: Scope): string {
+    const k = this.memOf(s.mem, sc, s.line);
+    const mem = this.mems[k];
+    const key = Object.keys(this.data).find((n) => n === s.file || n.toLowerCase() === s.file.split(/[\\/]/).pop()!.toLowerCase());
+    if (!key) this.fail(`${s.hex ? '$readmemh' : '$readmemb'} 找不到資料檔 ${s.file}（請把 .hex / .mem / .txt 一起上傳）`, s.line);
+    const words: number[] = [];
+    let addr = s.start ? this.constEval(s.start, sc) - mem.base : 0;
+    const start = addr;
+    const text = this.data[key].replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, ' ');
+    for (const tok of text.split(/\s+/).filter(Boolean)) {
+      if (tok.startsWith('@')) { addr = parseInt(tok.slice(1), 16) - mem.base; continue; }
+      const clean = tok.replace(/_/g, '').replace(/[xXzZ]/g, '0');
+      const v = parseInt(clean, s.hex ? 16 : 2);
+      if (!Number.isFinite(v)) this.fail(`${key}：看不懂「${tok}」（${s.hex ? '16' : '2'} 進位）`, s.line);
+      if (addr < 0 || addr >= mem.depth) this.fail(`${key}：位址 ${addr + mem.base} 超出記憶體 ${s.mem} 的範圍`, s.line);
+      words[addr - start] = this.mask(v, mem.width);
+      addr++;
+    }
+    if (!words.length) this.warnings.push(`${key} 是空的，${s.mem} 沒有載入任何資料`);
+    const end = s.end ? this.constEval(s.end, sc) - mem.base : mem.depth - 1;
+    return `H.fill(m[${k}],${start},${end},[${Array.from(words, (w) => w ?? 0).join(',')}]);`;
+  }
+
+  // ---- 靜態時序分析（-1 速度等級，datasheet Table 71 / 75 的參數）----
+  /** 一層查表 + 平均繞線（同 LAB 0.2 ns 與同列 2.8 ns 之間取 1.0 ns） */
+  static LEVEL = TIMING.tLUT + 1.0;
+  /** w 位元進位鏈（加減法、計數器、大小比較） */
+  static carry(w: number) { return TIMING.tCGEN + Math.max(0, w - 1) * TIMING.tCICO + Math.floor(Math.max(0, w - 1) / 8) * TIMING.tLABCARRY; }
+  /** n 個輸入的邏輯樹要幾層 4 輸入查表 */
+  static lv(n: number) { return Math.max(1, Math.ceil(Math.log(Math.max(2, n)) / Math.log(4))); }
+
+  exprDelay(e: VExpr, sc: Scope, arr: (sig: number) => number): number {
+    const L = Elab.LEVEL, d = (x: VExpr) => this.exprDelay(x, sc, arr), w = (x: VExpr) => this.selfWidth(x, sc);
+    e = this.asMem(e, sc);
+    switch (e.k) {
+      case 'num': case 'call': return 0;
+      case 'id': return sc.params.has(e.name) ? 0 : arr(this.sigIdx(e.name, sc, e.line));
+      case 'bit': {
+        const i = this.sigIdx(e.name, sc, e.line);
+        return this.isConst(e.idx, sc) ? arr(i) : Math.max(arr(i), d(e.idx)) + Elab.lv(this.sigs[i].width) * L;
+      }
+      case 'part': return arr(this.sigIdx(e.name, sc, e.line));
+      case 'ipart': { const i = this.sigIdx(e.name, sc, e.line); return Math.max(arr(i), d(e.base)) + Elab.lv(this.sigs[i].width) * L; }
+      case 'mem': return d(e.idx) + TIMING.tEABREAD + (e.sel ? L : 0);
+      case 'concat': case 'repl': return Math.max(0, ...e.items.map(d));
+      case 'un': {
+        const a = d(e.a);
+        if (e.op === '~' || e.op === '+') return a;
+        if (e.op === '-') return a + Elab.carry(w(e.a));
+        return a + Elab.lv(w(e.a)) * L;
+      }
+      case 'bin': {
+        const m = Math.max(d(e.a), d(e.b)), cw = Math.max(w(e.a), w(e.b));
+        switch (e.op) {
+          case '+': case '-': return m + Elab.carry(cw);
+          case '<': case '>': case '<=': case '>=': return m + Elab.carry(cw) + L;
+          case '==': case '!=': return m + Elab.lv(2 * cw) * L;
+          case '*': return m + Elab.carry(cw) * Math.max(1, cw / 2);
+          case '/': case '%': return m + Elab.carry(cw) * cw;
+          case '<<': case '>>': return this.isConst(e.b, sc) ? d(e.a) : m + Elab.lv(cw) * L;
+          case '**': return m;
+          default: return m + L; // & | ^ ~^ && ||
+        }
+      }
+      case 'cond': return Math.max(d(e.c), d(e.a), d(e.b)) + L;
+    }
+  }
+
+  /** 每個時序區塊最長的暫存器到暫存器路徑：tCO + 組合邏輯 + 多工器 + tSU */
+  timing(): TimingPath[] {
+    const writers = new Map<string, TBlock[]>();
+    for (const b of this.tblocks) if (!b.seq) b.writes.forEach((x) => writers.set(x, [...(writers.get(x) ?? []), b]));
+    const memo = new Map<number, number>();
+    const termDelay = (t: Term) => Math.max(t.e ? this.exprDelay(t.e, t.sc, arr) : 0, ...t.conds.map((c) => this.exprDelay(c.e, c.sc, arr))) + t.levels * Elab.LEVEL;
+    const arr = (i: number): number => {
+      const hit = memo.get(i);
+      if (hit !== undefined) return hit;
+      memo.set(i, 0); // 防止意外的迴圈
+      const ws = writers.get(`s${i}`);
+      // 暫存器 / 輸入腳：從時脈邊緣算起 tCO（輸入腳的外部延遲不算）
+      const v = ws ? Math.max(0, ...ws.flatMap((b) => b.terms.map(termDelay))) : TIMING.tCO;
+      memo.set(i, v);
+      return v;
+    };
+    return this.tblocks.filter((b) => b.seq && b.terms.length).map((b) => {
+      let worst = 0;
+      for (const t of b.terms) worst = Math.max(worst, termDelay(t));
+      return { clock: b.clock, ns: worst + TIMING.tSU, reg: b.regs.join('、') || '（記憶體）', file: b.file, line: b.line };
+    });
   }
 
   /** 組合邏輯依相依關係排序（寫入者在讀取者前面），有迴圈就報錯 */
@@ -509,7 +639,7 @@ class Elab {
 }
 
 /** 解析所有 .v 檔、以 top 為最上層展開 */
-export function elaborate(files: { name: string; text: string }[], top?: string): Design {
+export function elaborate(files: { name: string; text: string }[], top?: string, data: Record<string, string> = {}): Design {
   const mods = new Map<string, VModule>();
   for (const f of files) {
     for (const m of parseVerilog(f.text, f.name)) {
@@ -528,7 +658,7 @@ export function elaborate(files: { name: string; text: string }[], top?: string)
   }
   const topMod = mods.get(topName);
   if (!topMod) throw new HdlError(`找不到最上層模組 ${topName}`, 1);
-  const el = new Elab(mods);
+  const el = new Elab(mods, data);
   const sc = el.elab(topMod, '', [], 0);
   const ports: Port[] = topMod.ports.map((p) => {
     const d = topMod.items.find((x) => x.k === 'decl' && x.d.name === p && ['input', 'output', 'inout'].includes(x.d.kind));
@@ -546,8 +676,17 @@ export function elaborate(files: { name: string; text: string }[], top?: string)
       el.warnings.push(`輸出埠 ${p.name} 沒有被任何邏輯驅動（會一直是 0）`);
     }
   }
+  const settleCode = el.orderCombs();
+  // 組合邏輯的輸出位元（單純的連線不算）：估計要用多少個 LE 的查表
+  const combSigs = new Set<number>();
+  for (const b of el.tblocks) {
+    if (b.seq || (b.terms.length === 1 && b.terms[0].e?.k === 'id' && !b.terms[0].conds.length)) continue;
+    b.writes.forEach((x) => { if (x.startsWith('s') && !el.sigs[+x.slice(1)].isReg) combSigs.add(+x.slice(1)); });
+  }
   return {
+    timing: el.timing(),
+    combBits: [...combSigs].reduce((n, i) => n + el.sigs[i].width, 0),
     top: topName, modules: [...mods.keys()], sigs: el.sigs, mems: el.mems, ports,
-    settleCode: el.orderCombs(), initCode: el.initCode.join('\n'), blocks: el.blocks, warnings: el.warnings,
+    settleCode, initCode: el.initCode.join('\n'), blocks: el.blocks, warnings: el.warnings,
   };
 }

@@ -22,6 +22,8 @@ const H = {
     const cur = Math.floor(old / lo) % 2 ** width;
     return old - cur * lo + (val % 2 ** width) * lo;
   },
+  /** $readmemh / $readmemb：從 start 開始填入 words（填到 end 為止） */
+  fill: (a: Float64Array, start: number, end: number, words: number[]) => { for (let k = 0; k < words.length && start + k <= end; k++) if (start + k >= 0 && start + k < a.length) a[start + k] = words[k]; },
   loop: (line: number) => { throw new HdlError('for 迴圈超過 65536 次（是不是條件寫錯？）', line); },
 };
 

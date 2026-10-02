@@ -3,7 +3,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { useFpga, readFpgaFiles, type ProgMode } from './fpgaStore.js';
 import { ext, type FpgaFile } from './fpgaBuild.js';
-import { SLOW_CLOCKS, RESOURCES, boardPinTemplate } from './fpgaBoard.js';
+import { SLOW_CLOCKS, RES_BY_PIN, boardPinTemplate } from './fpgaBoard.js';
+import { pinName, pinType } from './qc240.js';
 import { DEV_BOARDS } from '../boardDefs.js';
 import { useDev, isPowered } from '../devStore.js';
 import { BoardTabs, BoardHealth } from '../DevPanels.js';
@@ -58,7 +59,7 @@ export function FpgaWorkbench() {
         <BoardTabs />
         <div style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: T.muted }}>Quartus II 專案・{d.mcu.split('・')[1]}</span>
-        <input ref={input} type="file" multiple hidden accept=".v,.sv,.vh,.qsf,.qpf,.sof,.pof,.vhd,.vhdl,.bdf"
+        <input ref={input} type="file" multiple hidden accept=".v,.sv,.vh,.qsf,.qpf,.sof,.pof,.vhd,.vhdl,.bdf,.hex,.mem,.txt,.dat"
           onChange={(e) => { if (e.target.files) void add(e.target.files); e.target.value = ''; }} />
         <button style={btn('#12345a')} onClick={() => input.current?.click()}>📂 上傳 Quartus 檔案</button>
         <button style={btn()} onClick={() => { if (confirm('用範例專案（8 位元計數器）取代目前的檔案？')) f.loadExample(); }}>載入範例</button>
@@ -185,10 +186,15 @@ function PinPlanner() {
       </div>
       {all ? (
         <table style={table}>
-          <thead><tr style={{ color: T.muted }}><td style={td}>Location</td><td style={td}>板上裝置</td><td style={td}>方向</td></tr></thead>
-          <tbody>{RESOURCES.map((r) => (
-            <tr key={r.pin}><td style={{ ...td, color: T.value }}>PIN_{r.pin}</td><td style={td}>{r.label}</td><td style={td}>{r.dir}</td></tr>
-          ))}</tbody>
+          <thead><tr style={{ color: T.muted }}><td style={td}>Location</td><td style={td}>腳位功能（QC240）</td><td style={td}>板上裝置 / 排針</td><td style={td}>方向</td></tr></thead>
+          <tbody>{Array.from({ length: 240 }, (_, i) => i + 1).map((n) => {
+            const r = RES_BY_PIN.get(n), t = pinType(n);
+            const color = t === 'vcc' ? '#ff8a7a' : t === 'gnd' ? '#9aa4b0' : t === 'config' || t === 'jtag' ? '#c48bff' : t === 'io' || t === 'dual' ? T.text : '#5ad1ff';
+            return (
+              <tr key={n}><td style={{ ...td, color: T.value }}>PIN_{n}</td><td style={{ ...td, color }}>{pinName(n)}</td>
+                <td style={td}>{r?.label ?? '—'}</td><td style={td}>{r?.dir ?? '—'}</td></tr>
+            );
+          })}</tbody>
         </table>
       ) : !bits ? <p style={help}>編譯成功後會列出每個埠的腳位（來自 .qsf 的 set_location_assignment）。</p> : (
         <table style={table}>

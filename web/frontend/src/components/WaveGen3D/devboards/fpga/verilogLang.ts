@@ -150,6 +150,8 @@ export type VStmt =
   | { k: 'case'; kind: 'case' | 'casez' | 'casex'; e: VExpr; items: { labels: VExpr[]; masks: (number | null)[]; body: VStmt }[]; dflt?: VStmt; line: number }
   | { k: 'asg'; lhs: VExpr; rhs: VExpr; nb: boolean; line: number }
   | { k: 'for'; init: VStmt; c: VExpr; step: VStmt; body: VStmt; line: number }
+  // $readmemh / $readmemb：從資料檔載入記憶體初始內容（EAB 的 RAM / ROM）
+  | { k: 'readmem'; hex: boolean; file: string; mem: string; start?: VExpr; end?: VExpr; line: number }
   | { k: 'nop' };
 
 export interface VRange { msb: VExpr; lsb: VExpr }
@@ -418,6 +420,20 @@ class Parser {
       return { k: 'for', init, c, step, body: this.stmt(), line };
     }
     if (this.is('while') || this.is('repeat') || this.is('forever')) this.fail(`不支援 ${t.v}（不可合成或請改用 for）`);
+    if (t.t === 'sys' && (t.v === '$readmemh' || t.v === '$readmemb')) {
+      this.next();
+      this.expect('(');
+      const f = this.next();
+      if (f.t !== 'str') this.fail(`${t.v} 的第一個參數要是檔名字串，例如 ${t.v}("rom.hex", mem);`);
+      this.expect(',');
+      const m = this.next();
+      if (m.t !== 'id') this.fail(`${t.v} 的第二個參數要是記憶體名稱`);
+      const start = this.eat(',') ? this.expr() : undefined;
+      const end = start && this.eat(',') ? this.expr() : undefined;
+      this.expect(')');
+      this.expect(';');
+      return { k: 'readmem', hex: t.v === '$readmemh', file: f.v.replace(/^"|"$/g, ''), mem: m.v, start, end, line };
+    }
     if (t.t === 'sys') {
       // $display / $finish 等模擬指令：略過
       this.next();

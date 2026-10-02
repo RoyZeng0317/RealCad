@@ -91,8 +91,8 @@ export const VIEWS = {
   },
   // FPGA 實驗板（麵包板本地 x 6.25）
   fpga: {
-    pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 3.0, BREADBOARD.pos.z + 1.7),
-    target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.1),
+    pos: new THREE.Vector3(BREADBOARD.pos.x + 6.25, 4.2, BREADBOARD.pos.z + 2.3),
+    target: new THREE.Vector3(BREADBOARD.pos.x + 6.2, 0, BREADBOARD.pos.z - 0.2),
   },
   // 4×4 麵包板矩陣（側桌，麵包板本地 x 8.4 ~ 13.7、z -9.2 ~ 3.9），從斜上方看整片
   bbgrid: {
