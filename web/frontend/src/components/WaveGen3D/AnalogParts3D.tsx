@@ -153,7 +153,7 @@ export function Ind3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   );
 }
 
-function bjtFace(name: string) {
+function bjtFace(name: string, pinText = 'E  B  C') {
   return createCanvasTexture(0.1, 0.09, (p) => {
     p.ctx.fillStyle = '#16181b';
     p.ctx.fillRect(0, 0, p.s(0.1), p.s(0.09));
@@ -164,7 +164,7 @@ function bjtFace(name: string) {
     p.ctx.fillText(name, p.x(0), p.y(0.015));
     p.ctx.font = `600 ${p.s(0.014)}px ${FONT}`;
     p.ctx.fillStyle = '#9fb3c8';
-    p.ctx.fillText('E  B  C', p.x(0), p.y(-0.025));
+    p.ctx.fillText(pinText, p.x(0), p.y(-0.025));
   }, 2400);
 }
 
@@ -175,20 +175,30 @@ export function Bjt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const model = part.bjtModel ?? '2N3904';
   const { pins, c } = useMemo(() => tripleLayout(part), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
   const mat = useHeatMaterial(part, '#1a1b1e', selected);
-  const tex = useMemo(() => bjtFace(model), [model]);
-  useEffect(() => () => tex.dispose(), [tex]);
   const bodyY = TOP_Y + 0.1, R = 0.05, H = 0.09;
   // 本體朝向：rot 每格 90°（0 = 平面朝 +z、1 = 再轉 90° 平面朝 +x，預設 1）；檢視器的「旋轉 90°」按鈕可以換
   const yaw = -Math.PI / 2 + (part.rot ?? 1) * (Math.PI / 2);
-  // 平面法線 n、看著平面時的右手方向 r：腳從本體底部（平面後方一點）往左右分開，E 在左、B 中間、C 在右
+  // 平面法線 n、看著平面時的右手方向 r：腳從本體底部（平面後方一點）往左右分開
   const n = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), r = new THREE.Vector3(n.z, 0, -n.x);
+  // 腳不能交叉打結：每隻腳的出腳位置依「它的孔在 r 方向的哪一邊」排（孔在左就從左邊出），
+  // 平面朝前 / 後時孔在 r 方向上重疊，就照 E、B、C 由左到右；印字也照實際腳的順序印
+  const order = useMemo(() => {
+    const s = pins.map((p) => (p.x - c.x) * r.x + (p.z - c.z) * r.z);
+    if (Math.max(...s) - Math.min(...s) < 1e-6) return [0, 1, 2];
+    const sorted = [0, 1, 2].sort((a, b) => s[a] - s[b]);
+    return [0, 1, 2].map((i) => sorted.indexOf(i)); // 第 i 隻腳在左→右的第幾個位置
+  }, [pins, c, part.rot]); // eslint-disable-line react-hooks/exhaustive-deps
   const legs = useMemo(() => pins.map((p, i) => {
-    const foot = c.clone().setY(bodyY).addScaledVector(r, (i - 1) * 0.032).addScaledVector(n, -0.015);
+    const foot = c.clone().setY(bodyY).addScaledVector(r, (order[i] - 1) * 0.032).addScaledVector(n, -0.015);
     return [
       p.clone().setY(TOP_Y - 0.02), p.clone().setY(TOP_Y + 0.02),
       new THREE.Vector3((p.x + foot.x) / 2, TOP_Y + 0.06, (p.z + foot.z) / 2), foot,
     ];
-  }), [pins, c, bodyY, part.rot]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [pins, c, bodyY, part.rot, order]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 印字：依左→右實際的腳排出 E / B / C
+  const pinText = [0, 1, 2].sort((a, b) => order[a] - order[b]).map((i) => 'EBC'[i]).join('  ');
+  const tex = useMemo(() => bjtFace(model, pinText), [model, pinText]);
+  useEffect(() => () => tex.dispose(), [tex]);
   return (
     <group {...usePartEvents(part)}>
       {legs.map((pts, i) => <Bent key={i} pts={pts} r={0.005} color={LEAD} />)}
