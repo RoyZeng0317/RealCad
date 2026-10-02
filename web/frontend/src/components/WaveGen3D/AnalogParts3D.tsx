@@ -169,19 +169,28 @@ function bjtFace(name: string) {
 }
 
 // ---- 電晶體 TO-92：半圓柱本體，平面朝自己時腳位由左到右 E、B、C ----
+// ---- 電晶體 TO-92：半圓柱本體，平面（印字面）永遠朝向使用者（實驗桌前方 +z），由左到右 E、B、C ----
+//   三隻腳插在同一欄連續三列（前後排列），所以跟實際插麵包板一樣把腳往左右撥開：本體轉正面朝前，腳從底部分開再彎進孔裡
 export function Bjt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const model = part.bjtModel ?? '2N3904';
-  const { pins, c, dz } = useMemo(() => tripleLayout(part), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { pins, c } = useMemo(() => tripleLayout(part), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
   const mat = useHeatMaterial(part, '#1a1b1e', selected);
   const tex = useMemo(() => bjtFace(model), [model]);
   useEffect(() => () => tex.dispose(), [tex]);
-  const bodyY = TOP_Y + 0.07, R = 0.05, H = 0.09;
-  // 平面法線 = (−dz, 0, 0)：看著平面時 E（第 1 腳）在左邊
-  const flip = dz > 0;
+  const bodyY = TOP_Y + 0.1, R = 0.05, H = 0.09;
+  // 腳從本體底部（平面後方一點）往左右分開：E 在左（−x）、B 中間、C 在右（+x）
+  const legs = useMemo(() => pins.map((p, i) => {
+    const foot = new THREE.Vector3(c.x + (i - 1) * 0.032, bodyY, c.z - 0.015);
+    return [
+      p.clone().setY(TOP_Y - 0.02), p.clone().setY(TOP_Y + 0.02),
+      new THREE.Vector3((p.x + foot.x) / 2, TOP_Y + 0.06, (p.z + foot.z) / 2), foot,
+    ];
+  }), [pins, c, bodyY]);
   return (
     <group {...usePartEvents(part)}>
-      {pins.map((p, i) => <Rod key={i} a={p.clone().setY(TOP_Y - 0.02)} b={p.clone().setY(bodyY)} r={0.005} color={LEAD} metal />)}
-      <group position={[c.x, bodyY, c.z]} rotation={[0, flip ? Math.PI : 0, 0]}>
+      {legs.map((pts, i) => <Bent key={i} pts={pts} r={0.005} color={LEAD} />)}
+      {/* 本體在本地座標是平面朝 +x；轉 −90° 後平面朝 +z（使用者） */}
+      <group position={[c.x, bodyY, c.z]} rotation={[0, -Math.PI / 2, 0]}>
         <mesh position={[0, H / 2, 0]} castShadow material={mat}>
           <cylinderGeometry args={[R, R, H, 24, 1, false, Math.PI, Math.PI]} />
         </mesh>
