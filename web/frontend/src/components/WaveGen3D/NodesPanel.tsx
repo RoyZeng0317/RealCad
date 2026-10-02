@@ -89,7 +89,7 @@ export function HelpPanel() {
         <p style={help}>左側「開發板」加入 Arduino Uno / ESP32 / STM32 Blue Pill / Raspberry Pi 5，用杜邦線從排針接到麵包板。下方「程式碼」分頁寫程式後按「上傳並執行」，「序列埠」看輸出。接錯（例如 5 V 接到 3.3 V 晶片的腳、GPIO 短路、LED 沒串電阻）板子上方會出現 ERROR，持續太久腳位會燒毀。</p>
       </Section>
       <Section title="FPGA 實驗板（EPF10K50EQC240-1）">
-        <p style={help}>「程式碼」分頁切到 FPGA：上傳 Quartus 專案的 .v 與 .qsf（也可拖曳），按「編譯」看報告，再到 Programmer 用 JTAG（.sof，斷電消失）或 Active Serial（.pof 燒進 EPC2，開機自動載入）燒錄。上傳的 .sof / .pof 會檢查元件型號，電路由同專案原始碼重建。板上有 8 LED、兩位七段顯示器、8 位指撥開關、4 顆按鍵、紅色 RESET（PIN_10）、滑動開關 SLD0／SLD1、喇叭（PIN_55，會真的發聲）、SD／TF 卡座（點卡座插拔）、PWR 電源開關與 Type-C，CLK_50MHz（PIN_91）與可調 CLK_SEL（PIN_92）；J1 排針 IO0–31 可以接麵包板。</p>
+        <p style={help}>「程式碼」分頁切到 FPGA：上傳 Quartus 專案的 .v 與 .qsf（也可拖曳），按「編譯」看報告，再到 Programmer 用 JTAG（.sof，斷電消失）或 Active Serial（.pof 燒進 EPC2，開機自動載入）燒錄。上傳的 .sof / .pof 會檢查元件型號，電路由同專案原始碼重建。板上有 8 LED、兩位七段顯示器、8 位指撥開關、4 顆按鍵、紅色 RESET（PIN_10）、滑動開關 SLD0／SLD1、喇叭（PIN_55，會真的發聲）、SD／TF 卡座（點卡座插拔）、PWR 電源開關與 Type-C，CLK_50MHz（PIN_91）與可調 CLK_SEL（PIN_92）；J1 排針 IO0–31、J2 / J3（上緣）/ J4（下緣）排針 IO32–136 可以接麵包板，連同板上裝置共 189 隻使用者 I/O（datasheet Table 4）。編譯報告會列出 LE / EAB / RAM / I/O 用量與 -1 速度等級的 fMAX；Verilog 的 reg 陣列會放進 EAB，可以用 $readmemh / $readmemb 載入 .hex / .mem 資料檔。</p>
       </Section>
       <Section title="檔案">
         <p style={help}>上方「檔案」選單可以新增、開啟、儲存 .rc 專案（Ctrl+S / Ctrl+O），也可以直接把 .rc 檔拖進頁面開啟。.rc 是本網站專屬格式，其他程式無法開啟。</p>

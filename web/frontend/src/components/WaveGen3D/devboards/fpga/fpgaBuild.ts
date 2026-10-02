@@ -4,6 +4,7 @@ import { HdlError } from './verilogLang.js';
 import { elaborate, type Design } from './verilogElab.js';
 import { parseQsf, DEVICE, deviceCompat } from './qsf.js';
 import { RES_BY_PIN, type Res } from './fpgaBoard.js';
+import { SPEC, TIMING, pinType, pinName, USER_PINS } from './qc240.js';
 
 export interface FpgaFile { name: string; text: string | null; size: number; device?: string | null } // text = null → 二進位檔（.sof / .pof）
 export interface PinBit { port: number; sig: number; off: number; name: string; pin: number; res?: Res; dir: 'input' | 'output' }
@@ -14,6 +15,18 @@ export interface Build { ok: boolean; image: Image | null; report: ReportLine[];
 export const ext = (name: string) => (/\.([^.]+)$/.exec(name)?.[1] ?? '').toLowerCase();
 export const baseName = (name: string) => name.replace(/\.[^.]+$/, '');
 export const isHdl = (n: string) => ['v', 'sv', 'vh', 'vlg', 'verilog'].includes(ext(n));
+/** $readmemh / $readmemb 用的記憶體資料檔 */
+export const isMemData = (n: string) => ['hex', 'mem', 'txt', 'dat'].includes(ext(n));
+
+/** 一塊 w 位元 × depth 字組的記憶體要用幾個 EAB（EAB 可設成 2048×1、1024×2、512×4、256×8，取用量最少的） */
+export function eabsFor(width: number, depth: number): { n: number; shape: [number, number] } {
+  let best = { n: Infinity, shape: SPEC.eabShapes[0] };
+  for (const [sw, sd] of SPEC.eabShapes) {
+    const n = Math.ceil(width / sw) * Math.ceil(depth / sd);
+    if (n < best.n) best = { n, shape: [sw, sd] };
+  }
+  return best;
+}
 
 /** 各種不支援的 Quartus 檔案：告訴使用者怎麼轉 */
 const UNSUPPORTED: Record<string, string> = {
@@ -62,7 +75,8 @@ export function buildProject(files: FpgaFile[], topOverride = '', prefer = ''): 
   info(`Analysis & Synthesis：${src.map((f) => f.name).join('、')}`);
   let design: Design;
   try {
-    design = elaborate(src, top || undefined);
+    const data = Object.fromEntries(files.filter((f) => isMemData(f.name) && f.text !== null).map((f) => [f.name, f.text!]));
+    design = elaborate(src, top || undefined, data);
   } catch (e) {
     if (e instanceof HdlError) err(e.message, e.file, e.line);
     else err(String(e));
@@ -70,9 +84,19 @@ export function buildProject(files: FpgaFile[], topOverride = '', prefer = ''): 
   }
   design.warnings.forEach((w) => warn(w));
   info(`最上層實體：${design.top}（${design.modules.join('、')}）・${design.sigs.length} 個訊號、${design.blocks.length} 個時序區塊`);
+  // 資源：依 datasheet Table 1（2,880 LE、10 個 EAB、20,480 RAM 位元）
   const ffBits = design.sigs.filter((s) => s.isReg).reduce((n, s) => n + s.width, 0);
-  info(`暫存器約 ${ffBits} 位元（EPF10K50E 有 2880 個邏輯單元）`);
-  if (ffBits > 2880) err(`設計太大：需要約 ${ffBits} 個正反器，超過 EPF10K50E 的 2880 個邏輯單元`);
+  const les = ffBits + design.combBits;
+  info(`邏輯單元 LE：約 ${les} / ${SPEC.les}（${((les / SPEC.les) * 100).toFixed(1)}%；暫存器 ${ffBits} 位元、組合邏輯輸出 ${design.combBits} 位元）`);
+  if (les > SPEC.les) err(`設計太大：需要約 ${les} 個 LE，超過 EPF10K50E 的 ${SPEC.les} 個`);
+  let eabs = 0, ramBits = 0;
+  for (const m of design.mems) {
+    const e = eabsFor(m.width, m.depth);
+    eabs += e.n; ramBits += m.width * m.depth;
+    info(`記憶體 ${m.name}[${m.depth} × ${m.width}]：放進 ${e.n} 個 EAB（每個設定成 ${e.shape[1]} × ${e.shape[0]}）`);
+  }
+  info(`嵌入式陣列 EAB：${eabs} / ${SPEC.eabs}・RAM ${ramBits.toLocaleString()} / ${SPEC.ramBits.toLocaleString()} 位元`);
+  if (eabs > SPEC.eabs) err(`記憶體太大：需要 ${eabs} 個 EAB，EPF10K50E 只有 ${SPEC.eabs} 個（每個 2,048 位元）`);
 
   // Fitter：腳位
   const bits: PinBit[] = [];
@@ -92,6 +116,12 @@ export function buildProject(files: FpgaFile[], topOverride = '', prefer = ''): 
       }
       const pin = pins[nm];
       if (pin < 1 || pin > 240) { err(`${nm}：PIN_${pin} 不存在（EPF10K50EQC240 只有 PIN_1 ~ PIN_240）`); continue; }
+      // 腳的種類（QC240 腳位表，見 qc240.ts）：電源 / 設定 / JTAG 不能接訊號；專用輸入、全域時脈只能輸入
+      const pt = pinType(pin);
+      if (pt === 'vcc' || pt === 'gnd') { err(`${nm} → PIN_${pin}：那隻是 ${pinName(pin)} 電源腳，不能指定訊號`); continue; }
+      if (pt === 'config' || pt === 'jtag') { err(`${nm} → PIN_${pin}：那隻是${pt === 'jtag' ? ' JTAG' : '設定'}腳 ${pinName(pin)}，不是使用者 I/O`); continue; }
+      if ((pt === 'ded' || pt === 'gclk') && p.dir === 'output') { err(`輸出 ${nm} 不能放在 PIN_${pin}（${pinName(pin)}）：專用輸入 / 全域時脈腳只能當輸入`); continue; }
+      if (pt === 'dual') info(`${nm} → PIN_${pin}：${pinName(pin)} 是雙用途腳，沒開啟全晶片清除 / 輸出致能時當一般 I/O 使用`);
       if (usedPin.has(pin)) { err(`PIN_${pin} 同時指定給 ${usedPin.get(pin)} 和 ${nm}`); continue; }
       usedPin.set(pin, nm);
       const res = RES_BY_PIN.get(pin);
@@ -105,9 +135,23 @@ export function buildProject(files: FpgaFile[], topOverride = '', prefer = ''): 
   const clk = bits.filter((b) => b.res && (b.res.kind === 'clk50' || b.res.kind === 'clkslow'));
   for (const c of clk) if (design.ports[c.port].width !== 1) warn(`時脈 ${c.name} 在多位元的埠上，會當成一般輸入（時脈請用 1 位元的埠）`);
   info(`Fitter：${bits.length} 個 I/O 已配置${clk.length ? `・時脈 ${clk.map((c) => `${c.name}（${c.res!.label}）`).join('、')}` : '・沒有接任何時脈'}`);
+  info(`使用者 I/O：${new Set(bits.map((b) => b.pin)).size} / ${USER_PINS.length}（datasheet Table 4：240-pin QFP 最多 ${SPEC.userIo} 隻）`);
+
+  // 時序分析（-1 速度等級，datasheet Table 71 / 75 / 76；時脈高 / 低準位各至少 ${TIMING.tCH} ns → 上限 250 MHz）
+  const byClock = new Map<number, typeof design.timing[number]>();
+  for (const t of design.timing) if (!byClock.has(t.clock) || byClock.get(t.clock)!.ns < t.ns) byClock.set(t.clock, t);
+  const fLimit = 1000 / (TIMING.tCH + TIMING.tCL);
+  for (const [sig, t] of byClock) {
+    const bit = bits.find((b) => b.sig === sig && design.ports[b.port].width === 1);
+    const name = bit ? `${bit.name}（${bit.res?.label ?? `PIN_${bit.pin}`}）` : design.sigs[sig].name;
+    const fmax = Math.min(fLimit, 1000 / t.ns);
+    info(`時序（-1 速度等級）：${name} fMAX ≈ ${fmax.toFixed(1)} MHz・最長路徑 ${t.ns.toFixed(1)} ns → ${t.reg}（${t.file} 第 ${t.line} 行）`);
+    if (!bit && design.sigs[sig].isReg) warn(`${design.sigs[sig].name} 是用暫存器產生的時脈（ripple clock）：會有時脈偏移，建議改用時脈致能（clock enable）`);
+    if (bit?.res?.kind === 'clk50' && fmax < 50) warn(`時序不符合：${bit.name} 是 50 MHz（週期 20 ns），但最長路徑要 ${t.ns.toFixed(1)} ns；實際硬體會算錯，請拆成管線（pipeline）或減少組合邏輯層數`);
+  }
 
   const ok = !report.some((r) => r.sev === 'error');
   if (ok) info(`Assembler：產生 ${design.top}.sof / ${design.top}.pof`);
-  const snapshot = files.filter((f) => f.text !== null && (isHdl(f.name) || ext(f.name) === 'qsf'));
+  const snapshot = files.filter((f) => f.text !== null && (isHdl(f.name) || ext(f.name) === 'qsf' || isMemData(f.name)));
   return done(ok ? { name: design.top, top: design.top, design, bits, files: snapshot } : null, design.top);
 }
