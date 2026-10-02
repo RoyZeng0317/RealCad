@@ -39,7 +39,7 @@ interface BoardState {
   setTool: (t: Tool) => void;
   setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel'>>) => void;
   /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
-  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel'>>) => void;
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'rot'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -225,7 +225,7 @@ export const useBoard = create<BoardState>((set, get) => ({
       if (pins.some((p) => occ.has(p))) { set({ message: `${name}的第 2、3 腳位置已經有零件` }); return; }
       const part: BoardPart =
         s.tool === 'pot' ? { id: newId('pot'), kind: 'pot', pins, value: s.potValue, pos: 0.5, gen: 0 }
-        : s.tool === 'bjt' ? { id: newId('bjt'), kind: 'bjt', pins, bjtModel: s.bjtModel, gen: 0 }
+        : s.tool === 'bjt' ? { id: newId('bjt'), kind: 'bjt', pins, bjtModel: s.bjtModel, rot: 1, gen: 0 }
         : { id: newId('ldo'), kind: 'ldo', pins, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;

@@ -136,6 +136,7 @@ export function AnalogCard({ part }: { part: BoardPart }) {
         <select style={selectStyle} value={part.bjtModel ?? '2N3904'} onChange={(e) => { upd({ bjtModel: e.target.value as BoardPart['bjtModel'] }); blur(e); }}>
           {BJT_MODEL_IDS.map((id) => <option key={id} value={id}>{BJT_MODELS[id].name}</option>)}
         </select>
+        <button style={chip(false)} onClick={() => upd({ rot: (((part.rot ?? 1) + 1) % 4) })}>↻ 本體旋轉 90°（只改外觀，接腳不變）</button>
         <div style={help}>腳位（平面朝自己由左到右）：E {holeName(part.pins[0])}・B {holeName(part.pins[1])}・C {holeName(part.pins[2])}</div>
       </>
     );

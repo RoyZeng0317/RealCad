@@ -85,7 +85,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
     if (kind === 'pot') { p.value = POT_VALUES.includes(o.value as number) ? (o.value as number) : 10e3; p.pos = num(o.pos, 0, 1, 0.5); }
     if (kind === 'cap') p.capModel = oneOf(o.capModel, CAP_MODEL_IDS, '100u50');
     if (kind === 'ind') p.value = IND_VALUES.includes(o.value as number) ? (o.value as number) : 1e-3;
-    if (kind === 'bjt') p.bjtModel = oneOf(o.bjtModel, BJT_MODEL_IDS, '2N3904');
+    if (kind === 'bjt') { p.bjtModel = oneOf(o.bjtModel, BJT_MODEL_IDS, '2N3904'); p.rot = int(o.rot, 0, 3, 1); }
     if (kind === 'atmega') { p.code = str(o.code, 100_000, ''); p.flash = str(o.flash, 100_000, ''); }
     if (kind === 'wire') p.color = typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : WIRE_COLORS[0];
     ids.add(id);

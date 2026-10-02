@@ -178,19 +178,22 @@ export function Bjt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const tex = useMemo(() => bjtFace(model), [model]);
   useEffect(() => () => tex.dispose(), [tex]);
   const bodyY = TOP_Y + 0.1, R = 0.05, H = 0.09;
-  // 腳從本體底部（平面後方一點）往左右分開：E 在左（−x）、B 中間、C 在右（+x）
+  // 本體朝向：rot 每格 90°（0 = 平面朝 +z、1 = 再轉 90° 平面朝 +x，預設 1）；檢視器的「旋轉 90°」按鈕可以換
+  const yaw = -Math.PI / 2 + (part.rot ?? 1) * (Math.PI / 2);
+  // 平面法線 n、看著平面時的右手方向 r：腳從本體底部（平面後方一點）往左右分開，E 在左、B 中間、C 在右
+  const n = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), r = new THREE.Vector3(n.z, 0, -n.x);
   const legs = useMemo(() => pins.map((p, i) => {
-    const foot = new THREE.Vector3(c.x + (i - 1) * 0.032, bodyY, c.z - 0.015);
+    const foot = c.clone().setY(bodyY).addScaledVector(r, (i - 1) * 0.032).addScaledVector(n, -0.015);
     return [
       p.clone().setY(TOP_Y - 0.02), p.clone().setY(TOP_Y + 0.02),
       new THREE.Vector3((p.x + foot.x) / 2, TOP_Y + 0.06, (p.z + foot.z) / 2), foot,
     ];
-  }), [pins, c, bodyY]);
+  }), [pins, c, bodyY, part.rot]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <group {...usePartEvents(part)}>
       {legs.map((pts, i) => <Bent key={i} pts={pts} r={0.005} color={LEAD} />)}
-      {/* 本體在本地座標是平面朝 +x；轉 −90° 後平面朝 +z（使用者） */}
-      <group position={[c.x, bodyY, c.z]} rotation={[0, -Math.PI / 2, 0]}>
+      {/* 本體在本地座標是平面朝 +x；轉 −90° 後平面朝 +z（使用者），再依 rot 每格轉 90° */}
+      <group position={[c.x, bodyY, c.z]} rotation={[0, yaw, 0]}>
         <mesh position={[0, H / 2, 0]} castShadow material={mat}>
           <cylinderGeometry args={[R, R, H, 24, 1, false, Math.PI, Math.PI]} />
         </mesh>
