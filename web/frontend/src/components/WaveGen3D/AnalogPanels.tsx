@@ -5,7 +5,7 @@ import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
   POT_VALUES, POT_RATING, CAP_MODELS, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
-  BJT_MODELS, BJT_MODEL_IDS, BJT_PMAX, BJT_ICMAX, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
+  BJT_MODELS, BJT_MODEL_IDS, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
 } from './boardParts.js';
 import { Section, Slider, Stat, chip, row, help, selectStyle, T } from './panelUi.js';
 
@@ -46,7 +46,7 @@ export function AnalogParams() {
   );
   if (s.tool === 'bjt') return (
     <>
-      <div style={row}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
         {BJT_MODEL_IDS.map((m) => <button key={m} style={chip(s.bjtModel === m)} onClick={() => s.setParam({ bjtModel: m })}>{BJT_MODELS[m].name}</button>)}
       </div>
       <DirButtons />
@@ -122,14 +122,15 @@ export function AnalogCard({ part }: { part: BoardPart }) {
     const ic = r?.i ?? 0, ib = r?.ib ?? 0, p = r?.p ?? 0;
     const pnp = m.pol < 0;
     rows = [[pnp ? 'VEB' : 'VBE', `${(r?.vbe ?? 0).toFixed(3)} V`], [pnp ? 'VEC' : 'VCE', `${(r?.v ?? 0).toFixed(3)} V`],
-      ['IB', `${(ib * 1e6).toFixed(1)} µA`], ['IC', mA(ic), Math.abs(ic) > BJT_ICMAX ? '#ff4d3a' : undefined],
-      ['β = IC / IB', Math.abs(ib) > 1e-9 ? (ic / ib).toFixed(1) : '—'], ['功率', mW(p), p > BJT_PMAX ? '#ff4d3a' : undefined]];
+      ['IB', `${(ib * 1e6).toFixed(1)} µA`], ['IC', mA(ic), Math.abs(ic) > m.icMax ? '#ff4d3a' : undefined],
+      ['β = IC / IB', Math.abs(ib) > 1e-9 ? (ic / ib).toFixed(1) : '—'], ['功率', mW(p), p > m.pMax ? '#ff4d3a' : undefined]];
     const mode = r?.mode;
     [status, color] = mode === 'active' ? ['放大區（IC ≈ β·IB）', '#3cff7a']
       : mode === 'sat' ? ['飽和區（當開關導通，VCE 很小）', '#5ad1ff']
       : mode === 'reverse' ? ['反向（C、E 接反了？）', '#ffb020']
       : ['截止區（基極電壓不夠，不導通）', '#8fb4d0'];
-    if (p > BJT_PMAX) { status = `超過額定功率 ${BJT_PMAX * 1000} mW，發熱中`; color = '#ff8a1f'; }
+    if (p > m.pMax) { status = `超過額定功率 ${m.pMax * 1000} mW，發熱中`; color = '#ff8a1f'; }
+    else if (Math.abs(ic) > m.icMax) { status = `集極電流超過額定 ${m.icMax * 1000} mA`; color = '#ff8a1f'; }
     extra = (
       <>
         <select style={selectStyle} value={part.bjtModel ?? '2N3904'} onChange={(e) => { upd({ bjtModel: e.target.value as BoardPart['bjtModel'] }); blur(e); }}>

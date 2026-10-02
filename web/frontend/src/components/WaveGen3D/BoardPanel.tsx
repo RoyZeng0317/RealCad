@@ -56,7 +56,7 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'pot', name: '可變電阻', sub: '1 kΩ / 10 kΩ / 100 kΩ・旋鈕可轉', icon: '⏚' },
   { tool: 'cap', name: '電解電容', sub: '100 µF / 50 V・47 µF / 25 V・有極性', icon: '⊣⊢' },
   { tool: 'ind', name: '電感', sub: '100 µH / 1 mH / 10 mH・工字電感', icon: '∞' },
-  { tool: 'bjt', name: '電晶體', sub: '2N3904 NPN・2N3906 PNP・TO-92', icon: '⋎' },
+  { tool: 'bjt', name: '電晶體', sub: '2N3904 / S9013 NPN・2N3906 / S9012 PNP・TO-92', icon: '⋎' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
   { tool: 'atmega', name: 'ATmega328P-PU', sub: 'AVR 微控制器・DIP-28・可寫 Arduino C', icon: '▥' },
   { tool: 'ch340', name: 'CH340G', sub: 'USB 轉序列（上傳程式／序列埠）・DIP-16', icon: '⇄' },

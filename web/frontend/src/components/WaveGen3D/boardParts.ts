@@ -97,14 +97,17 @@ export const indDcr = (l: number) => Number((0.03 + 300 * l ** 0.8).toPrecision(
 export const IND_IMAX = 0.5; // A
 
 // ---- 電晶體（TO-92，平面朝自己時腳位由左到右 E、B、C）----
-// Ebers-Moll 參數（取自常見 SPICE 模型、BF 取典型 hFE）
+// Ebers-Moll 參數（取自常見 SPICE 模型、BF 取典型 hFE）；pMax / icMax 為額定功率 / 集極電流
+// S9013 / S9012：常見的中功率對管（IC 500 mA），腳位一樣是 E、B、C
 export const BJT_MODELS = {
-  '2N3904': { pol: 1 as const, is: 6.73e-15, bf: 200, br: 0.74, name: '2N3904（NPN）' },
-  '2N3906': { pol: -1 as const, is: 1.41e-15, bf: 180, br: 4.98, name: '2N3906（PNP）' },
+  '2N3904': { pol: 1 as const, is: 6.73e-15, bf: 200, br: 0.74, name: '2N3904（NPN）', pMax: 0.625, icMax: 0.2 },
+  '2N3906': { pol: -1 as const, is: 1.41e-15, bf: 180, br: 4.98, name: '2N3906（PNP）', pMax: 0.625, icMax: 0.2 },
+  S9013: { pol: 1 as const, is: 3.4e-14, bf: 144, br: 3.4, name: 'S9013（NPN）', pMax: 0.625, icMax: 0.5 },
+  S9012: { pol: -1 as const, is: 3.0e-14, bf: 144, br: 4.0, name: 'S9012（PNP）', pMax: 0.625, icMax: 0.5 },
 };
 export type BjtModel = keyof typeof BJT_MODELS;
 export const BJT_MODEL_IDS = Object.keys(BJT_MODELS) as BjtModel[];
-export const BJT_PMAX = 0.625, BJT_ICMAX = 0.2; // W、A
+export const BJT_PMAX = 0.625, BJT_ICMAX = 0.2; // W、A（2N3904 / 2N3906；各型號的額定值在 BJT_MODELS 的 pMax / icMax）
 
 // 熱模型參數：穩態溫升 = P × Rth，燒毀溫度
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
