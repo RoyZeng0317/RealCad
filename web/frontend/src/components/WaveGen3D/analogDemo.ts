@@ -1,9 +1,10 @@
-// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流
+// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流、電晶體特性曲線
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
 import { LOAD_STEPS } from './psu.js';
 import { TIME_DIVS, VOLT_DIVS } from './waveform.js';
+import { clearXyPersist } from './scopeDisplay.js';
 
 /** 產生器方波 2 Hz → 1 kΩ → 100 µF：CH1 看輸入方波、CH2 看電容慢慢充電 / 放電（τ = RC ≈ 0.1 s） */
 export function loadRcDemo() {
@@ -90,4 +91,39 @@ export function loadCtxDemo() {
   b.setLead('ch2', ['t:1:20:9', 't:1:12:9']);
   (['fg', 'sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
   useWaveLab.getState().setScope({ timeDivIdx: TIME_DIVS.indexOf(5e-3), voltDivIdx: VOLT_DIVS.indexOf(5), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(5), ch2Position: 0, trigSource: 'CH1', trigLevel: 0, coupling: 'DC', running: true });
+}
+
+/**
+ * 電晶體特性曲線（IC–VCE 輸出特性，曲線描繪器）：
+ *   基極：電源供應器 5 V → 100 kΩ 可變電阻分壓 → RB 100 kΩ → 2N3904 基極（轉旋鈕改 IB，約 0 ~ 40 µA）
+ *   集極：函數產生器三角波 0 ~ 10 V 直接掃 VCE；射極經 RE 100 Ω 接地 → RE 上的電壓 = IE × 100 Ω ≈ IC（10 mV = 0.1 mA）
+ *   示波器 XY：X = CH1（集極電壓 ≈ VCE），Y = CH2（射極電壓 ∝ IC，0.1 V/div = 1 mA/div）；開殘影，轉旋鈕就留下一整族曲線
+ */
+export function loadCurveDemo() {
+  useBoard.getState().loadParts([
+    { id: 'cv-w1', kind: 'wire', pins: ['p:Va', 'b:1:0:0'], color: '#d42a2a', gen: 0 },
+    { id: 'cv-w2', kind: 'wire', pins: ['p:GND', 'b:1:1:1'], color: '#1b1d20', gen: 0 },
+    // 可變電阻 100 kΩ：第 11 列腳 1（接 5 V）、第 12 列 W、第 13 列腳 3（接地）
+    { id: 'cv-vr', kind: 'pot', pins: ['t:1:10:2', 't:1:11:2', 't:1:12:2'], value: 100e3, pos: 0.5, gen: 0 },
+    { id: 'cv-w3', kind: 'wire', pins: ['t:1:10:0', 'b:1:0:10'], color: '#d42a2a', gen: 0 },
+    { id: 'cv-w4', kind: 'wire', pins: ['t:1:12:0', 'b:1:1:13'], color: '#1b1d20', gen: 0 },
+    { id: 'cv-rb', kind: 'resistor', pins: ['t:1:11:4', 't:1:20:4'], value: 100e3, gen: 0 },
+    // 2N3904：第 20 列 E、第 21 列 B、第 22 列 C
+    { id: 'cv-q1', kind: 'bjt', pins: ['t:1:19:2', 't:1:20:2', 't:1:21:2'], bjtModel: '2N3904', rot: 1, gen: 0 },
+    { id: 'cv-re', kind: 'resistor', pins: ['t:1:19:0', 'b:1:1:19'], value: 100, gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'cv-vr', dmm: 't:1:20:0', dmmBlack: 'p:GND' });
+  const b = useBoard.getState();
+  b.setLead('fg', ['t:1:21:0', 'b:1:1:30']);
+  b.setLead('ch1', ['t:1:21:4', 'b:1:1:36']);
+  b.setLead('ch2', ['t:1:19:4', 'b:1:1:40']);
+  (['sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
+  const psu = usePsuLab.getState();
+  psu.setPsu({ vSet: 5, iSet: 0.1, power: true, output: true });
+  psu.setLoadIdx(LOAD_STEPS.length - 1);
+  const w = useWaveLab.getState();
+  w.setWaveform('triangle');
+  w.setGen({ frequency: 100, amplitude: 10, offset: 5, power: true, output: true });
+  w.setScope({ timeDivIdx: TIME_DIVS.indexOf(2e-3), voltDivIdx: VOLT_DIVS.indexOf(1), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(0.1), ch2Position: -4, trigSource: 'CH1', trigLevel: 5, coupling: 'DC', running: true, xy: true, persist: true });
+  clearXyPersist();
 }

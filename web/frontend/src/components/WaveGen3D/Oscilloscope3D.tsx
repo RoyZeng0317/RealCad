@@ -8,7 +8,7 @@ import { DcTrace } from './ch2Signal.js';
 import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS, type Measurements } from './waveform.js';
 import { getTransfers, probeAt, channelLead, mainsLive, signalPeriod } from './scopeLink.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
-import { drawScope, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
+import { drawScope, rememberXy, clearXyPersist, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
 import { Knob3D, Button3D, Led3D, Bnc3D } from './parts.js';
 import { SCOPE } from './layout.js';
 
@@ -80,6 +80,15 @@ export function Oscilloscope3D() {
 
     if (!sc.running) {
       status.current = 'Stop';
+    } else if (sc.xy) {
+      // XY 模式：取一個完整週期（跟時基無關），水平 = CH1、垂直 = CH2
+      status.current = 'Auto';
+      for (let i = 0; i < N_SAMPLES; i++) {
+        const t = (i / (N_SAMPLES - 1)) * period;
+        s1.current[i] = v1(t) - acShift;
+        s2.current[i] = v2 ? v2(t) : psuTrace.sample(now);
+      }
+      if (sc.persist) rememberXy(s1.current, s2.current, VOLT_DIVS[sc.voltDivIdx], VOLT_DIVS[sc.ch2VoltDivIdx]);
     } else {
       // 觸發點放在螢幕水平中央；沒有觸發（Auto）時畫面右緣 = 現在
       let tTrig: number | null;
@@ -170,6 +179,10 @@ export function Oscilloscope3D() {
           onStep={(s, fine) => setScope({ ch2Position: stepPos(useWaveLab.getState().scope.ch2Position, s, fine) })} />
 
         {/* MEASURE：螢幕上切換 基本 → CH1 全部參數 → CH2 全部參數 */}
+        {/* XY 模式（水平 = CH1、垂直 = CH2）：畫特性曲線用 */}
+        <Button3D position={[1.4, -0.1, 0.002]} size={[0.18, 0.08]} text="XY"
+          active={scope.xy} activeColor="#2f9f3c" color="#3a4a5a"
+          onPress={() => { clearXyPersist(); setScope({ xy: !scope.xy, ch2On: true }); }} />
         <Button3D position={[1.12, -0.12, 0.002]} size={[0.26, 0.1]} text={scope.measPage === 0 ? 'MEAS' : `MEAS ${scope.measPage}`}
           active={scope.measPage !== 0} activeColor="#1f7f9f" color="#3a4a5a"
           onPress={() => setScope({ measPage: ((scope.measPage + 1) % 3) as 0 | 1 | 2 })} />

@@ -22,6 +22,8 @@ export interface ScopeSettings {
   ch2Position: number; // 格
   trigSource: 'CH1' | 'CH2';
   measPage: 0 | 1 | 2; // 螢幕上的量測：0 = 基本（下方兩列）、1 = CH1 全部參數、2 = CH2 全部參數
+  xy: boolean; // XY 模式：水平 = CH1、垂直 = CH2（畫特性曲線、李沙育圖形）；水平 0 V 在螢幕左緣 + CH1 位置
+  persist: boolean; // XY 殘影：保留之前的曲線（轉可變電阻就能畫出一整族曲線）
 }
 
 interface WaveLabState {
@@ -70,6 +72,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
     timeDivIdx: TIME_DIVS.indexOf(0.0002), voltDivIdx: VOLT_DIVS.indexOf(1),
     position: 0, trigLevel: 0, running: true, coupling: 'DC',
     ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: -3, trigSource: 'CH1', measPage: 0,
+    xy: false, persist: false,
   },
   view: 'overview',
   viewNonce: 0,
