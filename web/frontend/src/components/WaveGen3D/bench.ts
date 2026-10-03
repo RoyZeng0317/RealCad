@@ -7,7 +7,7 @@ import { waveMean } from './waveform.js';
 import { netOf, postKey, type HoleKey } from './boardModel.js';
 import { solveCircuit, type Element, type Solution } from './circuit.js';
 import {
-  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, type BoardPart,
+  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, xfmrParams, type BoardPart,
 } from './boardParts.js';
 import type { PsuReading, PsuSettings } from './psu.js';
 import { useDev, type Issue } from './devboards/devStore.js';
@@ -105,6 +105,11 @@ export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[
     if (p.kind === 'bjt') {
       const m = BJT_MODELS[p.bjtModel ?? '2N3904'];
       els.push({ kind: 'bjt', id: p.id, e: a, b, c, pol: m.pol, is: m.is, bf: m.bf, br: m.br });
+    }
+    // 變壓器：耦合電感（一次側 P1→P2、二次側 S1→S2）
+    if (p.kind === 'xfmr') {
+      const { l1, l2, k, r1, r2 } = xfmrParams(p.xfmrModel ?? '2:1');
+      els.push({ kind: 'xfmr', id: p.id, p1: a, n1: b, p2: c, n2: net(p.pins[3]), l1, l2, k, r1, r2 });
     }
   }
   els.push(...devElements(dev, merged.net, GND));

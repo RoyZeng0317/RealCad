@@ -1,4 +1,4 @@
-// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體
+// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體、EI 鐵芯變壓器
 // 座標都是麵包板本地座標（跟 BoardParts3D 一樣放在 LabBreadboard 的 group 裡）
 import { useEffect, useMemo, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { holePos } from './boardModel.js';
-import { CAP_MODELS, type BoardPart } from './boardParts.js';
+import { CAP_MODELS, XFMR_MODELS, type BoardPart } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { TOP_Y } from './breadboardGrid.js';
 import { Rod, Bent, LEAD, useHeatMaterial, usePartEvents, type Sel } from './BoardParts3D.js';
@@ -215,6 +215,73 @@ export function Bjt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
           <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#2a2420' : '#ffffff'} toneMapped={false} />
         </mesh>
       </group>
+    </group>
+  );
+}
+
+// ---- 變壓器：EI 矽鋼片鐵芯 + 中間的線圈（黃色絕緣膠帶），4 隻腳跨在溝槽兩側 ----
+//   左排（e 欄）一次側 P1、P2，右排（f 欄）二次側 S1、S2；圓點標在同名端 P1、S1
+function xfmrTop(ratio: string) {
+  return createCanvasTexture(0.16, 0.1, (p) => {
+    p.ctx.fillStyle = '#e8c23a';
+    p.ctx.fillRect(0, 0, p.s(0.16), p.s(0.1));
+    p.ctx.fillStyle = '#2a2208';
+    p.ctx.textAlign = 'center';
+    p.ctx.textBaseline = 'middle';
+    p.ctx.font = `800 ${p.s(0.026)}px ${FONT}`;
+    p.ctx.fillText(ratio, p.x(0), p.y(0.018));
+    p.ctx.font = `600 ${p.s(0.013)}px ${FONT}`;
+    p.ctx.fillText('PRI  ·  SEC', p.x(0), p.y(-0.022));
+  }, 2400);
+}
+
+export function Xfmr3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  const pins = useMemo(() => part.pins.map(holePos), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
+  const core = useHeatMaterial(part, '#5b6068', selected);
+  const c = useMemo(() => pins.reduce((a, b) => a.clone().add(b), new THREE.Vector3()).multiplyScalar(1 / 4), [pins]);
+  const sx = Math.abs(pins[2].x - pins[0].x) + 0.1, sz = Math.abs(pins[1].z - pins[0].z) + 0.08;
+  const baseY = TOP_Y + 0.035, H = 0.2;
+  const ratio = XFMR_MODELS[part.xfmrModel ?? '2:1'].n >= 1 ? `${XFMR_MODELS[part.xfmrModel ?? '2:1'].n} : 1` : `1 : ${1 / XFMR_MODELS[part.xfmrModel ?? '2:1'].n}`;
+  const tex = useMemo(() => xfmrTop(ratio), [ratio]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  // 腳：從孔直直往上進本體底部（底座是黑色塑膠骨架）
+  const legs = useMemo(() => pins.map((p) => [p.clone().setY(TOP_Y - 0.02), p.clone().setY(baseY + 0.01)]), [pins, baseY]);
+  // 同名端圓點：P1、S1 旁邊的骨架上
+  const dots = [pins[0], pins[2]].map((p) => new THREE.Vector3(p.x + Math.sign(p.x - c.x) * 0.012, baseY + 0.022, p.z));
+  return (
+    <group {...usePartEvents(part)}>
+      {legs.map(([a, b], i) => <Rod key={i} a={a} b={b} r={0.006} color={LEAD} metal />)}
+      <group position={[c.x, baseY, c.z]}>
+        {/* 塑膠骨架底座 */}
+        <mesh position={[0, 0.01, 0]} castShadow>
+          <boxGeometry args={[sx, 0.02, sz]} />
+          <meshStandardMaterial color="#1b1d20" roughness={0.7} />
+        </mesh>
+        {/* EI 鐵芯：前後兩片矽鋼片疊（線圈兩側露出），上面一條 I 片 */}
+        {[-1, 1].map((k) => (
+          <mesh key={k} position={[0, 0.02 + H / 2, k * (sz / 2 - 0.018)]} castShadow material={core}>
+            <boxGeometry args={[sx * 0.92, H, 0.036]} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.02 + H - 0.015, 0]} castShadow material={core}>
+          <boxGeometry args={[sx * 0.92, 0.03, sz - 0.03]} />
+        </mesh>
+        {/* 線圈（黃色絕緣膠帶包著），頂面印匝數比 */}
+        <mesh position={[0, 0.02 + (H - 0.03) / 2, 0]} castShadow>
+          <boxGeometry args={[sx * 0.86, H - 0.03, sz - 0.07]} />
+          <meshStandardMaterial color={part.burnt ? '#3a2a1a' : '#e0b830'} roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.02 + H + 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[Math.min(sx * 0.8, 0.16), Math.min(sz * 0.6, 0.1)]} />
+          <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#2a2420' : '#ffffff'} toneMapped={false} />
+        </mesh>
+      </group>
+      {dots.map((d, i) => (
+        <mesh key={i} position={d} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.007, 16]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      ))}
     </group>
   );
 }

@@ -14,13 +14,16 @@ export type Element =
   | { kind: 'cap'; id: string; a: string; b: string; c: number }
   | { kind: 'ind'; id: string; a: string; b: string; l: number; r: number }
   // 雙極性電晶體：pol = 1 NPN、−1 PNP
-  | { kind: 'bjt'; id: string; c: string; b: string; e: string; pol: 1 | -1; is: number; bf: number; br: number };
+  | { kind: 'bjt'; id: string; c: string; b: string; e: string; pol: 1 | -1; is: number; bf: number; br: number }
+  // 變壓器 = 耦合電感：一次側 p1→n1（L1、R1）、二次側 p2→n2（L2、R2），互感 M = k·√(L1·L2)
+  //   直流時兩個繞組各自只是一顆電阻（直流過不了變壓器）；暫態時用後向尤拉法解耦合的 2×2 方程式
+  | { kind: 'xfmr'; id: string; p1: string; n1: string; p2: string; n2: string; l1: number; l2: number; k: number; r1: number; r2: number };
 
 /** 暫態模擬一步：dt 秒；vc = 上一步電容電壓（a−b）、il = 上一步電感電流（a→b） */
 export interface SolveOpts {
   dt?: number;
   vc?: Record<string, number>;
-  il?: Record<string, number>;
+  il?: Record<string, number>; // 變壓器兩個繞組用 id:p、id:s
   guess?: Solution; // 上一步的解：當牛頓法的起點，收斂比較快
 }
 
@@ -31,6 +34,7 @@ function terminals(e: Element): string[] {
     case 'res': case 'cap': case 'ind': return [e.a, e.b];
     case 'diode': return [e.a, e.k];
     case 'bjt': return [e.c, e.b, e.e];
+    case 'xfmr': return [e.p1, e.n1, e.p2, e.n2];
     default: return [e.vin, e.vout, e.gnd];
   }
 }
@@ -183,6 +187,21 @@ export function solveCircuit(elements: Element[], ground: string, opts: SolveOpt
           G(e.a, e.b, g);
           I(e.a, e.b, g * k * (il[e.id] ?? 0));
         } else if (e.kind === 'bjt') stampBjt(e, jbe.get(e.id)!, jbc.get(e.id)!, G, I, A, b, ni);
+        else if (e.kind === 'xfmr') {
+          if (!dt) { G(e.p1, e.n1, 1 / e.r1); G(e.p2, e.n2, 1 / e.r2); continue; }
+          // [v1; v2] = Z·[i1; i2] − (L/dt)·i前，Z = R + L/dt → i = Y·v + Y·(L/dt)·i前，Y = Z⁻¹
+          const { y, j } = xfmrY(e, dt, il[`${e.id}:p`] ?? 0, il[`${e.id}:s`] ?? 0);
+          const vccs = (a: string, bb: string, c: string, d: string, g: number) => {
+            // 從 a 經繞組流到 bb 的電流 = g·(V(c) − V(d))
+            const ia = ni(a), ib = ni(bb), ic = ni(c), id = ni(d);
+            if (ia >= 0) { if (ic >= 0) A[ia][ic] += g; if (id >= 0) A[ia][id] -= g; }
+            if (ib >= 0) { if (ic >= 0) A[ib][ic] -= g; if (id >= 0) A[ib][id] += g; }
+          };
+          vccs(e.p1, e.n1, e.p1, e.n1, y[0][0]); vccs(e.p1, e.n1, e.p2, e.n2, y[0][1]);
+          vccs(e.p2, e.n2, e.p1, e.n1, y[1][0]); vccs(e.p2, e.n2, e.p2, e.n2, y[1][1]);
+          I(e.p1, e.n1, j[0]);
+          I(e.p2, e.n2, j[1]);
+        }
         else if (e.kind === 'src') { G(e.p, e.n, 1 / e.r); I(e.n, e.p, e.v / e.r); }
         else if (e.kind === 'diode') {
           const v = vd.get(e.id)!;
@@ -288,6 +307,18 @@ export function solveCircuit(elements: Element[], ground: string, opts: SolveOpt
       const v = nodeV[e.a] - nodeV[e.b];
       const i = dt ? (v + (e.l / dt) * (il[e.id] ?? 0)) / (e.r + e.l / dt) : v / e.r;
       el[e.id] = { v, i, p: i * i * e.r };
+    } else if (e.kind === 'xfmr') {
+      const v1 = nodeV[e.p1] - nodeV[e.n1], v2 = nodeV[e.p2] - nodeV[e.n2];
+      let i1 = v1 / e.r1, i2 = v2 / e.r2;
+      if (dt) {
+        const { y, j } = xfmrY(e, dt, il[`${e.id}:p`] ?? 0, il[`${e.id}:s`] ?? 0);
+        i1 = y[0][0] * v1 + y[0][1] * v2 + j[0];
+        i2 = y[1][0] * v1 + y[1][1] * v2 + j[1];
+      }
+      el[`${e.id}:p`] = { v: v1, i: i1, p: i1 * i1 * e.r1 };
+      el[`${e.id}:s`] = { v: v2, i: i2, p: i2 * i2 * e.r2 };
+      // 給檢視器 / 熱模型：v = 二次側電壓、vin = 一次側電壓、i = 二次側電流、ib = 一次側電流
+      el[e.id] = { v: v2, vin: v1, i: i2, ib: i1, p: i1 * i1 * e.r1 + i2 * i2 * e.r2 };
     } else if (e.kind === 'bjt') {
       el[e.id] = bjtResult(e, e.pol * (nodeV[e.b] - nodeV[e.e]), e.pol * (nodeV[e.b] - nodeV[e.c]));
     } else if (e.kind === 'src') {
@@ -357,4 +388,14 @@ function bjtResult(e: BjtEl, vbe: number, vbc: number): ElementResult {
   const vce = vbe - vbc;
   const mode = vbe > 0.5 ? (vbc > 0.4 ? 'sat' : 'active') : vbc > 0.5 ? 'reverse' : 'cutoff';
   return { i: ic, ib, v: vce, vbe, p: Math.max(0, ic * vce + ib * vbe), mode };
+}
+
+/** 變壓器（耦合電感）的後向尤拉離散化：i = Y·v + j */
+function xfmrY(e: Extract<Element, { kind: 'xfmr' }>, dt: number, ip: number, is: number) {
+  const m = e.k * Math.sqrt(e.l1 * e.l2);
+  const z11 = e.r1 + e.l1 / dt, z12 = m / dt, z22 = e.r2 + e.l2 / dt;
+  const det = z11 * z22 - z12 * z12;
+  const y = [[z22 / det, -z12 / det], [-z12 / det, z11 / det]];
+  const h1 = (e.l1 * ip + m * is) / dt, h2 = (m * ip + e.l2 * is) / dt; // (L/dt)·i前
+  return { y, j: [y[0][0] * h1 + y[0][1] * h2, y[1][0] * h1 + y[1][1] * h2] };
 }

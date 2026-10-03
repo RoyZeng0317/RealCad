@@ -15,7 +15,7 @@ import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC 
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 import { Chip3D } from './chips/Chip3D.js';
-import { Pot3D, Cap3D, Ind3D, Bjt3D } from './AnalogParts3D.js';
+import { Pot3D, Cap3D, Ind3D, Bjt3D, Xfmr3D } from './AnalogParts3D.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
@@ -453,6 +453,7 @@ export function BoardParts3D() {
         if (p.kind === 'cap') return <Cap3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ind') return <Ind3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'bjt') return <Bjt3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'xfmr') return <Xfmr3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}
       <BoardMarkers />

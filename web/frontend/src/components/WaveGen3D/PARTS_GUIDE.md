@@ -45,6 +45,7 @@ export const CAP_MODELS = {
 - 可變電阻加 50 kΩ → `POT_VALUES` 加 `50e3`
 - 電感加 4.7 mH → `IND_VALUES` 加 `4.7e-3`
 - 電晶體加一顆 → `BJT_MODELS` 照格式加（`pol: 1` 是 NPN、`-1` 是 PNP，`is / bf / br` 可以從廠商的 SPICE 模型抄）
+- 變壓器加一種匝數比 → `XFMR_MODELS` 加一行（`n` = 一次側匝數 / 二次側匝數，例如 `'5:1': { n: 5, name: '5 : 1（降壓）' }`）；電感、線圈電阻由 `xfmrParams()` 依 n 自動算
 
 ---
 

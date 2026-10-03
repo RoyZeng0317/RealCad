@@ -14,7 +14,7 @@ import {
   partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadRectifierDemo } from './boardDemo.js';
-import { loadRcDemo, loadBjtDemo } from './analogDemo.js';
+import { loadRcDemo, loadBjtDemo, loadXfmrDemo } from './analogDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -33,6 +33,7 @@ export const TOOL_HINT: Record<Tool, string> = {
   cap: '電解電容有極性：先點 + 腳（長腳）的孔，再點 − 腳（白色條紋那邊）的孔。反接或超過耐壓會損壞。',
   ind: '先點第一隻腳的孔，再點第二隻腳的孔（電感沒有極性）。',
   bjt: '點 E（射極）的孔，B（基極）、C（集極）會沿同一欄自動排在接下來兩列（平面朝自己時由左到右 E、B、C）。',
+  xfmr: '點一個端子排的孔：那一列放 P1 / S1，往下第 3 列放 P2 / S2，跨在中間的溝上（e 欄一次側、f 欄二次側，兩側電氣隔離）。只能傳交流：接函數產生器到一次側。',
   fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
   ch1: '示波器 CH1 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
   ch2: '示波器 CH2 探棒：先點 + 端（探針，要量的點），再點 − 端（接地夾，通常接 GND）。螢幕顯示的是 + 端減 − 端的電壓。',
@@ -41,7 +42,7 @@ export const TOOL_HINT: Record<Tool, string> = {
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', atmega: 'ATmega328P', ch340: 'CH340G',
+  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', xfmr: '變壓器', atmega: 'ATmega328P', ch340: 'CH340G',
   fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線', dm: '桌上型萬用電表測試線',
 };
 
@@ -57,6 +58,7 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'cap', name: '電解電容', sub: '100 µF / 50 V・47 µF / 25 V・有極性', icon: '⊣⊢' },
   { tool: 'ind', name: '電感', sub: '100 µH / 1 mH / 10 mH・工字電感', icon: '∞' },
   { tool: 'bjt', name: '電晶體', sub: '2N3904 / S9013 NPN・2N3906 / S9012 PNP・TO-92', icon: '⋎' },
+  { tool: 'xfmr', name: '變壓器', sub: '1:1 / 2:1 / 4:1 / 10:1 / 1:2・EI 鐵芯・只傳交流', icon: '⧛' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
   { tool: 'atmega', name: 'ATmega328P-PU', sub: 'AVR 微控制器・DIP-28・可寫 Arduino C', icon: '▥' },
   { tool: 'ch340', name: 'CH340G', sub: 'USB 轉序列（上傳程式／序列埠）・DIP-16', icon: '⇄' },
@@ -134,7 +136,7 @@ function ToolParams() {
       <button style={chip(s.probeSide === 'black', '#3a3a44')} onClick={() => s.setParam({ probeSide: 'black' })}>下一次放黑棒</button>
     </div>
   );
-  if (s.tool === 'pot' || s.tool === 'cap' || s.tool === 'ind' || s.tool === 'bjt') return <AnalogParams />;
+  if (s.tool === 'pot' || s.tool === 'cap' || s.tool === 'ind' || s.tool === 'bjt' || s.tool === 'xfmr') return <AnalogParams />;
   if (s.tool === 'ldo') return (
     <div style={row}>
       <button style={chip(s.ldoDir === 1)} onClick={() => s.setParam({ ldoDir: 1 })}>腳位往下排</button>
@@ -168,6 +170,9 @@ export function PartLibrary() {
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadBjtDemo(); useLabUi.getState().focus('breadboard'); }}>
           可變電阻 + 2N3904 電晶體開關 LED
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadXfmrDemo(); useLabUi.getState().focus('scope'); }}>
+          2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
           Arduino Uno：LED 閃爍（Blink）

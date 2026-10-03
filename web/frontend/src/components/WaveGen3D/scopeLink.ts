@@ -81,6 +81,12 @@ export function transferOf(a: HoleKey, b: HoleKey): Transfer {
   return tr;
 }
 
+/** 暫態模擬中某個元件一個週期的結果（每個相位一份，給變壓器這類只在交流下有意義的零件看 RMS）；沒有暫態模擬時回傳 null */
+export function elementWave(id: string) {
+  const per = getSweep().per;
+  return per ? per.sols.map((s) => s.el[id]) : null;
+}
+
 export function getTransfers(): Record<'ch1' | 'ch2', Transfer | null> {
   const l1 = channelLead('ch1'), l2 = channelLead('ch2');
   return { ch1: l1 ? transferOf(l1[0], l1[1]) : null, ch2: l2 ? transferOf(l2[0], l2[1]) : null };

@@ -2,10 +2,10 @@
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
 import { hitHole } from './breadboardGrid.js';
-import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, WIRE_COLORS } from './boardParts.js';
+import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'erase' | LeadKind;
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa' | 'dm';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
@@ -30,6 +30,7 @@ interface BoardState {
   capModel: CapModel;
   indValue: number;
   bjtModel: BjtModel;
+  xfmrModel: XfmrModel;
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
   tsd: Record<string, boolean>; // LT1117 熱關斷中
   message: string;
@@ -37,9 +38,9 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel'>>) => void;
   /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
-  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'rot'>>) => void;
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'rot'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -113,6 +114,16 @@ export function ldoPins(k: HoleKey, dir: 1 | -1 = 1): HoleKey[] | null {
   return pins.every(isValidHole) ? pins : null;
 }
 
+/** 變壓器：點的那一列放 P1，跨在中間溝槽兩側（e / f 欄）；左排 P1（第 r 列）、P2（第 r+3 列），右排 S1、S2 對齊 */
+export const XFMR_SPAN = 3;
+export function xfmrPins(k: HoleKey): HoleKey[] | null {
+  const [t, s, r] = k.split(':');
+  if (t !== 't') return null;
+  const r2 = +r + XFMR_SPAN;
+  const pins = [`t:${s}:${r}:4`, `t:${s}:${r2}:4`, `t:${s}:${r}:5`, `t:${s}:${r2}:5`];
+  return pins.every(isValidHole) ? pins : null;
+}
+
 export const useBoard = create<BoardState>((set, get) => ({
   parts: [],
   tool: 'select',
@@ -132,6 +143,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   capModel: '100u50',
   indValue: 1e-3,
   bjtModel: '2N3904',
+  xfmrModel: '2:1',
   temps: {},
   tsd: {},
   message: '',
@@ -215,6 +227,15 @@ export const useBoard = create<BoardState>((set, get) => ({
       if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : 'CH340G'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
       if (pins.some((p) => occ.has(p))) { set({ message: 'IC 要佔用的孔已經有其他零件' }); return; }
       const part: BoardPart = { id: newId(s.tool), kind: s.tool, pins, gen: 0, ...(s.tool === 'atmega' ? { code: ATMEGA_EXAMPLE } : {}) };
+      set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
+      return;
+    }
+    // 變壓器：4 隻腳跨在溝槽兩側（一次側在 e 欄、二次側在 f 欄），兩側電氣隔離
+    if (s.tool === 'xfmr') {
+      const pins = xfmrPins(k);
+      if (!pins) { set({ message: `變壓器要放在端子排，從點的那一列往下需要 ${XFMR_SPAN + 1} 列（會跨在 e / f 欄中間的溝上）` }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: '變壓器要佔用的孔已經有其他零件' }); return; }
+      const part: BoardPart = { id: newId('xfmr'), kind: 'xfmr', pins, xfmrModel: s.xfmrModel, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }

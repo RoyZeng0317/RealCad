@@ -1,17 +1,19 @@
 // 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、ATmega328P／CH340G（DIP）、跳線
 // 類比零件：可變電阻（1k/10k/100k）、電解電容（100µF/50V、47µF/25V）、電感、電晶體 2N3904 / 2N3906
+// 變壓器（小型信號 / 隔離變壓器，4 腳跨在中間溝槽兩側：左排一次側、右排二次側）
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr';
 
 export interface BoardPart {
   id: string;
   kind: PartKind;
-  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]
+  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]
   value?: number; // 電阻 Ω；可變電阻總阻值 Ω；電感 H
   pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
   capModel?: CapModel;
   bjtModel?: BjtModel;
+  xfmrModel?: XfmrModel;
   rot?: number; // 電晶體本體朝向：0~3，每格 90°（預設 1）
   model?: DiodeModel;
   ledColor?: LedColor;
@@ -110,6 +112,25 @@ export type BjtModel = keyof typeof BJT_MODELS;
 export const BJT_MODEL_IDS = Object.keys(BJT_MODELS) as BjtModel[];
 export const BJT_PMAX = 0.625, BJT_ICMAX = 0.2; // W、A（2N3904 / 2N3906；各型號的額定值在 BJT_MODELS 的 pMax / icMax）
 
+// ---- 變壓器（耦合電感：一次側 P1–P2、二次側 S1–S2；圓點（同名端）在 P1、S1）----
+// n = Np / Ns（匝數比）；一次側電感 L1 = 1 H，二次側 L2 = L1 / n²，耦合係數 k = 0.999（漏感 0.1%）
+// 線圈電阻：一次側 10 Ω、二次側依匝數比縮小；只能傳交流（直流時線圈就是一顆小電阻，二次側沒有電壓）
+export const XFMR_MODELS = {
+  '1:1': { n: 1, name: '1 : 1（隔離）' },
+  '2:1': { n: 2, name: '2 : 1（降壓）' },
+  '4:1': { n: 4, name: '4 : 1（降壓）' },
+  '10:1': { n: 10, name: '10 : 1（降壓）' },
+  '1:2': { n: 0.5, name: '1 : 2（升壓）' },
+};
+export type XfmrModel = keyof typeof XFMR_MODELS;
+export const XFMR_MODEL_IDS = Object.keys(XFMR_MODELS) as XfmrModel[];
+export const XFMR_L1 = 1, XFMR_K = 0.999, XFMR_R1 = 10;
+export const XFMR_IMAX = 0.3; // A（一次側或二次側電流超過就是過載）
+export function xfmrParams(m: XfmrModel) {
+  const n = XFMR_MODELS[m].n;
+  return { n, l1: XFMR_L1, l2: XFMR_L1 / (n * n), k: XFMR_K, r1: XFMR_R1, r2: Math.max(0.1, XFMR_R1 / (n * n)) };
+}
+
 // 熱模型參數：穩態溫升 = P × Rth，燒毀溫度
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
   resistor: { rth: 280, tau: 4, burn: 330 }, // 1/4 W：約 1 W 以上會燒
@@ -122,6 +143,7 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   cap: { rth: 1, tau: 1, burn: Infinity }, // 電容不發熱；過壓 / 反接由電路判斷損壞
   ind: { rth: 60, tau: 6, burn: 250 }, // 電流流過 DCR 發熱
   bjt: { rth: 200, tau: 3, burn: 200 }, // TO-92：約 0.9 W 以上會燒
+  xfmr: { rth: 30, tau: 15, burn: 200 }, // 線圈銅損發熱：約 6 W 以上會燒
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -137,6 +159,7 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'cap') return `電解電容 ${CAP_MODELS[p.capModel ?? '100u50'].name}`;
   if (p.kind === 'ind') return `電感 ${fmtHenry(p.value!)}`;
   if (p.kind === 'bjt') return `電晶體 ${BJT_MODELS[p.bjtModel ?? '2N3904'].name}`;
+  if (p.kind === 'xfmr') return `變壓器 ${XFMR_MODELS[p.xfmrModel ?? '2:1'].name}`;
   return '杜邦線';
 }
 
