@@ -1,4 +1,4 @@
-// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED
+// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
@@ -47,4 +47,25 @@ export function loadBjtDemo() {
   const psu = usePsuLab.getState();
   psu.setPsu({ vSet: 5, iSet: 0.5, power: true, output: true });
   psu.setLoadIdx(LOAD_STEPS.length - 1);
+}
+
+/**
+ * 函數產生器 1 kHz 正弦 10 Vpp → 2 : 1 變壓器一次側（P1 第 21 列 e 欄、P2 第 24 列 e 欄）；二次側接 1 kΩ 負載
+ * CH1 看一次側、CH2 看二次側（接地夾夾在 S2，兩側隔離所以要各自找參考點）→ 二次側振幅約一半、同相位（同名端 P1、S1）
+ */
+export function loadXfmrDemo() {
+  useBoard.getState().loadParts([
+    { id: 'tx-t1', kind: 'xfmr', pins: ['t:1:20:4', 't:1:23:4', 't:1:20:5', 't:1:23:5'], xfmrModel: '2:1', gen: 0 },
+    { id: 'tx-rl', kind: 'resistor', pins: ['t:1:20:7', 't:1:23:7'], value: 1000, gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'tx-t1', dmm: null, dmmBlack: 'p:GND' });
+  const b = useBoard.getState();
+  b.setLead('fg', ['t:1:20:0', 't:1:23:0']);
+  b.setLead('ch1', ['t:1:20:2', 't:1:23:2']);
+  b.setLead('ch2', ['t:1:20:9', 't:1:23:9']);
+  (['sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
+  const w = useWaveLab.getState();
+  w.setWaveform('sine');
+  w.setGen({ frequency: 1000, amplitude: 10, offset: 0, power: true, output: true });
+  w.setScope({ timeDivIdx: TIME_DIVS.indexOf(2e-4), voltDivIdx: VOLT_DIVS.indexOf(2), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: 0, trigSource: 'CH1', trigLevel: 0, coupling: 'DC', running: true });
 }

@@ -21,7 +21,10 @@ export interface Periodic {
 }
 
 /** 有沒有需要暫態模擬的零件（電容、電感；燒毀的當開路不算） */
-export const hasReactive = (parts: BoardPart[]) => parts.some((p) => !p.burnt && (p.kind === 'cap' || p.kind === 'ind'));
+export const hasReactive = (parts: BoardPart[]) => parts.some((p) => !p.burnt && (p.kind === 'cap' || p.kind === 'ind' || p.kind === 'xfmr'));
+
+/** 有電流狀態的元件：電感（id）、變壓器兩個繞組（id:p、id:s） */
+const currentIds = (e: Element) => (e.kind === 'ind' ? [e.id] : e.kind === 'xfmr' ? [`${e.id}:p`, `${e.id}:s`] : []);
 
 /** els 裡 id = 'fg' 的訊號源會被逐步改成產生器當下的電壓 */
 export function simulatePeriodic(els: Element[], ground: string, gen: GenSettings, M = STEPS_PER_PERIOD): Periodic {
@@ -37,14 +40,15 @@ export function simulatePeriodic(els: Element[], ground: string, gen: GenSetting
   const vc: Record<string, number> = {}, il: Record<string, number> = {};
   for (const e of list) {
     if (e.kind === 'cap') vc[e.id] = prev.el[e.id]?.v ?? 0;
-    if (e.kind === 'ind') il[e.id] = prev.el[e.id]?.i ?? 0;
+    for (const k of currentIds(e)) il[k] = prev.el[k]?.i ?? 0;
   }
 
   // 2. 一個週期一個週期跑
   const sols: Solution[] = new Array(M);
-  const ids = list.filter((e) => e.kind === 'cap' || e.kind === 'ind');
-  const state = () => ids.map((e) => (e.kind === 'cap' ? vc[e.id] : il[e.id]));
-  const setState = (x: number[]) => ids.forEach((e, k) => { if (e.kind === 'cap') vc[e.id] = x[k]; else il[e.id] = x[k]; });
+  const capIds = list.filter((e) => e.kind === 'cap').map((e) => e.id);
+  const curIds = list.flatMap(currentIds);
+  const state = () => [...capIds.map((id) => vc[id]), ...curIds.map((id) => il[id])];
+  const setState = (x: number[]) => { capIds.forEach((id, k) => { vc[id] = x[k]; }); curIds.forEach((id, k) => { il[id] = x[capIds.length + k]; }); };
   let hist: number[][] = [state()];
   let settled = false, periods = 0;
   while (periods < MAX_PERIODS) {
@@ -53,7 +57,7 @@ export function simulatePeriodic(els: Element[], ground: string, gen: GenSetting
       const sol = solveCircuit(list, ground, { dt, vc, il, guess: prev });
       for (const e of list) {
         if (e.kind === 'cap') vc[e.id] = sol.el[e.id].v;
-        if (e.kind === 'ind') il[e.id] = sol.el[e.id].i;
+        for (const k of currentIds(e)) il[k] = sol.el[k].i;
       }
       sols[(i + 1) % M] = sol;
       prev = sol;

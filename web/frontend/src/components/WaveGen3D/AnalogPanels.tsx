@@ -5,8 +5,9 @@ import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
   POT_VALUES, POT_RATING, CAP_MODELS, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
-  BJT_MODELS, BJT_MODEL_IDS, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
+  BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
 } from './boardParts.js';
+import { elementWave } from './scopeLink.js';
 import { Section, Slider, Stat, chip, row, help, selectStyle, T } from './panelUi.js';
 
 const blur = (e: { currentTarget: HTMLElement }) => e.currentTarget.blur();
@@ -52,10 +53,18 @@ export function AnalogParams() {
       <DirButtons />
     </>
   );
+  if (s.tool === 'xfmr') return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+      {XFMR_MODEL_IDS.map((m) => <button key={m} style={chip(s.xfmrModel === m)} onClick={() => s.setParam({ xfmrModel: m })}>{XFMR_MODELS[m].name}</button>)}
+    </div>
+  );
   return null;
 }
 
-export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt';
+export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt' || p.kind === 'xfmr';
+
+/** 一個週期的 RMS（暫態模擬的每個相位等時間間隔） */
+const rmsOf = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / Math.max(1, xs.length));
 
 /** 右側檢視器：選取的類比零件 */
 export function AnalogCard({ part }: { part: BoardPart }) {
@@ -138,6 +147,34 @@ export function AnalogCard({ part }: { part: BoardPart }) {
         </select>
         <button style={chip(false)} onClick={() => upd({ rot: (((part.rot ?? 1) + 1) % 4) })}>↻ 本體旋轉 90°（只改外觀，接腳不變）</button>
         <div style={help}>腳位（平面朝自己由左到右）：E {holeName(part.pins[0])}・B {holeName(part.pins[1])}・C {holeName(part.pins[2])}</div>
+      </>
+    );
+  } else if (part.kind === 'xfmr') {
+    const model = part.xfmrModel ?? '2:1';
+    const { n, l1, l2, r1, r2 } = xfmrParams(model);
+    // 交流（產生器接上、有暫態模擬）時看 RMS；只有直流時線圈就是電阻，二次側不會有電壓
+    const pw = elementWave(`${part.id}:p`), sw = elementWave(`${part.id}:s`);
+    const ac = !!pw && !!sw && pw.every(Boolean) && sw.every(Boolean);
+    const vp = ac ? rmsOf(pw!.map((x) => x!.v)) : r?.vin ?? 0, vs = ac ? rmsOf(sw!.map((x) => x!.v)) : r?.v ?? 0;
+    const ip = ac ? rmsOf(pw!.map((x) => x!.i)) : r?.ib ?? 0, is = ac ? rmsOf(sw!.map((x) => -x!.i)) : -(r?.i ?? 0);
+    const unit = ac ? ' rms' : '';
+    const over = Math.max(Math.abs(ip), Math.abs(is)) > XFMR_IMAX;
+    rows = [[`一次側電壓 P1–P2${unit}`, `${vp.toFixed(3)} V`], [`二次側電壓 S1–S2${unit}`, `${vs.toFixed(3)} V`],
+      [`一次側電流${unit}`, mA(ip), Math.abs(ip) > XFMR_IMAX ? '#ff4d3a' : undefined], [`二次側電流（流出 S1）${unit}`, mA(is), Math.abs(is) > XFMR_IMAX ? '#ff4d3a' : undefined],
+      ['實際電壓比 Vp / Vs', Math.abs(vs) > 1e-4 ? (vp / vs).toFixed(2) : '—'], ['銅損（線圈發熱）', mW(r?.p ?? 0)]];
+    [status, color] = over ? [`過載：電流超過 ${XFMR_IMAX * 1000} mA，線圈發熱中`, '#ff8a1f']
+      : ac ? [`交流傳遞中（理想比 ${n >= 1 ? `${n} : 1` : `1 : ${1 / n}`}，有負載時二次側會略低）`, '#3cff7a']
+      : Math.abs(ip) > 1e-3 ? ['直流流過一次側：變壓器不能傳直流（只是一顆 10 Ω 線圈電阻在發熱）', '#ffb020']
+      : ['等待交流訊號（把函數產生器接到一次側 P1 / P2）', '#8fb4d0'];
+    extra = (
+      <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+          {XFMR_MODEL_IDS.map((id) => <button key={id} style={chip(model === id)} onClick={() => upd({ xfmrModel: id })}>{XFMR_MODELS[id].name}</button>)}
+        </div>
+        <div style={help}>
+          一次側（e 欄）P1 {holeName(part.pins[0])}・P2 {holeName(part.pins[1])}；二次側（f 欄）S1 {holeName(part.pins[2])}・S2 {holeName(part.pins[3])}（白點 = 同名端，P1、S1 同相位）。
+          一次 / 二次電感 {fmtHenry(l1)} / {fmtHenry(l2)}、線圈電阻 {fmtOhm(r1)} / {fmtOhm(r2)}、耦合係數 0.999。兩側電氣隔離：二次側要量波形時，示波器接地夾要夾在 S2（或另外接到一次側的地）。
+        </div>
       </>
     );
   }
