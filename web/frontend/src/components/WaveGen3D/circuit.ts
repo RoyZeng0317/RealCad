@@ -9,7 +9,7 @@ export type Element =
   | { kind: 'res'; id: string; a: string; b: string; r: number }
   | { kind: 'diode'; id: string; a: string; k: string; bv: number; is?: number; nvt?: number }
   // 戴維寧電壓源（電壓 v、內阻 r）：開發板 GPIO 輸出、5V/3V3 電源腳；以諾頓等效蓋進矩陣，不需要額外電流變數
-  | { kind: 'src'; id: string; p: string; n: string; v: number; r: number }
+  | { kind: 'src'; id: string; p: string; n: string; v: number; r: number; ac?: { vpk: number; f: number } } // ac = 市電這類固定正弦波（暫態模擬時逐步改 v；直流解用 v = 0）
   | { kind: 'ldo'; id: string; vin: string; vout: string; gnd: string; enabled: boolean }
   | { kind: 'cap'; id: string; a: string; b: string; c: number }
   | { kind: 'ind'; id: string; a: string; b: string; l: number; r: number }
@@ -17,7 +17,9 @@ export type Element =
   | { kind: 'bjt'; id: string; c: string; b: string; e: string; pol: 1 | -1; is: number; bf: number; br: number }
   // 變壓器 = 耦合電感：一次側 p1→n1（L1、R1）、二次側 p2→n2（L2、R2），互感 M = k·√(L1·L2)
   //   直流時兩個繞組各自只是一顆電阻（直流過不了變壓器）；暫態時用後向尤拉法解耦合的 2×2 方程式
-  | { kind: 'xfmr'; id: string; p1: string; n1: string; p2: string; n2: string; l1: number; l2: number; k: number; r1: number; r2: number };
+  | { kind: 'xfmr'; id: string; p1: string; n1: string; p2: string; n2: string; l1: number; l2: number; k: number; r1: number; r2: number }
+  // 多繞組變壓器（例如中心抽頭：一次側 + 兩個半繞組）：每個繞組 p→n、電感 l、線圈電阻 r，任兩繞組互感 k·√(Li·Lj)；繞組電流 key = id:0、id:1…
+  | { kind: 'mxfmr'; id: string; w: { p: string; n: string; l: number; r: number }[]; k: number };
 
 /** 暫態模擬一步：dt 秒；vc = 上一步電容電壓（a−b）、il = 上一步電感電流（a→b） */
 export interface SolveOpts {
@@ -35,6 +37,7 @@ function terminals(e: Element): string[] {
     case 'diode': return [e.a, e.k];
     case 'bjt': return [e.c, e.b, e.e];
     case 'xfmr': return [e.p1, e.n1, e.p2, e.n2];
+    case 'mxfmr': return e.w.flatMap((w) => [w.p, w.n]);
     default: return [e.vin, e.vout, e.gnd];
   }
 }
@@ -202,6 +205,20 @@ export function solveCircuit(elements: Element[], ground: string, opts: SolveOpt
           I(e.p1, e.n1, j[0]);
           I(e.p2, e.n2, j[1]);
         }
+        else if (e.kind === 'mxfmr') {
+          if (!dt) { e.w.forEach((w) => G(w.p, w.n, 1 / w.r)); continue; }
+          // 跟 xfmr 一樣，只是 Y 是 N×N：i = Y·v + j
+          const { y, j } = mxfmrY(e, dt, e.w.map((_, k) => il[`${e.id}:${k}`] ?? 0));
+          e.w.forEach((wa, a) => {
+            const ia = ni(wa.p), ib = ni(wa.n);
+            e.w.forEach((wc, c) => {
+              const g = y[a][c], ic = ni(wc.p), id = ni(wc.n);
+              if (ia >= 0) { if (ic >= 0) A[ia][ic] += g; if (id >= 0) A[ia][id] -= g; }
+              if (ib >= 0) { if (ic >= 0) A[ib][ic] -= g; if (id >= 0) A[ib][id] += g; }
+            });
+            I(wa.p, wa.n, j[a]);
+          });
+        }
         else if (e.kind === 'src') { G(e.p, e.n, 1 / e.r); I(e.n, e.p, e.v / e.r); }
         else if (e.kind === 'diode') {
           const v = vd.get(e.id)!;
@@ -319,6 +336,16 @@ export function solveCircuit(elements: Element[], ground: string, opts: SolveOpt
       el[`${e.id}:s`] = { v: v2, i: i2, p: i2 * i2 * e.r2 };
       // 給檢視器 / 熱模型：v = 二次側電壓、vin = 一次側電壓、i = 二次側電流、ib = 一次側電流
       el[e.id] = { v: v2, vin: v1, i: i2, ib: i1, p: i1 * i1 * e.r1 + i2 * i2 * e.r2 };
+    } else if (e.kind === 'mxfmr') {
+      const vs = e.w.map((w) => nodeV[w.p] - nodeV[w.n]);
+      let is = e.w.map((w, k) => vs[k] / w.r);
+      if (dt) {
+        const { y, j } = mxfmrY(e, dt, e.w.map((_, k) => il[`${e.id}:${k}`] ?? 0));
+        is = y.map((row, a) => row.reduce((acc, g, c) => acc + g * vs[c], j[a]));
+      }
+      let total = 0;
+      e.w.forEach((w, k) => { const p = is[k] * is[k] * w.r; total += p; el[`${e.id}:${k}`] = { v: vs[k], i: is[k], p }; });
+      el[e.id] = { v: vs[1] ?? 0, vin: vs[0], i: is[1] ?? 0, ib: is[0], p: total };
     } else if (e.kind === 'bjt') {
       el[e.id] = bjtResult(e, e.pol * (nodeV[e.b] - nodeV[e.e]), e.pol * (nodeV[e.b] - nodeV[e.c]));
     } else if (e.kind === 'src') {
@@ -398,4 +425,28 @@ function xfmrY(e: Extract<Element, { kind: 'xfmr' }>, dt: number, ip: number, is
   const y = [[z22 / det, -z12 / det], [-z12 / det, z11 / det]];
   const h1 = (e.l1 * ip + m * is) / dt, h2 = (m * ip + e.l2 * is) / dt; // (L/dt)·i前
   return { y, j: [y[0][0] * h1 + y[0][1] * h2, y[1][0] * h1 + y[1][1] * h2] };
+}
+
+/** 多繞組變壓器的後向尤拉離散化：Z = R + L/dt（N×N），Y = Z⁻¹，j = Y·(L/dt)·i前 */
+function mxfmrY(e: Extract<Element, { kind: 'mxfmr' }>, dt: number, iPrev: number[]) {
+  const n = e.w.length;
+  const L = e.w.map((a, i) => e.w.map((c, j) => (i === j ? a.l : e.k * Math.sqrt(a.l * c.l))));
+  const Z = L.map((row, i) => row.map((l, j) => l / dt + (i === j ? e.w[i].r : 0)));
+  // 高斯–喬登求反矩陣（N 很小）
+  const M = Z.map((row, i) => [...row, ...row.map((_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[piv][c])) piv = r;
+    [M[c], M[piv]] = [M[piv], M[c]];
+    const d = M[c][c];
+    for (let k = 0; k < 2 * n; k++) M[c][k] /= d;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = M[r][c];
+      if (f) for (let k = 0; k < 2 * n; k++) M[r][k] -= f * M[c][k];
+    }
+  }
+  const y = M.map((row) => row.slice(n));
+  const h = L.map((row) => row.reduce((acc, l, j) => acc + (l / dt) * iPrev[j], 0));
+  return { y, j: y.map((row) => row.reduce((acc, g, k) => acc + g * h[k], 0)) };
 }

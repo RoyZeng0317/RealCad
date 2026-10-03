@@ -5,7 +5,7 @@ import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
   POT_VALUES, POT_RATING, CAP_MODELS, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
-  BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
+  BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, CTX_MODELS, CTX_MODEL_IDS, CTX_IRATED, MAINS_VRMS, MAINS_F, ctxParams, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
 } from './boardParts.js';
 import { elementWave } from './scopeLink.js';
 import { Section, Slider, Stat, chip, row, help, selectStyle, T } from './panelUi.js';
@@ -58,10 +58,18 @@ export function AnalogParams() {
       {XFMR_MODEL_IDS.map((m) => <button key={m} style={chip(s.xfmrModel === m)} onClick={() => s.setParam({ xfmrModel: m })}>{XFMR_MODELS[m].name}</button>)}
     </div>
   );
+  if (s.tool === 'ctx') return (
+    <>
+      <div style={row}>
+        {CTX_MODEL_IDS.map((m) => <button key={m} style={chip(s.ctxModel === m)} onClick={() => s.setParam({ ctxModel: m })}>{CTX_MODELS[m].name}</button>)}
+      </div>
+      <DirButtons />
+    </>
+  );
   return null;
 }
 
-export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt' || p.kind === 'xfmr';
+export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt' || p.kind === 'xfmr' || p.kind === 'ctx';
 
 /** 一個週期的 RMS（暫態模擬的每個相位等時間間隔） */
 const rmsOf = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / Math.max(1, xs.length));
@@ -174,6 +182,40 @@ export function AnalogCard({ part }: { part: BoardPart }) {
         <div style={help}>
           一次側（e 欄）P1 {holeName(part.pins[0])}・P2 {holeName(part.pins[1])}；二次側（f 欄）S1 {holeName(part.pins[2])}・S2 {holeName(part.pins[3])}（白點 = 同名端，P1、S1 同相位）。
           一次 / 二次電感 {fmtHenry(l1)} / {fmtHenry(l2)}、線圈電阻 {fmtOhm(r1)} / {fmtOhm(r2)}、耦合係數 0.999。兩側電氣隔離：二次側要量波形時，示波器接地夾要夾在 S2（或另外接到一次側的地）。
+        </div>
+      </>
+    );
+  }
+  else if (part.kind === 'ctx') {
+    const model = part.ctxModel ?? '12';
+    const q = ctxParams(model);
+    const plugged = part.plugged !== false;
+    // 繞組 0 = 一次側、1 = A→COM、2 = COM→B；交流看 RMS
+    const w = [0, 1, 2].map((k) => elementWave(`${part.id}:${k}`));
+    const ok = w.every((x) => x && x.every(Boolean));
+    const vr = (k: number) => (ok ? rmsOf(w[k]!.map((x) => x!.v)) : 0);
+    const ir = (k: number) => (ok ? rmsOf(w[k]!.map((x) => x!.i)) : 0);
+    const vab = ok ? rmsOf(w[1]!.map((x, j) => x!.v + w[2]![j]!.v)) : 0;
+    const pAvg = ok ? w.reduce((acc, x) => acc + x!.reduce((a2, y) => a2 + y!.p, 0) / x!.length, 0) : 0;
+    const iMax = Math.max(ir(1), ir(2));
+    rows = [['A–COM rms', `${vr(1).toFixed(3)} V`], ['COM–B rms', `${vr(2).toFixed(3)} V`],
+      ['A–B（全繞組）rms', `${vab.toFixed(3)} V`], ['一次側電流 rms', mA(ir(0))],
+      ['A 端電流 rms', mA(ir(1)), ir(1) > CTX_IRATED ? '#ff4d3a' : undefined], ['B 端電流 rms', mA(ir(2)), ir(2) > CTX_IRATED ? '#ff4d3a' : undefined],
+      ['銅損（平均）', mW(pAvg)]];
+    [status, color] = !plugged ? ['插頭沒插：二次側沒有電', '#8fb4d0']
+      : iMax > CTX_IRATED * 1.5 ? [`嚴重過載（額定 ${CTX_IRATED * 1000} mA）：線圈快速發熱，短路會燒毀`, '#ff4d3a']
+      : iMax > CTX_IRATED ? [`過載：二次側電流超過額定 ${CTX_IRATED * 1000} mA`, '#ff8a1f']
+      : [`通電中：${MAINS_VRMS} V / ${MAINS_F} Hz → ${q.vs} V（${q.vs / 2}-0-${q.vs / 2} V），A、B 對 COM 反相`, '#3cff7a'];
+    extra = (
+      <>
+        <button style={chip(false, '', plugged ? '#5a2030' : '#1f5a3a')} onClick={() => upd({ plugged: !plugged })}>{plugged ? '🔌 拔掉插頭' : '🔌 插上 110 V 市電'}</button>
+        <div style={row}>
+          {CTX_MODEL_IDS.map((id) => <button key={id} style={chip(model === id)} onClick={() => upd({ ctxModel: id })}>{CTX_MODELS[id].name}</button>)}
+        </div>
+        <div style={help}>
+          引線：A（黃）{holeName(part.pins[0])}・COM（黑，中間抽頭 0 V）{holeName(part.pins[1])}・B（黃）{holeName(part.pins[2])}。
+          額定 {q.vs} V / {CTX_IRATED * 1000} mA；空載電壓約高 10%（{(q.vs * 1.1).toFixed(1)} V）。一次側插市電、跟麵包板電氣隔離：用 COM 當這組電源的地。
+          全波整流：A、B 各接一顆二極體陽極，陰極接在一起當 +，負載接到 COM。
         </div>
       </>
     );

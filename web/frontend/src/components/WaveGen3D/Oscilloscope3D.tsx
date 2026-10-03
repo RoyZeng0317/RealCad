@@ -6,7 +6,7 @@ import { useWaveLab } from './waveStore.js';
 import { getBench } from './bench.js';
 import { DcTrace } from './ch2Signal.js';
 import { sampleWave, findTrigger, findTriggerFn, measure, TIME_DIVS, VOLT_DIVS, H_DIVS, type Measurements } from './waveform.js';
-import { getTransfers, probeAt, channelLead } from './scopeLink.js';
+import { getTransfers, probeAt, channelLead, mainsLive, signalPeriod } from './scopeLink.js';
 import { createCanvasTexture, label, sectionBox, type PanelCtx } from './panelTexture.js';
 import { drawScope, CH1_COLOR, CH2_COLOR, type ScopeStatus } from './scopeDisplay.js';
 import { Knob3D, Button3D, Led3D, Bnc3D } from './parts.js';
@@ -70,8 +70,10 @@ export function Oscilloscope3D() {
     const on1 = channelLead('ch1') ? tr.ch1 : null, on2 = channelLead('ch2') ? tr.ch2 : null;
     const v1 = (t: number) => (on1 ? probeAt(on1, t) : sampleWave(gen, t));
     const v2 = on2 ? (t: number) => probeAt(on2, t) : null;
-    const live = gen.power && gen.output && gen.waveform !== 'noise';
-    const period = 1 / gen.frequency;
+    // 有插著市電的電源變壓器時：一直有 60 Hz 交流，週期用市電週期
+    const mains = mainsLive();
+    const live = (gen.power && gen.output && gen.waveform !== 'noise') || mains;
+    const period = mains ? signalPeriod() : 1 / gen.frequency;
     let mean1 = gen.offset;
     if (on1) { mean1 = 0; for (let i = 0; i < 64; i++) mean1 += v1((i + 0.5) * period / 64) / 64; }
     const acShift = sc.coupling === 'AC' && live ? mean1 : 0;

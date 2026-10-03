@@ -1,4 +1,4 @@
-// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓
+// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
@@ -68,4 +68,26 @@ export function loadXfmrDemo() {
   w.setWaveform('sine');
   w.setGen({ frequency: 1000, amplitude: 10, offset: 0, power: true, output: true });
   w.setScope({ timeDivIdx: TIME_DIVS.indexOf(2e-4), voltDivIdx: VOLT_DIVS.indexOf(2), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(2), ch2Position: 0, trigSource: 'CH1', trigLevel: 0, coupling: 'DC', running: true });
+}
+
+/**
+ * 12 V 中心抽頭變壓器（6-0-6 V，插 110 V 市電）全波整流：A、B 各接一顆 1N4007，陰極接在一起當 +，
+ * 100 µF 濾波 + 1 kΩ 負載接到 COM。CH1 看 A 對 COM 的交流、CH2 看整流濾波後的直流（含漣波）
+ */
+export function loadCtxDemo() {
+  useBoard.getState().loadParts([
+    { id: 'ct-t1', kind: 'ctx', pins: ['t:1:10:2', 't:1:12:2', 't:1:14:2'], ctxModel: '12', plugged: true, gen: 0 },
+    { id: 'ct-d1', kind: 'diode', pins: ['t:1:10:4', 't:1:20:4'], model: '1N4007', gen: 0 },
+    { id: 'ct-d2', kind: 'diode', pins: ['t:1:14:3', 't:1:20:3'], model: '1N4007', gen: 0 },
+    { id: 'ct-w1', kind: 'wire', pins: ['t:1:20:2', 't:1:20:7'], color: '#d42a2a', gen: 0 },
+    { id: 'ct-w2', kind: 'wire', pins: ['t:1:12:4', 't:1:12:5'], color: '#1b1d20', gen: 0 },
+    { id: 'ct-c1', kind: 'cap', pins: ['t:1:20:8', 't:1:12:8'], capModel: '100u50', gen: 0 },
+    { id: 'ct-rl', kind: 'resistor', pins: ['t:1:20:6', 't:1:12:6'], value: 1000, gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'ct-t1', dmm: null, dmmBlack: 'p:GND' });
+  const b = useBoard.getState();
+  b.setLead('ch1', ['t:1:10:1', 't:1:12:1']);
+  b.setLead('ch2', ['t:1:20:9', 't:1:12:9']);
+  (['fg', 'sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
+  useWaveLab.getState().setScope({ timeDivIdx: TIME_DIVS.indexOf(5e-3), voltDivIdx: VOLT_DIVS.indexOf(5), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(5), ch2Position: 0, trigSource: 'CH1', trigLevel: 0, coupling: 'DC', running: true });
 }

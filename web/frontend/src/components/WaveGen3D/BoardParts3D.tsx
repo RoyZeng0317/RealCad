@@ -15,7 +15,8 @@ import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC 
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 import { Chip3D } from './chips/Chip3D.js';
-import { Pot3D, Cap3D, Ind3D, Bjt3D, Xfmr3D } from './AnalogParts3D.js';
+import { Pot3D, Cap3D, Ind3D, Bjt3D, Xfmr3D, Ctx3D } from './AnalogParts3D.js';
+import { elementWave } from './scopeLink.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
@@ -41,7 +42,9 @@ export function BoardThermal() {
     for (const p of parts) {
       if (p.kind === 'wire') continue;
       const th = THERMAL[p.kind];
-      const pw = p.burnt ? 0 : Math.abs(bench.sol.el[p.id]?.p ?? 0);
+      // 變壓器在交流下才有電流：用暫態模擬一個週期的平均銅損（直流解看不到）
+      const wave = !p.burnt && (p.kind === 'ctx' || p.kind === 'xfmr') ? elementWave(p.id) : null;
+      const pw = p.burnt ? 0 : wave && wave.every(Boolean) ? wave.reduce((a, r) => a + r!.p, 0) / wave.length : Math.abs(bench.sol.el[p.id]?.p ?? 0);
       const t0 = partTemp(p);
       const target = AMBIENT + pw * th.rth;
       const t = target + (t0 - target) * Math.exp(-dt / th.tau);
@@ -454,6 +457,7 @@ export function BoardParts3D() {
         if (p.kind === 'ind') return <Ind3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'bjt') return <Bjt3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'xfmr') return <Xfmr3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'ctx') return <Ctx3D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}
       <BoardMarkers />

@@ -9,7 +9,7 @@ import { useWaveLab } from './waveStore.js';
 import { useDev } from './devboards/devStore.js';
 import { useChips } from './chips/chipStore.js';
 import { computeBench, benchElements, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
-import { hasReactive, simulatePeriodic, type Periodic } from './transient.js';
+import { hasReactive, hasMains, simulatePeriodic, type Periodic } from './transient.js';
 import { dmSpec } from './dmStore.js';
 import { waveRange, sampleWave } from './waveform.js';
 import type { HoleKey } from './boardModel.js';
@@ -43,7 +43,8 @@ function getSweep() {
     const fg = fgDc();
     let xs: number[] = [], benches: Bench[] = [];
     let per: Periodic | null = null, net: ((k: HoleKey) => string) | null = null;
-    if (fg && hasReactive(bs.parts) && gen.waveform !== 'noise') {
+    // 插著市電的電源變壓器：不用接產生器也有交流 → 一律做暫態模擬（週期 = 市電週期）
+    if ((fg && hasReactive(bs.parts) && gen.waveform !== 'noise') || hasMains(bs.parts)) {
       const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles(), dmSpec());
       per = simulatePeriodic(b.els, b.GND, gen);
       net = b.net;
@@ -87,6 +88,15 @@ export function elementWave(id: string) {
   return per ? per.sols.map((s) => s.el[id]) : null;
 }
 
+/** 麵包板上有沒有交流：產生器接在麵包板上，或有插著市電的電源變壓器 */
+export const mainsLive = () => hasMains(useBoard.getState().parts);
+export const acActive = () => !!fgDc() || mainsLive();
+/** 一個訊號週期（有市電時 = 1/60 s，否則 = 產生器週期） */
+export function signalPeriod(): number {
+  if (mainsLive()) { const per = getSweep().per; if (per) return per.period; }
+  return 1 / useWaveLab.getState().gen.frequency;
+}
+
 export function getTransfers(): Record<'ch1' | 'ch2', Transfer | null> {
   const l1 = channelLead('ch1'), l2 = channelLead('ch2');
   return { ch1: l1 ? transferOf(l1[0], l1[1]) : null, ch2: l2 ? transferOf(l2[0], l2[1]) : null };
@@ -95,13 +105,13 @@ export function getTransfers(): Record<'ch1' | 'ch2', Transfer | null> {
 /** 三用電表（DC V）讀值：產生器接在麵包板上時，是那兩點電壓在一個週期內的平均（跟真的電表一樣），不是用輸入平均去算 */
 export function dmmReading(red: HoleKey | null, black: HoleKey | null): number | null {
   if (!red || !black) return null;
-  if (!fgDc()) return meterV(getBench(), red, black);
+  if (!acActive()) return meterV(getBench(), red, black);
   const tr = transferOf(red, black);
   if (!probeConnected(tr)) return null;
-  const gen = useWaveLab.getState().gen;
+  const T = signalPeriod();
   let sum = 0;
   const N = 200;
-  for (let i = 0; i < N; i++) sum += probeAt(tr, (i + 0.5) / N / gen.frequency);
+  for (let i = 0; i < N; i++) sum += probeAt(tr, ((i + 0.5) / N) * T);
   return sum / N;
 }
 

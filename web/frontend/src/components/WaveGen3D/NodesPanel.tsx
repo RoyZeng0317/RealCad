@@ -1,7 +1,7 @@
 // 下方面板「電路節點」分頁：麵包板電路的節點電壓與每個零件的工作點（類似 SPICE 的 .op 結果）
 import { useBoard } from './boardStore.js';
-import { useBench, fgDc } from './bench.js';
-import { dmmReading } from './scopeLink.js';
+import { useBench } from './bench.js';
+import { dmmReading, acActive } from './scopeLink.js';
 import { partLabel } from './boardParts.js';
 import { holeName } from './boardModel.js';
 import { Section, T, help } from './panelUi.js';
@@ -21,7 +21,7 @@ export function NodesPanel() {
     if (!netNames.has(n)) netNames.set(n, [holeName(h), h]);
   }
   // 函數產生器接在麵包板上時，節點電壓顯示一個週期的平均值（跟三用電表一樣）
-  const ac = !!fgDc();
+  const ac = acActive();
   const nodes = [...netNames.entries()]
     .map(([n, [name, hole]]) => ({ n, name, v: ac ? dmmReading(hole, 'p:GND') ?? undefined : bench.sol.nodeV[n] }))
     .filter((x): x is { n: string; name: string; v: number } => x.v !== undefined)
@@ -31,7 +31,7 @@ export function NodesPanel() {
   return (
     <>
       <Section title={`節點電壓（${nodes.length}）`}>
-        {ac && <p style={help}>函數產生器接在麵包板上：節點電壓是一個週期的平均值；下方零件工作點以產生器的平均輸出電壓計算，瞬間波形請用示波器看。</p>}
+        {ac && <p style={help}>函數產生器接在麵包板上（或插著市電的電源變壓器）：節點電壓是一個週期的平均值；下方零件工作點以產生器的平均輸出電壓計算，瞬間波形請用示波器看。</p>}
         {nodes.length === 0 ? <p style={help}>麵包板上還沒有電路。從左側元件庫放零件，或按「載入範例電路」。</p> : (
           <table style={{ borderCollapse: 'collapse', fontSize: 12, fontFamily: T.mono }}>
             <tbody>

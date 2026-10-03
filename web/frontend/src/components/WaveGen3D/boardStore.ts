@@ -2,10 +2,10 @@
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
 import { hitHole } from './breadboardGrid.js';
-import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, WIRE_COLORS } from './boardParts.js';
+import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, type CtxModel, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'erase' | LeadKind;
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa' | 'dm';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
@@ -31,6 +31,7 @@ interface BoardState {
   indValue: number;
   bjtModel: BjtModel;
   xfmrModel: XfmrModel;
+  ctxModel: CtxModel;
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
   tsd: Record<string, boolean>; // LT1117 熱關斷中
   message: string;
@@ -38,9 +39,9 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel' | 'ctxModel'>>) => void;
   /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
-  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'rot'>>) => void;
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'plugged' | 'rot'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -124,6 +125,14 @@ export function xfmrPins(k: HoleKey): HoleKey[] | null {
   return pins.every(isValidHole) ? pins : null;
 }
 
+/** 中心抽頭變壓器的 3 條引線：A（點的孔）、COM、B 沿同一欄每隔一列 */
+export function ctxPins(k: HoleKey, dir: 1 | -1 = 1): HoleKey[] | null {
+  const [t, s, r, c] = k.split(':');
+  if (t !== 't') return null;
+  const pins = [0, 2, 4].map((d) => `t:${s}:${+r + d * dir}:${c}`);
+  return pins.every(isValidHole) ? pins : null;
+}
+
 export const useBoard = create<BoardState>((set, get) => ({
   parts: [],
   tool: 'select',
@@ -144,6 +153,7 @@ export const useBoard = create<BoardState>((set, get) => ({
   indValue: 1e-3,
   bjtModel: '2N3904',
   xfmrModel: '2:1',
+  ctxModel: '12',
   temps: {},
   tsd: {},
   message: '',
@@ -236,6 +246,15 @@ export const useBoard = create<BoardState>((set, get) => ({
       if (!pins) { set({ message: `變壓器要放在端子排，從點的那一列往下需要 ${XFMR_SPAN + 1} 列（會跨在 e / f 欄中間的溝上）` }); return; }
       if (pins.some((p) => occ.has(p))) { set({ message: '變壓器要佔用的孔已經有其他零件' }); return; }
       const part: BoardPart = { id: newId('xfmr'), kind: 'xfmr', pins, xfmrModel: s.xfmrModel, gen: 0 };
+      set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
+      return;
+    }
+    // 中心抽頭變壓器：3 條二次側引線 A、COM、B 插在同一欄、每隔一列（第 r、r±2、r±4 列），本體放在旁邊
+    if (s.tool === 'ctx') {
+      const pins = ctxPins(k, s.ldoDir);
+      if (!pins) { set({ message: '中心抽頭變壓器要放在端子排，排列方向上還要有 4 列空間（A、COM、B 每隔一列）' }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: '變壓器引線要插的孔已經有其他零件' }); return; }
+      const part: BoardPart = { id: newId('ctx'), kind: 'ctx', pins, ctxModel: s.ctxModel, plugged: true, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }
