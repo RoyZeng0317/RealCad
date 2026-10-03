@@ -6,7 +6,7 @@ import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadFpgaCounter, loadRectifierDemo } from '../boardDemo.js';
-import { loadRcDemo, loadBjtDemo, loadXfmrDemo } from '../analogDemo.js';
+import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo } from '../analogDemo.js';
 import { loadAtmegaDemo } from '../chips/chipDemo.js';
 import { T } from '../panelUi.js';
 
@@ -69,6 +69,7 @@ export function MenuBar() {
       { label: 'RC 充放電：1 kΩ + 100 µF（示波器看電容電壓）', onClick: () => { loadRcDemo(); ui.focus('scope'); } },
       { label: '可變電阻 + 2N3904 電晶體開關 LED', onClick: () => { loadBjtDemo(); ui.focus('breadboard'); } },
       { label: '2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）', onClick: () => { loadXfmrDemo(); ui.focus('scope'); } },
+      { label: '12 V 中心抽頭變壓器全波整流（6-0-6 V）', onClick: () => { loadCtxDemo(); ui.focus('scope'); } },
       { label: 'Arduino Uno：LED 閃爍', onClick: () => { loadUnoBlink(); ui.focus('devboards'); } },
       { label: 'Raspberry Pi 5：MicroPython LED 閃爍', onClick: () => { loadPi5Blink(); ui.focus('devboards'); } },
       { label: '錯誤示範：5 V 接到 ESP32 GPIO', onClick: () => { loadEsp32Mistake(); ui.focus('devboards'); } },

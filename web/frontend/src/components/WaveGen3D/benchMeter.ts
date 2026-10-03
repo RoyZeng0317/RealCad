@@ -4,7 +4,7 @@ import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
 import { getBench, fgDc, meterV } from './bench.js';
-import { transferOf, probeAt, probeConnected } from './scopeLink.js';
+import { transferOf, probeAt, probeConnected, acActive, signalPeriod, mainsLive } from './scopeLink.js';
 import { useDm, isCurrentMode, OHM_VT, OHM_RANGES, DIODE_VT, DIODE_R, SHUNT, FUSE, type DmMode } from './dmStore.js';
 
 export interface DmReading {
@@ -34,13 +34,31 @@ export function fmtCount(v: number, unit: string): { main: string; unit: string 
 function stats(a: string, b: string): { mean: number; ac: number; connected: boolean } {
   const tr = transferOf(a, b);
   const connected = probeConnected(tr);
-  if (!fgDc()) return { mean: meterV(getBench(), a, b) ?? 0, ac: 0, connected };
-  const gen = useWaveLab.getState().gen;
-  const N = 256, T = 1 / gen.frequency;
+  if (!acActive()) return { mean: meterV(getBench(), a, b) ?? 0, ac: 0, connected };
+  const N = 256, T = signalPeriod();
   const xs = Array.from({ length: N }, (_, i) => probeAt(tr, ((i + 0.5) / N) * T));
   const mean = xs.reduce((s, x) => s + x, 0) / N;
   const ac = Math.sqrt(xs.reduce((s, x) => s + (x - mean) ** 2, 0) / N);
   return { mean, ac, connected };
+}
+
+/** 電流檔量到 0 的常見原因（給面板提示） */
+function currentHint(a: string, b: string, mode: DmMode, idc: number, iac: number): string {
+  const base = '電流檔：電表要「串聯」在電路裡（把線路斷開，紅棒接電流流進來那端）。並聯在電源兩端會短路燒保險絲！';
+  const bench = getBench();
+  if (bench.netOfHole(a) === bench.netOfHole(b)) {
+    return '⚠ 紅黑兩支插在「相通」的孔（同一列的 5 個孔、同一條電源軌，或被杜邦線接在一起）：電流直接從麵包板走，不會經過電表，所以是 0。'
+      + '要量某顆零件的電流：把它的一隻腳移到空的一列，紅棒接原本那列、黑棒接零件腳移過去的那列。';
+  }
+  if (mode === 'dci' && Math.abs(idc) < 1e-7 && iac > 1e-6) return '這是交流電流（函數產生器 / 變壓器驅動）：直流平均是 0，請切到 ACI 檔看有效值。';
+  if (Math.abs(idc) < 1e-9 && iac < 1e-9) {
+    const psu = usePsuLab.getState().psu;
+    const live = (psu.power && psu.output) || acActive();
+    return live
+      ? '沒有電流流過電表：電表兩端之間沒有「電源 → 電表 → 負載 → 回到電源」的迴路（例如兩支都夾在同一顆沒通電的零件上，或只接了一端）。' + base
+      : '電源供應器輸出沒開（ON/OFF 鍵），電路裡沒有電流。' + base;
+  }
+  return base;
 }
 
 const OHM_RANGE_NAME = ['500 Ω', '5 kΩ', '50 kΩ', '500 kΩ', '5 MΩ', '50 MΩ'];
@@ -56,7 +74,7 @@ export function dmRead(): DmReading {
   const mode: DmMode = s.mode;
   const { mean, ac, connected } = stats(lead[0], lead[1]);
   const gen = useWaveLab.getState().gen;
-  const freq = fgDc() && gen.power && gen.output && ac > 0.005 ? gen.frequency : 0;
+  const freq = ac <= 0.005 ? 0 : mainsLive() ? 1 / signalPeriod() : fgDc() && gen.power && gen.output ? gen.frequency : 0;
   const out = (value: number, unit: string, extra: Partial<DmReading> = {}): DmReading => {
     const v = s.rel !== null ? value - s.rel : value;
     return { value: v, ...fmtCount(v, unit), sub: '', beep: false, note: '', blowFuse: false, ohmRange: null, ...extra };
@@ -70,7 +88,7 @@ export function dmRead(): DmReading {
     return out(i, 'A', {
       sub: mode === 'aci' && freq ? `${fmtCount(freq, 'Hz').main} ${fmtCount(freq, 'Hz').unit}` : `${s.jack} 插座`,
       blowFuse: s.jack === 'mA' && peak > FUSE.mA,
-      note: '電流檔：電表要「串聯」在電路裡（把線路斷開，紅棒接電流流進來那端）。並聯在電源兩端會短路燒保險絲！',
+      note: currentHint(lead[0], lead[1], mode, mean / r, ac / r),
     });
   }
   if (mode === 'dcv') return out(mean, 'V', { sub: 'AUTO' });

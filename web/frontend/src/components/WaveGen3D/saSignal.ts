@@ -5,7 +5,7 @@ import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useSa } from './saStore.js';
 import { getBench, fgDc } from './bench.js';
-import { transferOf, probeValue, probeAt } from './scopeLink.js';
+import { transferOf, probeValue, probeAt, mainsLive, signalPeriod } from './scopeLink.js';
 import { sampleWave } from './waveform.js';
 import { harmonicsOf, peaksInView, harmonicDb, effectiveRbw, type Harmonic } from './spectrum.js';
 import type { HoleKey } from './boardModel.js';
@@ -33,7 +33,10 @@ export function getSaInput(): SaInput {
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.input;
 
   const lead = saLead();
-  const on = gen.power && gen.output;
+  // 量麵包板時，插著市電的電源變壓器也算訊號源（基頻 60 Hz）
+  const mains = !!lead && mainsLive();
+  const on = (gen.power && gen.output) || mains;
+  const f0 = mains ? 1 / signalPeriod() : gen.frequency;
   // 直接接產生器（沒經過麵包板）：50 Ω 輸入時分壓一半
   const direct = !lead && !fgDc();
   const gain = direct && z50 ? 0.5 : 1;
@@ -43,19 +46,19 @@ export function getSaInput(): SaInput {
   let noiseV2PerHz = 0;
   if (!on) {
     harmonics = [{ k: 0, f: 0, vpk: tr ? probeAt(tr, 0) : 0 }];
-  } else if (gen.waveform === 'noise') {
+  } else if (gen.waveform === 'noise' && !mains) {
     // 雜訊不是週期訊號：直流成分 = 偏移，其餘是平坦的白雜訊（產生器頻寬 10 MHz）
     const sigma = (gen.amplitude / 2) * (0.5 / 1.5) * gain;
     const slope = tr ? (probeValue(tr, gen.offset + 0.01) - probeValue(tr, gen.offset - 0.01)) / 0.02 : 1;
     harmonics = [{ k: 0, f: 0, vpk: tr ? probeValue(tr, gen.offset) : gen.offset * gain }];
     noiseV2PerHz = (sigma * slope) ** 2 / 10e6;
   } else {
-    harmonics = harmonicsOf(v, gen.frequency);
+    harmonics = harmonicsOf(v, f0);
   }
   const source = lead
     ? (useBoard.getState().leads.sa ? '紅黑測試線量麵包板' : '產生器輸出端（接在麵包板上）')
     : `BNC 直接接產生器（輸入 ${z50 ? '50 Ω' : '1 MΩ'}）`;
-  const input = { harmonics, noiseV2PerHz, f0: gen.frequency, source };
+  const input = { harmonics, noiseV2PerHz, f0, source };
   cache = { key, input };
   return input;
 }
@@ -80,7 +83,7 @@ export function nextPeak() {
 
 /** 快速設定：'fund' = 對準基頻（Span = 基頻）；'harm' = 從 0 Hz 看到第 10 次諧波 */
 export function saPreset(kind: 'fund' | 'harm') {
-  const f0 = useWaveLab.getState().gen.frequency;
+  const f0 = getSaInput().f0;
   const { setSa } = useSa.getState();
   if (kind === 'fund') setSa({ center: f0, span: f0, marker: f0 });
   else setSa({ center: 5.25 * f0, span: 10.5 * f0, marker: f0 });

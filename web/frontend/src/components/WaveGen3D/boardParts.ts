@@ -1,19 +1,22 @@
 // 麵包板零件定義：電阻（色碼）、1N4001–1N4007、LT1117-3.3（TO-220）、ATmega328P／CH340G（DIP）、跳線
 // 類比零件：可變電阻（1k/10k/100k）、電解電容（100µF/50V、47µF/25V）、電感、電晶體 2N3904 / 2N3906
 // 變壓器（小型信號 / 隔離變壓器，4 腳跨在中間溝槽兩側：左排一次側、右排二次側）
+// 中心抽頭電源變壓器 6 V / 12 V / 24 V（一次側插市電 110 V，二次側 3 條線：兩端 + 中間 COM）
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx';
 
 export interface BoardPart {
   id: string;
   kind: PartKind;
-  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]
+  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]、中心抽頭變壓器 [A 端, COM, B 端]
   value?: number; // 電阻 Ω；可變電阻總阻值 Ω；電感 H
   pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
   capModel?: CapModel;
   bjtModel?: BjtModel;
   xfmrModel?: XfmrModel;
+  ctxModel?: CtxModel;
+  plugged?: boolean; // 中心抽頭變壓器：插頭有沒有插上市電（預設插上）
   rot?: number; // 電晶體本體朝向：0~3，每格 90°（預設 1）
   model?: DiodeModel;
   ledColor?: LedColor;
@@ -131,6 +134,26 @@ export function xfmrParams(m: XfmrModel) {
   return { n, l1: XFMR_L1, l2: XFMR_L1 / (n * n), k: XFMR_K, r1: XFMR_R1, r2: Math.max(0.1, XFMR_R1 / (n * n)) };
 }
 
+// ---- 中心抽頭電源變壓器（一次側 110 V / 60 Hz 市電，二次側 A–COM–B）----
+// 「6 V」= A 到 B 6 V rms（額定負載時），A–COM、COM–B 各 3 V；A、B 對 COM 反相（全波整流用）
+// 空載電壓比額定高約 10%（小型變壓器的電壓調整率）：線圈電阻一半在一次側、一半在二次側
+// 一次側電感 20 H（激磁電流約 15 mA），耦合係數 0.998
+export const CTX_MODELS = {
+  '6': { vs: 6, name: '6 V（3-0-3 V）' },
+  '12': { vs: 12, name: '12 V（6-0-6 V）' },
+  '24': { vs: 24, name: '24 V（12-0-12 V）' },
+};
+export type CtxModel = keyof typeof CTX_MODELS;
+export const CTX_MODEL_IDS = Object.keys(CTX_MODELS) as CtxModel[];
+export const CTX_IRATED = 0.5; // A（二次側額定電流）
+export const MAINS_VRMS = 110, MAINS_F = 60; // 台灣市電
+export function ctxParams(m: CtxModel) {
+  const vs = CTX_MODELS[m].vs;
+  const a = (1.1 * vs) / 2 / MAINS_VRMS; // 半繞組 / 一次側 匝數比（空載）
+  const l1 = 20, regR = (0.1 * vs) / CTX_IRATED; // 兩端看進去的等效電阻 = 10% 調整率
+  return { vs, a, l1, lh: l1 * a * a, k: 0.998, rh: regR / 4, r1: regR / 2 / (4 * a * a) };
+}
+
 // 熱模型參數：穩態溫升 = P × Rth，燒毀溫度
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
   resistor: { rth: 280, tau: 4, burn: 330 }, // 1/4 W：約 1 W 以上會燒
@@ -144,6 +167,7 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   ind: { rth: 60, tau: 6, burn: 250 }, // 電流流過 DCR 發熱
   bjt: { rth: 200, tau: 3, burn: 200 }, // TO-92：約 0.9 W 以上會燒
   xfmr: { rth: 30, tau: 15, burn: 200 }, // 線圈銅損發熱：約 6 W 以上會燒
+  ctx: { rth: 25, tau: 20, burn: 180 }, // 電源變壓器：約 6 W 銅損以上會燒（二次側短路就會）
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -160,6 +184,7 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'ind') return `電感 ${fmtHenry(p.value!)}`;
   if (p.kind === 'bjt') return `電晶體 ${BJT_MODELS[p.bjtModel ?? '2N3904'].name}`;
   if (p.kind === 'xfmr') return `變壓器 ${XFMR_MODELS[p.xfmrModel ?? '2:1'].name}`;
+  if (p.kind === 'ctx') return `中心抽頭變壓器 ${CTX_MODELS[p.ctxModel ?? '12'].name}`;
   return '杜邦線';
 }
 

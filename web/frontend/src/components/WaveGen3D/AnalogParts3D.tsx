@@ -1,4 +1,4 @@
-// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體、EI 鐵芯變壓器
+// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體、EI 鐵芯變壓器、中心抽頭電源變壓器
 // 座標都是麵包板本地座標（跟 BoardParts3D 一樣放在 LabBreadboard 的 group 裡）
 import { useEffect, useMemo, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { holePos } from './boardModel.js';
-import { CAP_MODELS, XFMR_MODELS, type BoardPart } from './boardParts.js';
+import { CAP_MODELS, XFMR_MODELS, CTX_MODELS, CTX_IRATED, MAINS_VRMS, type BoardPart } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { TOP_Y } from './breadboardGrid.js';
 import { Rod, Bent, LEAD, useHeatMaterial, usePartEvents, type Sel } from './BoardParts3D.js';
@@ -282,6 +282,86 @@ export function Xfmr3D({ part, selected }: { part: BoardPart; selected: Sel }) {
           <meshBasicMaterial color="#ffffff" />
         </mesh>
       ))}
+    </group>
+  );
+}
+
+// ---- 中心抽頭電源變壓器：立式 EI 鐵芯 + 固定腳架，放在引線那一欄的外側；
+//   3 條絕緣引線（黃 A、黑 COM、黃 B）彎進麵包板，另一側是灰色電源線與 110 V 插頭 ----
+function ctxLabel(vs: number) {
+  return createCanvasTexture(0.3, 0.2, (p) => {
+    p.ctx.fillStyle = '#e8c23a';
+    p.ctx.fillRect(0, 0, p.s(0.3), p.s(0.2));
+    p.ctx.fillStyle = '#2a2208';
+    p.ctx.textAlign = 'center';
+    p.ctx.textBaseline = 'middle';
+    p.ctx.font = `800 ${p.s(0.036)}px ${FONT}`;
+    p.ctx.fillText(`${MAINS_VRMS}V → ${vs}V CT`, p.x(0), p.y(0.05));
+    p.ctx.font = `700 ${p.s(0.03)}px ${FONT}`;
+    p.ctx.fillText(`${vs / 2}-0-${vs / 2} V  ${CTX_IRATED * 1000}mA`, p.x(0), p.y(-0.005));
+    p.ctx.font = `600 ${p.s(0.022)}px ${FONT}`;
+    p.ctx.fillText('A · COM · B', p.x(0), p.y(-0.055));
+  }, 2400);
+}
+
+export function Ctx3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  const vs = CTX_MODELS[part.ctxModel ?? '12'].vs;
+  const core = useHeatMaterial(part, '#5b6068', selected);
+  const W = 0.46, D = 0.4, H = 0.4;
+  const g = useMemo(() => {
+    const pins = part.pins.map(holePos);
+    const [, s, r] = part.pins[0].split(':');
+    const cx = (holePos(`t:${s}:${r}:4`).x + holePos(`t:${s}:${r}:5`).x) / 2;
+    const out = Math.sign(pins[0].x - cx) || -1; // 往端子排外側擺本體
+    const body = new THREE.Vector3(pins[0].x + out * (W / 2 + 0.14), TOP_Y, pins[1].z);
+    const leads = pins.map((p, i) => {
+      const exit = new THREE.Vector3(body.x - out * (W / 2 + 0.005), TOP_Y + 0.1, body.z + (i - 1) * 0.08);
+      return [p.clone().setY(TOP_Y - 0.02), p.clone().setY(TOP_Y + 0.03), new THREE.Vector3((p.x + exit.x) / 2, TOP_Y + 0.09, (p.z + exit.z) / 2), exit];
+    });
+    const cordStart = new THREE.Vector3(body.x + out * (W / 2 + 0.005), TOP_Y + 0.12, body.z);
+    const plug = new THREE.Vector3(body.x + out * (W / 2 + 0.45), TOP_Y + 0.03, body.z + 0.25);
+    const cord = [cordStart, cordStart.clone().add(new THREE.Vector3(out * 0.12, -0.04, 0)),
+      new THREE.Vector3((cordStart.x + plug.x) / 2 + out * 0.05, TOP_Y + 0.02, body.z + 0.1), plug];
+    return { body, leads, cord, plug, out };
+  }, [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => ctxLabel(vs), [vs]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const colors = ['#e0b010', '#1b1d20', '#e0b010'];
+  return (
+    <group {...usePartEvents(part)}>
+      {g.leads.map((pts, i) => <Bent key={i} pts={pts} r={0.008} color={colors[i]} />)}
+      <Bent pts={g.cord} r={0.012} color="#3a3d42" />
+      {/* 110 V 插頭（台灣兩扁腳） */}
+      <group position={g.plug} rotation={[0, g.out > 0 ? 0 : Math.PI, 0]}>
+        <mesh castShadow><boxGeometry args={[0.07, 0.05, 0.06]} /><meshStandardMaterial color="#e8e8e2" roughness={0.6} /></mesh>
+        {[-1, 1].map((k) => (
+          <mesh key={k} position={[0.05, 0, k * 0.013]}><boxGeometry args={[0.04, 0.02, 0.004]} /><meshStandardMaterial color="#c9ced4" metalness={0.8} roughness={0.3} /></mesh>
+        ))}
+      </group>
+      <group position={g.body}>
+        {/* 固定腳架（L 型鐵片） */}
+        <mesh position={[0, 0.006, 0]} castShadow>
+          <boxGeometry args={[W + 0.12, 0.012, D * 0.55]} />
+          <meshStandardMaterial color="#9aa0a8" metalness={0.7} roughness={0.4} />
+        </mesh>
+        {/* EI 鐵芯：左右兩疊矽鋼片夾住線圈 */}
+        {[-1, 1].map((k) => (
+          <mesh key={k} position={[0, 0.012 + H / 2, k * (D / 2 - 0.03)]} castShadow material={core}>
+            <boxGeometry args={[W, H, 0.06]} />
+          </mesh>
+        ))}
+        <mesh position={[0, 0.012 + H - 0.03, 0]} castShadow material={core}><boxGeometry args={[W, 0.06, D - 0.06]} /></mesh>
+        <mesh position={[0, 0.012 + 0.03, 0]} castShadow material={core}><boxGeometry args={[W, 0.06, D - 0.06]} /></mesh>
+        {/* 線圈（黃色絕緣膠帶），正面貼規格貼紙 */}
+        <mesh position={[0, 0.012 + H / 2, 0]} castShadow>
+          <boxGeometry args={[W + 0.04, H - 0.12, D - 0.12]} />
+          <meshStandardMaterial color={part.burnt ? '#3a2a1a' : '#e0b830'} roughness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.012 + H + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[W * 0.9, D * 0.6]} />
+          <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#2a2420' : '#ffffff'} toneMapped={false} />
+        </mesh>
+      </group>
     </group>
   );
 }

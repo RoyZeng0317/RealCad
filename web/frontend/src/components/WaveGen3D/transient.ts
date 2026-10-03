@@ -5,6 +5,8 @@
 //      所以用連續三個週期估計收斂比例 ρ，直接外插到穩態（Aitken 加速），再繼續跑到估計誤差夠小（或時間預算用完）
 //      最後留下最後一個週期的 M 個解
 // 示波器 / 三用電表 / 頻譜分析儀再依時間（相位）查這 M 個解
+// 有市電（src.ac，例如插著插頭的電源變壓器）時，週期改用市電週期（1/60 s）；同時接著的產生器照實際時間取樣
+//   （產生器頻率是 60 Hz 的整數倍時完全正確，其他頻率是近似）
 import { solveCircuit, type Element, type Solution } from './circuit.js';
 import { sampleWave, waveMean, type GenSettings } from './waveform.js';
 import type { BoardPart } from './boardParts.js';
@@ -21,21 +23,27 @@ export interface Periodic {
 }
 
 /** 有沒有需要暫態模擬的零件（電容、電感；燒毀的當開路不算） */
-export const hasReactive = (parts: BoardPart[]) => parts.some((p) => !p.burnt && (p.kind === 'cap' || p.kind === 'ind' || p.kind === 'xfmr'));
+export const hasReactive = (parts: BoardPart[]) => parts.some((p) => !p.burnt && (p.kind === 'cap' || p.kind === 'ind' || p.kind === 'xfmr' || p.kind === 'ctx'));
+/** 有沒有插著市電的電源變壓器（有的話不用接產生器也要做暫態模擬） */
+export const hasMains = (parts: BoardPart[]) => parts.some((p) => p.kind === 'ctx' && !p.burnt && p.plugged !== false);
 
 /** 有電流狀態的元件：電感（id）、變壓器兩個繞組（id:p、id:s） */
-const currentIds = (e: Element) => (e.kind === 'ind' ? [e.id] : e.kind === 'xfmr' ? [`${e.id}:p`, `${e.id}:s`] : []);
+const currentIds = (e: Element) => (e.kind === 'ind' ? [e.id] : e.kind === 'xfmr' ? [`${e.id}:p`, `${e.id}:s`]
+  : e.kind === 'mxfmr' ? e.w.map((_, k) => `${e.id}:${k}`) : []);
 
 /** els 裡 id = 'fg' 的訊號源會被逐步改成產生器當下的電壓 */
 export function simulatePeriodic(els: Element[], ground: string, gen: GenSettings, M = STEPS_PER_PERIOD): Periodic {
   const list = els.map((e) => ({ ...e })) as Element[];
   const fg = list.find((e) => e.id === 'fg' && e.kind === 'src') as Extract<Element, { kind: 'src' }> | undefined;
-  const period = 1 / gen.frequency, dt = period / M;
+  const mains = list.filter((e): e is Extract<Element, { kind: 'src' }> => e.kind === 'src' && !!e.ac);
+  const period = mains.length ? 1 / mains[0].ac!.f : 1 / gen.frequency, dt = period / M;
+  const setMains = (t: number) => mains.forEach((e) => { e.v = e.ac!.vpk * Math.sin(2 * Math.PI * e.ac!.f * t); });
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   // 1. 直流起點
   if (fg) fg.v = waveMean(gen);
+  setMains(0);
   let prev = solveCircuit(list, ground);
   const vc: Record<string, number> = {}, il: Record<string, number> = {};
   for (const e of list) {
@@ -54,6 +62,7 @@ export function simulatePeriodic(els: Element[], ground: string, gen: GenSetting
   while (periods < MAX_PERIODS) {
     for (let i = 0; i < M; i++) {
       if (fg) fg.v = sampleWave(gen, (i + 1) * dt);
+      setMains((i + 1) * dt);
       const sol = solveCircuit(list, ground, { dt, vc, il, guess: prev });
       for (const e of list) {
         if (e.kind === 'cap') vc[e.id] = sol.el[e.id].v;
