@@ -14,7 +14,7 @@ import {
   partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadRectifierDemo } from './boardDemo.js';
-import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo } from './analogDemo.js';
+import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo, loadCurveDemo } from './analogDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -172,6 +172,9 @@ export function PartLibrary() {
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadBjtDemo(); useLabUi.getState().focus('breadboard'); }}>
           可變電阻 + 2N3904 電晶體開關 LED
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadCurveDemo(); useLabUi.getState().focus('scope'); }}>
+          2N3904 特性曲線（示波器 XY，轉旋鈕畫 IB 曲線族）
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadXfmrDemo(); useLabUi.getState().focus('scope'); }}>
           2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）

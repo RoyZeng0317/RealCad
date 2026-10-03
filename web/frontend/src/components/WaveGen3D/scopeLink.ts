@@ -14,7 +14,7 @@ import { dmSpec } from './dmStore.js';
 import { waveRange, sampleWave } from './waveform.js';
 import type { HoleKey } from './boardModel.js';
 
-const STEPS = 41;
+const STEPS = 81; // 掃描點數：特性曲線的膝點（飽和區 0–0.3 V）也要夠細
 
 export interface Transfer {
   xs: number[]; // 產生器電壓（掃描點）

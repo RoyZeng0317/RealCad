@@ -147,6 +147,7 @@ export function applyDoc(raw: unknown): string {
     running: bool(s.running, true), coupling: oneOf(s.coupling, ['DC', 'AC'] as const, 'DC'),
     ch2On: bool(s.ch2On, true), ch2VoltDivIdx: int(s.ch2VoltDivIdx, 0, VOLT_DIVS.length - 1, w.scope.ch2VoltDivIdx),
     ch2Position: num(s.ch2Position, -4, 4, -3), trigSource: oneOf(s.trigSource, ['CH1', 'CH2'] as const, 'CH1'),
+    xy: bool(s.xy, false), persist: bool(s.persist, false),
   });
 
   // 頻譜分析儀

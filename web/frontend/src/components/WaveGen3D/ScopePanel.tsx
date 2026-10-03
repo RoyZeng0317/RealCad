@@ -7,7 +7,7 @@ import { LeadControl } from './LeadControls.js';
 import { useBoard } from './boardStore.js';
 import { useEffect, useState } from 'react';
 import { scopeMeas } from './Oscilloscope3D.js';
-import { measItems, CH1_COLOR, CH2_COLOR } from './scopeDisplay.js';
+import { measItems, clearXyPersist, CH1_COLOR, CH2_COLOR } from './scopeDisplay.js';
 import { T } from './panelUi.js';
 
 /** 量測 MEASURE：兩個通道的全部參數（每 0.3 秒更新，跟螢幕同一份資料） */
@@ -72,6 +72,20 @@ export function ScopeControls() {
           max={scope.trigSource === 'CH2' ? V_MAX : OUTPUT_LIMIT}
           step={0.01} v={scope.trigLevel}
           onChange={(x) => setScope({ trigLevel: x })} />
+      </Section>
+      <Section title="XY 模式（特性曲線）" right={
+        <button style={{ ...chip(scope.xy, '#2f9f3c'), flex: 'none', padding: '2px 10px' }}
+          onClick={() => { clearXyPersist(); setScope({ xy: !scope.xy, ch2On: true }); }}>
+          {scope.xy ? 'ON' : 'OFF'}
+        </button>
+      }>
+        <div style={row}>
+          <button style={chip(scope.persist, '#2f9f3c')} onClick={() => { clearXyPersist(); setScope({ persist: !scope.persist }); }}>
+            殘影 {scope.persist ? 'ON' : 'OFF'}
+          </button>
+          <button style={chip(false, '', '#5a2030')} onClick={clearXyPersist}>清除殘影</button>
+        </div>
+        <p style={help}>XY 模式：水平 = CH1、垂直 = CH2，一次畫一個完整週期（跟 TIME/DIV 無關）。CH1 的 0 V 在螢幕左緣，「CH1 垂直位置」改成左右移動。開殘影後轉可變電阻，每條不同的曲線都會留在螢幕上（最多 16 條）。</p>
       </Section>
       <Section title="量測 MEASURE" right={
         <span style={{ display: 'flex', gap: 4 }}>
