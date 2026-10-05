@@ -4,7 +4,7 @@
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useSa } from './saStore.js';
-import { getBench, fgDc } from './bench.js';
+import { getDcBench, fgDc } from './bench.js';
 import { transferOf, probeValue, probeAt, mainsLive, signalPeriod } from './scopeLink.js';
 import { sampleWave } from './waveform.js';
 import { harmonicsOf, peaksInView, harmonicDb, effectiveRbw, type Harmonic } from './spectrum.js';
@@ -29,7 +29,7 @@ export function getSaInput(): SaInput {
   const gen = useWaveLab.getState().gen;
   const { leads } = useBoard.getState();
   const { z50 } = useSa.getState().sa;
-  const key = [gen, getBench(), leads, z50];
+  const key = [gen, getDcBench(), leads, z50];
   if (cache && cache.key.every((v, i) => v === key[i])) return cache.input;
 
   const lead = saLead();

@@ -15,8 +15,10 @@ import { type BoardPart, colorBands, THERMAL, LDO_TSD_ON, LDO_TSD_OFF, LED_SPEC 
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { P, TOP_Y } from './breadboardGrid.js';
 import { Chip3D } from './chips/Chip3D.js';
-import { Pot3D, Cap3D, Ind3D, Bjt3D, Xfmr3D, Ctx3D } from './AnalogParts3D.js';
+import { Pot3D, Cap3D, Ind3D, Bjt3D, Xfmr3D, Ctx3D, Ldr3D, Batt3D } from './AnalogParts3D.js';
 import { elementWave } from './scopeLink.js';
+import { Ne5553D, Ch2243D } from './IcParts3D.js';
+import { negotiate } from './ch224.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 /** 選取狀態：true = 選取（藍）、'bad' = 拖曳到不能放的位置（紅） */
@@ -50,6 +52,10 @@ export function BoardThermal() {
       const t = target + (t0 - target) * Math.exp(-dt / th.tau);
       temps.set(tkey(p), t);
       if (!p.burnt && t > th.burn) burnt.push(p.id);
+      // CH224K：輸出電流超過充電器那一檔的額定 → 充電器關閉輸出（等於拔線，要重插才恢復）
+      if (p.kind === 'ch224' && p.plugged !== false && Math.abs(bench.sol.el[p.id]?.i ?? 0) > negotiate(p).imax * 1.05) {
+        useBoard.getState().updatePart(p.id, { plugged: false, tripped: true });
+      }
       if (p.kind === 'ldo') {
         const on = tsd[p.id] ? t > LDO_TSD_OFF : t > LDO_TSD_ON;
         nextTsd[p.id] = on;
@@ -458,6 +464,10 @@ export function BoardParts3D() {
         if (p.kind === 'bjt') return <Bjt3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'xfmr') return <Xfmr3D key={p.id} part={p} selected={sel} />;
         if (p.kind === 'ctx') return <Ctx3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'ldr') return <Ldr3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'batt') return <Batt3D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'ne555') return <Ne5553D key={p.id} part={p} selected={sel} />;
+        if (p.kind === 'ch224') return <Ch2243D key={p.id} part={p} selected={sel} />;
         return <Wire3D key={p.id} part={p} selected={sel} />;
       })}
       <BoardMarkers />

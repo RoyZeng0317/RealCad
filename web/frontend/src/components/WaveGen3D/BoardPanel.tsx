@@ -5,6 +5,7 @@ import { LEAD_TAG } from './LeadControls.js';
 import { ChipCard } from './chips/ChipPanels.js';
 import { ResistorInput } from './ResistorInput.js';
 import { AnalogParams, AnalogCard, isAnalog } from './AnalogPanels.js';
+import { IcParams, IcCard, isIc } from './IcPanels.js';
 import { loadAtmegaDemo } from './chips/chipDemo.js';
 import { useBench } from './bench.js';
 import { dmmReading } from './scopeLink.js';
@@ -14,7 +15,7 @@ import {
   partLabel, LED_COLORS, LED_SPEC, LED_IMAX, type BoardPart,
 } from './boardParts.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadRectifierDemo } from './boardDemo.js';
-import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo, loadCurveDemo } from './analogDemo.js';
+import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo, loadCurveDemo, loadBattLedDemo, loadNightLightDemo, loadNe555BlinkDemo, loadNe555ScopeDemo } from './analogDemo.js';
 import { useLabUi } from './labUi.js';
 import { Section, Stat, chip, row, help, warn, selectStyle, T } from './panelUi.js';
 
@@ -30,9 +31,13 @@ export const TOOL_HINT: Record<Tool, string> = {
   ch340: '點一個端子排的孔：第 1 腳（GND）放在那一列，8 隻腳沿 e 欄往下、另 8 隻在 f 欄；Micro USB 線已接到電腦。',
   ldo: '點第 1 腳（GND）的孔，第 2 腳（OUT）、第 3 腳（IN）會沿同一欄自動排在接下來兩列。',
   pot: '點第 1 腳的孔，滑動端 W、第 3 腳會沿同一欄自動排在接下來兩列。放好後在白色旋鈕上拖曳或滾輪就能轉。',
-  cap: '電解電容有極性：先點 + 腳（長腳）的孔，再點 − 腳（白色條紋那邊）的孔。反接或超過耐壓會損壞。',
+  cap: '電解電容有極性：先點 + 腳（長腳）的孔，再點 − 腳（白色條紋那邊）的孔，反接或超過耐壓會損壞。陶瓷電容（104 / 103）沒有極性。',
   ind: '先點第一隻腳的孔，再點第二隻腳的孔（電感沒有極性）。',
-  bjt: '點 E（射極）的孔，B（基極）、C（集極）會沿同一欄自動排在接下來兩列（平面朝自己時由左到右 E、B、C）。',
+  bjt: '點第 1 隻腳（平面朝自己最左邊那隻）的孔，另外兩隻會沿同一欄自動排在接下來兩列。腳位：2N3904 / 2N3906 / S9013 / S9012 是 E、B、C；BC547 是 C、B、E（相反！）。',
+  ldr: '光敏電阻沒有極性：先點第一隻腳的孔，再點第二隻腳的孔。選取後可以調照度（或在 3D 光敏電阻上滾滾輪）：越亮阻值越小。',
+  batt: '電池：先點 + 極（紅線）要插的孔，再點 − 極（黑線）要插的孔。電池有內阻，短路會發燙、漏液損壞。',
+  ne555: '點一個端子排的孔：第 1 腳（GND，缺口左邊）放在那一列，1–4 腳沿 e 欄往下、5–8 腳在 f 欄（跨在中間的溝上）。腳位：1 GND、2 TRIG、3 OUT、4 RESET、5 CTRL、6 THR、7 DIS、8 VCC。',
+  ch224: 'CH224K PD 誘騙模組：點 VOUT 排針要插的孔，GND、PG 會沿同一欄排在接下來兩列。USB-C 接到充電器，協商出選的電壓（5 / 9 / 12 / 15 / 20 V）。',
   xfmr: '點一個端子排的孔：那一列放 P1 / S1，往下第 3 列放 P2 / S2，跨在中間的溝上（e 欄一次側、f 欄二次側，兩側電氣隔離）。只能傳交流：接函數產生器到一次側。',
   ctx: '點 A 端引線要插的孔，COM（中間抽頭、0 V 共地）、B 端會沿同一欄每隔一列排好；一次側自己插 110 V 市電（檢視器可以拔插頭）。A、B 對 COM 是反相的兩組交流電。',
   fg: '函數產生器輸出線：先點 + 端（紅線，訊號），再點 − 端（黑線，地）。產生器輸出內阻 50 Ω。',
@@ -43,7 +48,7 @@ export const TOOL_HINT: Record<Tool, string> = {
 };
 
 export const TOOL_NAME: Record<Tool, string> = {
-  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', xfmr: '變壓器', ctx: '中心抽頭變壓器', atmega: 'ATmega328P', ch340: 'CH340G',
+  select: '選取', erase: '刪除', probe: '三用電表', wire: '杜邦線', resistor: '電阻', diode: '二極體', led: 'LED', ldo: 'LT1117-3.3', pot: '可變電阻', cap: '電解電容', ind: '電感', bjt: '電晶體', xfmr: '變壓器', ctx: '中心抽頭變壓器', ldr: '光敏電阻', batt: '電池', ne555: 'NE555', ch224: 'CH224K 模組', atmega: 'ATmega328P', ch340: 'CH340G',
   fg: '函數產生器輸出線', ch1: '示波器 CH1 探棒', ch2: '示波器 CH2 探棒', sa: '頻譜分析儀紅黑測試線', dm: '桌上型萬用電表測試線',
 };
 
@@ -56,11 +61,15 @@ const PART_ITEMS: LibItem[] = [
   { tool: 'diode', name: '整流二極體', sub: '1N4001 – 1N4007・1 A', icon: '▷|' },
   { tool: 'led', name: 'LED', sub: '5 mm・紅 / 黃 / 綠 / 藍 / 白', icon: '◉' },
   { tool: 'pot', name: '可變電阻', sub: '1 kΩ / 10 kΩ / 100 kΩ・旋鈕可轉', icon: '⏚' },
-  { tool: 'cap', name: '電解電容', sub: '100 µF / 50 V・47 µF / 25 V・有極性', icon: '⊣⊢' },
+  { tool: 'cap', name: '電容', sub: '電解 100 µF・47 µF（有極性）・陶瓷 104 / 103', icon: '⊣⊢' },
   { tool: 'ind', name: '電感', sub: '100 µH / 1 mH / 10 mH・工字電感', icon: '∞' },
-  { tool: 'bjt', name: '電晶體', sub: '2N3904 / S9013 NPN・2N3906 / S9012 PNP・TO-92', icon: '⋎' },
+  { tool: 'bjt', name: '電晶體', sub: '2N3904 / S9013 / BC547 NPN・2N3906 / S9012 PNP・TO-92', icon: '⋎' },
+  { tool: 'ldr', name: '光敏電阻 LDR', sub: 'GL5516 / GL5528 / GL5537・照度可調', icon: '☼' },
+  { tool: 'batt', name: '電池', sub: '9 V・AA・2×AA・CR2032・18650', icon: '🔋' },
   { tool: 'xfmr', name: '變壓器', sub: '1:1 / 2:1 / 4:1 / 10:1 / 1:2・EI 鐵芯・只傳交流', icon: '⧛' },
   { tool: 'ctx', name: '中心抽頭變壓器', sub: '110 V → 6 V（3-0-3）/ 12 V（6-0-6）/ 24 V（12-0-12）・0.5 A', icon: '⫶' },
+  { tool: 'ne555', name: 'NE555 計時 IC', sub: '無穩態 / 單穩態・DIP-8・4.5–16 V', icon: '⏱' },
+  { tool: 'ch224', name: 'CH224K PD 誘騙模組', sub: 'USB-C PD → 5 / 9 / 12 / 15 / 20 V', icon: '⚡' },
   { tool: 'ldo', name: 'LT1117-3.3', sub: '低壓降穩壓 IC・TO-220', icon: '⊓' },
   { tool: 'atmega', name: 'ATmega328P-PU', sub: 'AVR 微控制器・DIP-28・可寫 Arduino C', icon: '▥' },
   { tool: 'ch340', name: 'CH340G', sub: 'USB 轉序列（上傳程式／序列埠）・DIP-16', icon: '⇄' },
@@ -138,7 +147,8 @@ function ToolParams() {
       <button style={chip(s.probeSide === 'black', '#3a3a44')} onClick={() => s.setParam({ probeSide: 'black' })}>下一次放黑棒</button>
     </div>
   );
-  if (s.tool === 'pot' || s.tool === 'cap' || s.tool === 'ind' || s.tool === 'bjt' || s.tool === 'xfmr' || s.tool === 'ctx') return <AnalogParams />;
+  if (s.tool === 'pot' || s.tool === 'cap' || s.tool === 'ind' || s.tool === 'bjt' || s.tool === 'xfmr' || s.tool === 'ctx' || s.tool === 'ldr' || s.tool === 'batt') return <AnalogParams />;
+  if (s.tool === 'ch224') return <IcParams />;
   if (s.tool === 'ldo') return (
     <div style={row}>
       <button style={chip(s.ldoDir === 1)} onClick={() => s.setParam({ ldoDir: 1 })}>腳位往下排</button>
@@ -175,6 +185,18 @@ export function PartLibrary() {
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadCurveDemo(); useLabUi.getState().focus('scope'); }}>
           2N3904 特性曲線（示波器 XY，轉旋鈕畫 IB 曲線族）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadBattLedDemo(); useLabUi.getState().focus('breadboard'); }}>
+          電池 LED 燈（9 V + 470 Ω + LED）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNightLightDemo(); useLabUi.getState().focus('breadboard'); }}>
+          LDR 小夜燈：天黑自動亮（BC547 + 光敏電阻 + 9 V 電池）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555BlinkDemo(); useLabUi.getState().focus('breadboard'); }}>
+          NE555 LED 閃爍燈（CH224K PD 9 V 供電，約 1.5 Hz）
+        </button>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555ScopeDemo(); useLabUi.getState().focus('scope'); }}>
+          NE555 無穩態振盪（示波器看 OUT 與電容，約 690 Hz）
         </button>
         <button style={chip(false, '', '#12345a')} onClick={() => { loadXfmrDemo(); useLabUi.getState().focus('scope'); }}>
           2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）
@@ -242,6 +264,7 @@ export function DmmCard() {
 
 export function PartCard({ part }: { part: BoardPart }) {
   if (isAnalog(part)) return <AnalogCard part={part} />;
+  if (isIc(part)) return <IcCard part={part} />;
   return part.kind === 'atmega' || part.kind === 'ch340' ? <ChipCard part={part} /> : <SimplePartCard part={part} />;
 }
 

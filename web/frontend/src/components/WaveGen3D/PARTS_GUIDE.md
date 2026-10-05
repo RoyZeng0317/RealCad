@@ -47,6 +47,11 @@ export const CAP_MODELS = {
 - 電晶體加一顆 → `BJT_MODELS` 照格式加（`pol: 1` 是 NPN、`-1` 是 PNP，`is / bf / br` 可以從廠商的 SPICE 模型抄）
 - 變壓器加一種匝數比 → `XFMR_MODELS` 加一行（`n` = 一次側匝數 / 二次側匝數，例如 `'5:1': { n: 5, name: '5 : 1（降壓）' }`）；電感、線圈電阻由 `xfmrParams()` 依 n 自動算
 - 中心抽頭變壓器加一種電壓 → `CTX_MODELS` 加一行（例如 `'18': { vs: 18, name: '18 V（9-0-9 V）' }`）；額定電流改 `CTX_IRATED`
+- 電晶體腳位跟 2N3904 相反（C、B、E）的型號 → `BJT_MODELS` 那一行加 `pinout: 'CBE' as const`（例如 BC547），放置與 3D 印字會自動照著排
+- 光敏電阻加一顆 → `LDR_MODELS` 加一行（`r10` = 10 lux 時阻值、`gamma` = 斜率、`dark` = 全黑阻值）
+- 電池加一種 → `BATT_MODELS` 加一行（`v` 電壓、`r` 內阻、`size` 寬 / 高 / 長 mm）
+- 電容加一種 → `CAP_MODELS` 加一行；陶瓷電容加 `ceramic: true`（沒有極性、3D 畫成扁圓片）
+- CH224K 加一種充電器 → `ch224.ts` 的 `CHARGERS` 加一行（`pdo` = 每一檔電壓的最大電流）
 
 ---
 

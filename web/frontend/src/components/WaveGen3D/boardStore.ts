@@ -2,10 +2,11 @@
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
 import { hitHole } from './breadboardGrid.js';
-import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, type CtxModel, WIRE_COLORS } from './boardParts.js';
+import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, type CtxModel, type LdrModel, type BattModel, bjtPinout, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
+import type { PdVolt, ChargerId } from './ch224.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'erase' | LeadKind;
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt' | 'ne555' | 'ch224' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa' | 'dm';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
@@ -32,6 +33,10 @@ interface BoardState {
   bjtModel: BjtModel;
   xfmrModel: XfmrModel;
   ctxModel: CtxModel;
+  ldrModel: LdrModel;
+  battModel: BattModel;
+  pdVolt: PdVolt;
+  charger: ChargerId;
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
   tsd: Record<string, boolean>; // LT1117 熱關斷中
   message: string;
@@ -39,9 +44,9 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel' | 'ctxModel'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'ldrModel' | 'battModel' | 'pdVolt' | 'charger'>>) => void;
   /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
-  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'plugged' | 'rot'>>) => void;
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'plugged' | 'rot' | 'ldrModel' | 'lux' | 'battModel' | 'pdVolt' | 'charger' | 'tripped'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -154,6 +159,10 @@ export const useBoard = create<BoardState>((set, get) => ({
   bjtModel: '2N3904',
   xfmrModel: '2:1',
   ctxModel: '12',
+  ldrModel: 'GL5528',
+  battModel: '9V',
+  pdVolt: 12,
+  charger: 'pd65',
   temps: {},
   tsd: {},
   message: '',
@@ -162,7 +171,16 @@ export const useBoard = create<BoardState>((set, get) => ({
 
   setTool: (tool) => set({ tool, pending: null, message: '', leadEnd: null }),
   setParam: (patch) => set(patch),
-  updatePart: (id, patch) => set((s) => ({ parts: s.parts.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+  updatePart: (id, patch) => set((s) => ({
+    parts: s.parts.map((p) => {
+      if (p.id !== id) return p;
+      // 電晶體換成腳位排列不同的型號（例如 2N3904 ↔ BC547）：腳還插在原本的孔，所以 E、C 的位置互換（跟實際換零件一樣）
+      if (p.kind === 'bjt' && patch.bjtModel && bjtPinout(patch.bjtModel) !== bjtPinout(p.bjtModel ?? '2N3904')) {
+        return { ...p, ...patch, pins: [p.pins[2], p.pins[1], p.pins[0]] };
+      }
+      return { ...p, ...patch };
+    }),
+  })),
   setMessage: (message) => set({ message }),
   setLead: (k, pins) => set((s) => ({ leads: { ...s.leads, [k]: pins } })),
   startLead: (k, end) => set((s) => ({ tool: k, pending: null, message: '', leadEnd: end !== undefined && s.leads[k] ? end : null })),
@@ -231,10 +249,10 @@ export const useBoard = create<BoardState>((set, get) => ({
     if (s.tool !== 'wire' && (k.startsWith('p:') || k.startsWith('h:'))) { set({ message: '零件腳不能直接插在接線柱或開發板排針上，請用杜邦線連接' }); return; }
 
     // DIP IC：點的那一列放第 1 腳，跨在端子排中間的溝上（e / f 欄）
-    if (s.tool === 'atmega' || s.tool === 'ch340') {
-      const n = s.tool === 'atmega' ? 28 : 16;
+    if (s.tool === 'atmega' || s.tool === 'ch340' || s.tool === 'ne555') {
+      const n = s.tool === 'atmega' ? 28 : s.tool === 'ch340' ? 16 : 8;
       const pins = dipPins(k, n);
-      if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : 'CH340G'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
+      if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : s.tool === 'ch340' ? 'CH340G' : 'NE555'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
       if (pins.some((p) => occ.has(p))) { set({ message: 'IC 要佔用的孔已經有其他零件' }); return; }
       const part: BoardPart = { id: newId(s.tool), kind: s.tool, pins, gen: 0, ...(s.tool === 'atmega' ? { code: ATMEGA_EXAMPLE } : {}) };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
@@ -258,6 +276,15 @@ export const useBoard = create<BoardState>((set, get) => ({
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }
+    // CH224K 模組：3 隻排針 VOUT、GND、PG 沿同一欄連續 3 列
+    if (s.tool === 'ch224') {
+      const pins = ldoPins(k, s.ldoDir);
+      if (!pins) { set({ message: 'CH224K 模組要放在端子排，排列方向上還要有 2 列空位' }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: 'CH224K 模組的排針位置已經有零件' }); return; }
+      const part: BoardPart = { id: newId('ch224'), kind: 'ch224', pins, pdVolt: s.pdVolt, charger: s.charger, plugged: true, gen: 0 };
+      set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
+      return;
+    }
     if (s.tool === 'ldo' || s.tool === 'pot' || s.tool === 'bjt') {
       const name = s.tool === 'ldo' ? 'LT1117' : s.tool === 'pot' ? '可變電阻' : '電晶體';
       const pins = ldoPins(k, s.ldoDir);
@@ -265,7 +292,8 @@ export const useBoard = create<BoardState>((set, get) => ({
       if (pins.some((p) => occ.has(p))) { set({ message: `${name}的第 2、3 腳位置已經有零件` }); return; }
       const part: BoardPart =
         s.tool === 'pot' ? { id: newId('pot'), kind: 'pot', pins, value: s.potValue, pos: 0.5, gen: 0 }
-        : s.tool === 'bjt' ? { id: newId('bjt'), kind: 'bjt', pins, bjtModel: s.bjtModel, rot: 1, gen: 0 }
+        // 電晶體：pins 存 [E, B, C]；BC547 這種 C、B、E 腳位的，第一下點的孔是 C
+        : s.tool === 'bjt' ? { id: newId('bjt'), kind: 'bjt', pins: bjtPinout(s.bjtModel) === 'CBE' ? [pins[2], pins[1], pins[0]] : pins, bjtModel: s.bjtModel, rot: 1, gen: 0 }
         : { id: newId('ldo'), kind: 'ldo', pins, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
@@ -285,6 +313,8 @@ export const useBoard = create<BoardState>((set, get) => ({
       : s.tool === 'led' ? { id: newId('led'), kind: 'led', pins, ledColor: s.ledColor, gen: 0 }
       : s.tool === 'cap' ? { id: newId('cap'), kind: 'cap', pins, capModel: s.capModel, gen: 0 }
       : s.tool === 'ind' ? { id: newId('ind'), kind: 'ind', pins, value: s.indValue, gen: 0 }
+      : s.tool === 'ldr' ? { id: newId('ldr'), kind: 'ldr', pins, ldrModel: s.ldrModel, lux: 100, gen: 0 }
+      : s.tool === 'batt' ? { id: newId('batt'), kind: 'batt', pins, battModel: s.battModel, gen: 0 }
       : { id: newId('wire'), kind: 'wire', pins, color: s.wireColor, gen: 0 };
     set({ parts: [...s.parts, part], pending: null, selectedId: part.kind === 'wire' ? s.selectedId : part.id, message: '' });
   },
