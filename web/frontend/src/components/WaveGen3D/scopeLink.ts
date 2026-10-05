@@ -8,7 +8,8 @@ import { usePsuLab, loadResistance } from './psuStore.js';
 import { useWaveLab } from './waveStore.js';
 import { useDev } from './devboards/devStore.js';
 import { useChips } from './chips/chipStore.js';
-import { computeBench, benchElements, getBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
+import { computeBench, benchElements, getBench, getDcBench, fgDc, earthHoles, meterV, type Bench } from './bench.js';
+import { simulate555, type Ne555Sim } from './ne555.js';
 import { hasReactive, hasMains, simulatePeriodic, type Periodic } from './transient.js';
 import { dmSpec } from './dmStore.js';
 import { waveRange, sampleWave } from './waveform.js';
@@ -32,19 +33,27 @@ export function channelLead(ch: 'ch1' | 'ch2'): [HoleKey, HoleKey] | null {
 }
 
 // 掃描結果（每個產生器電壓一份直流解）只在電路或產生器設定改變時重算；getBench() 只有在會影響電路的狀態改變時才換新物件
-let sweep: { key: unknown[]; xs: number[]; benches: Bench[]; per: Periodic | null; net: ((k: HoleKey) => string) | null } | null = null;
+let sweep: { key: unknown[]; xs: number[]; benches: Bench[]; per: Periodic | null; net: ((k: HoleKey) => string) | null; ne: Ne555Sim | null } | null = null;
 const pairCache = new Map<string, Transfer>();
 
 function getSweep() {
   const bs = useBoard.getState(), ps = usePsuLab.getState(), ds = useDev.getState(), cs = useChips.getState();
   const gen = useWaveLab.getState().gen;
-  const key = [getBench(), bs.leads, gen];
+  const key = [getDcBench(), bs.leads, gen];
   if (!sweep || !sweep.key.every((v, i) => v === key[i])) {
     const fg = fgDc();
     let xs: number[] = [], benches: Bench[] = [];
-    let per: Periodic | null = null, net: ((k: HoleKey) => string) | null = null;
+    let per: Periodic | null = null, net: ((k: HoleKey) => string) | null = null, ne: Ne555Sim | null = null;
+    const chips555 = bs.parts.filter((p) => p.kind === 'ne555' && !p.burnt);
+    // NE555 會自己振盪：從上電開始做時域模擬，量出週期後錄一個週期（優先於產生器 / 市電；產生器固定在平均值）
+    if (chips555.length) {
+      const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles(), dmSpec());
+      ne = simulate555(b.els.filter((e) => !e.id.includes(':dyn-')), b.GND, chips555, b.net);
+      per = ne.per;
+      net = b.net;
+    }
     // 插著市電的電源變壓器：不用接產生器也有交流 → 一律做暫態模擬（週期 = 市電週期）
-    if ((fg && hasReactive(bs.parts) && gen.waveform !== 'noise') || hasMains(bs.parts)) {
+    else if ((fg && hasReactive(bs.parts) && gen.waveform !== 'noise') || hasMains(bs.parts)) {
       const b = benchElements(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, fg, earthHoles(), dmSpec());
       per = simulatePeriodic(b.els, b.GND, gen);
       net = b.net;
@@ -56,7 +65,7 @@ function getSweep() {
       const meter = dmSpec();
       benches = xs.map((v) => computeBench(ps.psu, loadResistance(ps), bs.parts, bs.tsd, ds, cs.rt, { ...fg, v }, earth, meter));
     }
-    sweep = { key, xs, benches, per, net };
+    sweep = { key, xs, benches, per, net, ne };
     pairCache.clear();
   }
   return sweep;
@@ -88,12 +97,15 @@ export function elementWave(id: string) {
   return per ? per.sols.map((s) => s.el[id]) : null;
 }
 
-/** 麵包板上有沒有交流：產生器接在麵包板上，或有插著市電的電源變壓器 */
-export const mainsLive = () => hasMains(useBoard.getState().parts);
+/** NE555 的模擬結果（沒有 555 時是 null） */
+export const ne555Sim = (): Ne555Sim | null => (useBoard.getState().parts.some((p) => p.kind === 'ne555' && !p.burnt) ? getSweep().ne : null);
+/** 電路自己有週期訊號：插著市電的電源變壓器，或正在振盪的 NE555 */
+export const mainsLive = () => hasMains(useBoard.getState().parts) || !!ne555Sim()?.per;
+/** 麵包板上有沒有交流：產生器接在麵包板上，或電路自己有週期訊號 */
 export const acActive = () => !!fgDc() || mainsLive();
 /** 一個訊號週期（有市電時 = 1/60 s，否則 = 產生器週期） */
 export function signalPeriod(): number {
-  if (mainsLive()) { const per = getSweep().per; if (per) return per.period; }
+  if (mainsLive()) { const per = getSweep().per; if (per) return per.period; } // 市電或 NE555 的週期
   return 1 / useWaveLab.getState().gen.frequency;
 }
 

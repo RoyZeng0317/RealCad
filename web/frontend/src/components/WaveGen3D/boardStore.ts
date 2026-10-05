@@ -4,8 +4,9 @@ import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardMod
 import { hitHole } from './breadboardGrid.js';
 import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, type CtxModel, type LdrModel, type BattModel, bjtPinout, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
+import type { PdVolt, ChargerId } from './ch224.js';
 
-export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt' | 'erase' | LeadKind;
+export type Tool = 'select' | 'probe' | 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt' | 'ne555' | 'ch224' | 'erase' | LeadKind;
 /** 儀器接到麵包板的線：函數產生器輸出（紅 +、黑 −）、示波器 CH1 / CH2 探棒（探針、接地夾） */
 export type LeadKind = 'fg' | 'ch1' | 'ch2' | 'sa' | 'dm';
 export type Leads = Record<LeadKind, [HoleKey, HoleKey] | null>;
@@ -34,6 +35,8 @@ interface BoardState {
   ctxModel: CtxModel;
   ldrModel: LdrModel;
   battModel: BattModel;
+  pdVolt: PdVolt;
+  charger: ChargerId;
   temps: Record<string, number>; // 零件溫度（由 3D 熱模型每 0.25 s 回寫）
   tsd: Record<string, boolean>; // LT1117 熱關斷中
   message: string;
@@ -41,9 +44,9 @@ interface BoardState {
   drag: DragState | null;
 
   setTool: (t: Tool) => void;
-  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'ldrModel' | 'battModel'>>) => void;
+  setParam: (patch: Partial<Pick<BoardState, 'resistorValue' | 'diodeModel' | 'ledColor' | 'wireColor' | 'ldoDir' | 'probeSide' | 'potValue' | 'capModel' | 'indValue' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'ldrModel' | 'battModel' | 'pdVolt' | 'charger'>>) => void;
   /** 改已經放好的零件（可變電阻轉旋鈕、換阻值 / 型號） */
-  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'plugged' | 'rot' | 'ldrModel' | 'lux' | 'battModel'>>) => void;
+  updatePart: (id: string, patch: Partial<Pick<BoardPart, 'value' | 'pos' | 'capModel' | 'bjtModel' | 'xfmrModel' | 'ctxModel' | 'plugged' | 'rot' | 'ldrModel' | 'lux' | 'battModel' | 'pdVolt' | 'charger' | 'tripped'>>) => void;
   clickHole: (k: HoleKey) => void;
   selectPart: (id: string | null) => void;
   removePart: (id: string) => void;
@@ -158,6 +161,8 @@ export const useBoard = create<BoardState>((set, get) => ({
   ctxModel: '12',
   ldrModel: 'GL5528',
   battModel: '9V',
+  pdVolt: 12,
+  charger: 'pd65',
   temps: {},
   tsd: {},
   message: '',
@@ -244,10 +249,10 @@ export const useBoard = create<BoardState>((set, get) => ({
     if (s.tool !== 'wire' && (k.startsWith('p:') || k.startsWith('h:'))) { set({ message: '零件腳不能直接插在接線柱或開發板排針上，請用杜邦線連接' }); return; }
 
     // DIP IC：點的那一列放第 1 腳，跨在端子排中間的溝上（e / f 欄）
-    if (s.tool === 'atmega' || s.tool === 'ch340') {
-      const n = s.tool === 'atmega' ? 28 : 16;
+    if (s.tool === 'atmega' || s.tool === 'ch340' || s.tool === 'ne555') {
+      const n = s.tool === 'atmega' ? 28 : s.tool === 'ch340' ? 16 : 8;
       const pins = dipPins(k, n);
-      if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : 'CH340G'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
+      if (!pins) { set({ message: `${s.tool === 'atmega' ? 'ATmega328P' : s.tool === 'ch340' ? 'CH340G' : 'NE555'} 要放在端子排，從點的那一列往下需要 ${n / 2} 列空位（會跨在 e / f 欄中間的溝上）` }); return; }
       if (pins.some((p) => occ.has(p))) { set({ message: 'IC 要佔用的孔已經有其他零件' }); return; }
       const part: BoardPart = { id: newId(s.tool), kind: s.tool, pins, gen: 0, ...(s.tool === 'atmega' ? { code: ATMEGA_EXAMPLE } : {}) };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
@@ -268,6 +273,15 @@ export const useBoard = create<BoardState>((set, get) => ({
       if (!pins) { set({ message: '中心抽頭變壓器要放在端子排，排列方向上還要有 4 列空間（A、COM、B 每隔一列）' }); return; }
       if (pins.some((p) => occ.has(p))) { set({ message: '變壓器引線要插的孔已經有其他零件' }); return; }
       const part: BoardPart = { id: newId('ctx'), kind: 'ctx', pins, ctxModel: s.ctxModel, plugged: true, gen: 0 };
+      set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
+      return;
+    }
+    // CH224K 模組：3 隻排針 VOUT、GND、PG 沿同一欄連續 3 列
+    if (s.tool === 'ch224') {
+      const pins = ldoPins(k, s.ldoDir);
+      if (!pins) { set({ message: 'CH224K 模組要放在端子排，排列方向上還要有 2 列空位' }); return; }
+      if (pins.some((p) => occ.has(p))) { set({ message: 'CH224K 模組的排針位置已經有零件' }); return; }
+      const part: BoardPart = { id: newId('ch224'), kind: 'ch224', pins, pdVolt: s.pdVolt, charger: s.charger, plugged: true, gen: 0 };
       set({ parts: [...s.parts, part], selectedId: part.id, message: '' });
       return;
     }

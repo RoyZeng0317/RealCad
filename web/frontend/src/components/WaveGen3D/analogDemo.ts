@@ -1,10 +1,11 @@
-// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流、電晶體特性曲線、電池 LED 燈、LDR 小夜燈
+// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流、電晶體特性曲線、電池 LED 燈、LDR 小夜燈、NE555（CH224K 供電閃爍燈 / 示波器看波形）
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
 import { LOAD_STEPS } from './psu.js';
 import { TIME_DIVS, VOLT_DIVS } from './waveform.js';
 import { clearXyPersist } from './scopeDisplay.js';
+import type { BoardPart, CapModel } from './boardParts.js';
 
 /** 產生器方波 2 Hz → 1 kΩ → 100 µF：CH1 看輸入方波、CH2 看電容慢慢充電 / 放電（τ = RC ≈ 0.1 s） */
 export function loadRcDemo() {
@@ -168,4 +169,63 @@ export function loadNightLightDemo() {
   ]);
   useBoard.setState({ tool: 'select', selectedId: 'nl-ldr', dmm: 't:1:21:1', dmmBlack: 'b:1:1:31' });
   benchOff();
+}
+
+/**
+ * NE555 無穩態接法（IC 放在第 21–24 列，第 1 腳在 e 欄）：
+ *   第 1 腳 GND、第 8 腳 VCC、第 4 腳 RESET 接 VCC、第 5 腳 CTRL 接 0.01 µF 到地
+ *   VCC → R1 → 第 7 腳 DIS → R2 → 第 6 腳 THR（= 第 2 腳 TRIG）→ C → 地
+ *   f ≈ 1.44 / ((R1 + 2·R2)·C)；第 3 腳 OUT → 470 Ω → LED → 地
+ */
+function ne555Astable(tag: string, r1: number, r2: number, cap: CapModel): BoardPart[] {
+  return [
+    { id: `${tag}-u1`, kind: 'ne555', pins: ['t:1:20:4', 't:1:21:4', 't:1:22:4', 't:1:23:4', 't:1:23:5', 't:1:22:5', 't:1:21:5', 't:1:20:5'], gen: 0 },
+    { id: `${tag}-wg`, kind: 'wire', pins: ['t:1:20:0', 'b:1:1:20'], color: '#1b1d20', gen: 0 },
+    { id: `${tag}-wv`, kind: 'wire', pins: ['t:1:20:9', 'b:1:0:21'], color: '#d42a2a', gen: 0 },
+    { id: `${tag}-wr`, kind: 'wire', pins: ['t:1:23:3', 'b:1:0:24'], color: '#d42a2a', gen: 0 },
+    { id: `${tag}-r1`, kind: 'resistor', pins: ['b:1:0:25', 't:1:21:7'], value: r1, gen: 0 },
+    { id: `${tag}-r2`, kind: 'resistor', pins: ['t:1:21:8', 't:1:22:8'], value: r2, gen: 0 },
+    { id: `${tag}-wt`, kind: 'wire', pins: ['t:1:21:2', 't:1:22:9'], color: '#2a6fd4', gen: 0 },
+    { id: `${tag}-c1`, kind: 'cap', pins: ['t:1:22:7', 'b:1:1:27'], capModel: cap, gen: 0 },
+    { id: `${tag}-c2`, kind: 'cap', pins: ['t:1:23:7', 'b:1:1:28'], capModel: '103', gen: 0 },
+    { id: `${tag}-ro`, kind: 'resistor', pins: ['t:1:22:1', 't:1:30:1'], value: 470, gen: 0 },
+    { id: `${tag}-led`, kind: 'led', pins: ['t:1:30:3', 't:1:33:3'], ledColor: 'red', gen: 0 },
+    { id: `${tag}-wl`, kind: 'wire', pins: ['t:1:33:0', 'b:1:1:31'], color: '#1b1d20', gen: 0 },
+  ];
+}
+
+/**
+ * CH224K（PD 65 W 充電器協商 9 V）供電的 NE555 LED 閃爍燈：R1 1 kΩ、R2 10 kΩ、C 47 µF → 約 1.5 Hz，LED 真的一閃一閃
+ *   CH224K 的 PG 接綠色 LED（經 2.2 kΩ 到 VOUT）：協商成功時 PG 拉低 → 綠燈亮
+ */
+export function loadNe555BlinkDemo() {
+  useBoard.getState().loadParts([
+    { id: 'pd-m1', kind: 'ch224', pins: ['t:1:3:2', 't:1:4:2', 't:1:5:2'], pdVolt: 9, charger: 'pd65', plugged: true, gen: 0 },
+    { id: 'pd-wv', kind: 'wire', pins: ['t:1:3:0', 'b:1:0:3'], color: '#d42a2a', gen: 0 },
+    { id: 'pd-wg', kind: 'wire', pins: ['t:1:4:0', 'b:1:1:4'], color: '#1b1d20', gen: 0 },
+    { id: 'pd-rpg', kind: 'resistor', pins: ['b:1:0:9', 't:1:8:0'], value: 2200, gen: 0 },
+    { id: 'pd-led', kind: 'led', pins: ['t:1:8:4', 't:1:5:4'], ledColor: 'green', gen: 0 },
+    ...ne555Astable('nb', 1000, 10e3, '47u25'),
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'nb-u1', dmm: 't:1:22:0', dmmBlack: 'b:1:1:32' });
+  benchOff();
+}
+
+/** 電源供應器 5 V 的 NE555：R1 1 kΩ、R2 10 kΩ、C 0.1 µF → 約 690 Hz；CH1 看 OUT（方波）、CH2 看電容（在 1/3 與 2/3 VCC 之間充放電） */
+export function loadNe555ScopeDemo() {
+  useBoard.getState().loadParts([
+    { id: 'ns-w1', kind: 'wire', pins: ['p:Va', 'b:1:0:0'], color: '#d42a2a', gen: 0 },
+    { id: 'ns-w2', kind: 'wire', pins: ['p:GND', 'b:1:1:1'], color: '#1b1d20', gen: 0 },
+    ...ne555Astable('ns', 1000, 10e3, '104'),
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'ns-u1', dmm: null, dmmBlack: 'p:GND' });
+  const b = useBoard.getState();
+  b.setLead('ch1', ['t:1:22:0', 'b:1:1:36']);
+  b.setLead('ch2', ['t:1:22:6', 'b:1:1:40']);
+  (['fg', 'sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
+  const psu = usePsuLab.getState();
+  psu.setPsu({ vSet: 5, iSet: 0.2, power: true, output: true });
+  psu.setLoadIdx(LOAD_STEPS.length - 1);
+  useWaveLab.getState().setGen({ output: false });
+  useWaveLab.getState().setScope({ timeDivIdx: TIME_DIVS.indexOf(5e-4), voltDivIdx: VOLT_DIVS.indexOf(2), position: -2, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(1), ch2Position: -3, trigSource: 'CH1', trigLevel: 2, coupling: 'DC', running: true, xy: false });
 }

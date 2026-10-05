@@ -7,7 +7,7 @@ import { waveMean } from './waveform.js';
 import { netOf, postKey, type HoleKey } from './boardModel.js';
 import { solveCircuit, type Element, type Solution } from './circuit.js';
 import {
-  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, xfmrParams, ctxParams, MAINS_VRMS, MAINS_F, ldrOhm, BATT_MODELS, type BoardPart,
+  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, xfmrParams, ctxParams, MAINS_VRMS, MAINS_F, ldrOhm, BATT_MODELS, isCeramic, type BoardPart,
 } from './boardParts.js';
 import type { PsuReading, PsuSettings } from './psu.js';
 import { useDev, type Issue } from './devboards/devStore.js';
@@ -16,6 +16,9 @@ import { DEV_KINDS, type DevKind } from './devboards/boardDefs.js';
 import { useChips, type ChipRt } from './chips/chipStore.js';
 import { chipElements } from './chips/chipCircuit.js';
 import { useDm, dmSpec, type MeterSpec } from './dmStore.js';
+import { ne555Static, ne555Dynamic, ne555Q, averageSolution, NE, NE555_VMAX } from './ne555.js';
+import { ch224Elements } from './ch224.js';
+import { ne555Sim } from './scopeLink.js';
 
 export interface Bench {
   sol: Solution;
@@ -126,6 +129,8 @@ export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[
   }
   els.push(...devElements(dev, merged.net, GND));
   els.push(...chipElements(parts, chips, net));
+  // NE555（動態部分依正反器狀態；直流解預設 Q = 1）、CH224K PD 誘騙模組
+  els.push(...ne555Static(parts, net), ...ne555Dynamic(parts, net, (id) => ne555Q.get(id) ?? true), ...ch224Elements(parts, net));
   if (fg) {
     els.push({ kind: 'src', id: 'fg', p: net(fg.p), n: net(fg.n), v: fg.v, r: FG_ROUT });
   }
@@ -163,7 +168,8 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
   const overVoltage = parts
     .filter((p) => !p.burnt && (
       (p.kind === 'ldo' && (sol.el[p.id]?.vin ?? 0) > LDO_VIN_MAX)
-      || (p.kind === 'cap' && capDamaged(p, sol.el[p.id]?.v ?? 0))))
+      || (p.kind === 'cap' && capDamaged(p, sol.el[p.id]?.v ?? 0))
+      || (p.kind === 'ne555' && Math.abs((sol.nodeV[net(p.pins[NE.VCC])] ?? 0) - (sol.nodeV[net(p.pins[NE.GND])] ?? 0)) > NE555_VMAX + 2)))
     .map((p) => p.id);
   return {
     sol,
@@ -181,7 +187,10 @@ export function computeBench(psu: PsuSettings, loadR: number, parts: BoardPart[]
 }
 
 /** 電解電容：超過額定電壓、或反接超過 1 V 就損壞（真實電容會鼓起、漏液） */
-export const capDamaged = (p: BoardPart, v: number) => v > CAP_MODELS[p.capModel ?? '100u50'].v || v < -CAP_REVERSE_MAX;
+export const capDamaged = (p: BoardPart, v: number) => {
+  const m = p.capModel ?? '100u50';
+  return isCeramic(m) ? Math.abs(v) > CAP_MODELS[m].v : v > CAP_MODELS[m].v || v < -CAP_REVERSE_MAX; // 陶瓷電容沒有極性
+};
 
 /** 三用電表讀值 = 紅棒電壓 − 黑棒電壓；任一支探棒沒插、或插的點沒有接到電路就回傳 null */
 export function meterV(b: Bench, red: HoleKey | null, black: HoleKey | null): number | null {
@@ -197,7 +206,44 @@ export function fgDc(): FgSource | null {
   return { p: lead[0], n: lead[1], v: waveMean(useWaveLab.getState().gen) };
 }
 
+/**
+ * 目前的電路解。電路裡有會自己振盪的 NE555 時，直流解不夠用（電容一直在充放電）：
+ *   振盪慢（週期 ≥ 1/12 s）→ 依現在時間取週期中那一刻的解（LED 真的會一閃一閃、電表跟著跳）
+ *   振盪快 → 一個週期的平均（跟人眼的視覺暫留一樣，LED 看起來是穩定的亮度）
+ *   沒振盪 → 模擬到最後的穩定狀態
+ */
 export function getBench(): Bench {
+  const dc = getDcBench();
+  if (!useBoard.getState().parts.some((p) => p.kind === 'ne555' && !p.burnt)) return dc;
+  const sim = ne555Sim();
+  if (!sim) return dc;
+  let sol: Solution, tag: unknown;
+  if (sim.per && sim.per.period >= 1 / 12) {
+    const t = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    const M = sim.per.sols.length;
+    tag = Math.floor((((t / sim.per.period) % 1) + 1) % 1 * M) % M;
+    sol = sim.per.sols[tag as number];
+  } else if (sim.per) {
+    tag = 'avg';
+    sol = live?.dc === dc && live.tag === 'avg' ? live.bench.sol : averageSolution(sim.per.sols);
+  } else {
+    tag = 'final';
+    sol = sim.final;
+  }
+  if (live && live.dc === dc && live.tag === tag && live.sim === sim) return live.bench;
+  const r = sol.el.psu;
+  const bench: Bench = {
+    ...dc, sol,
+    psu: r ? { v: r.v, i: r.i, p: r.p, mode: r.mode === 'CC' ? 'CC' : r.mode === 'CV' ? 'CV' : 'OFF' } : dc.psu,
+    holeV: (k) => { const n = dc.netOfHole(k); return n in sol.nodeV ? sol.nodeV[n] : null; },
+  };
+  live = { dc, tag, sim, bench };
+  return bench;
+}
+let live: { dc: Bench; tag: unknown; sim: unknown; bench: Bench } | null = null;
+
+/** 直流解（不含 555 的即時狀態）：給掃描 / 暫態模擬當快取 key */
+export function getDcBench(): Bench {
   const ps = usePsuLab.getState();
   const wl = useWaveLab.getState();
   const bs = useBoard.getState();

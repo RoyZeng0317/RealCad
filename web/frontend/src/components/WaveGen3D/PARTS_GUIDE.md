@@ -50,6 +50,8 @@ export const CAP_MODELS = {
 - 電晶體腳位跟 2N3904 相反（C、B、E）的型號 → `BJT_MODELS` 那一行加 `pinout: 'CBE' as const`（例如 BC547），放置與 3D 印字會自動照著排
 - 光敏電阻加一顆 → `LDR_MODELS` 加一行（`r10` = 10 lux 時阻值、`gamma` = 斜率、`dark` = 全黑阻值）
 - 電池加一種 → `BATT_MODELS` 加一行（`v` 電壓、`r` 內阻、`size` 寬 / 高 / 長 mm）
+- 電容加一種 → `CAP_MODELS` 加一行；陶瓷電容加 `ceramic: true`（沒有極性、3D 畫成扁圓片）
+- CH224K 加一種充電器 → `ch224.ts` 的 `CHARGERS` 加一行（`pdo` = 每一檔電壓的最大電流）
 
 ---
 

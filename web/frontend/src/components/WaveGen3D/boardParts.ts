@@ -3,14 +3,16 @@
 // 變壓器（小型信號 / 隔離變壓器，4 腳跨在中間溝槽兩側：左排一次側、右排二次側）
 // 中心抽頭電源變壓器 6 V / 12 V / 24 V（一次側插市電 110 V，二次側 3 條線：兩端 + 中間 COM）
 // 光敏電阻 LDR（GL55xx，照度越亮阻值越小）、電池（9 V / AA / 2×AA / CR2032 / 18650）
+// NE555 計時 IC（DIP-8，ne555.ts）、CH224K USB PD 誘騙模組（ch224.ts）
 import type { HoleKey } from './boardModel.js';
+import type { PdVolt, ChargerId } from './ch224.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt' | 'ne555' | 'ch224';
 
 export interface BoardPart {
   id: string;
   kind: PartKind;
-  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]、中心抽頭變壓器 [A 端, COM, B 端]、光敏電阻 [a, b]、電池 [+, −]
+  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]、中心抽頭變壓器 [A 端, COM, B 端]、光敏電阻 [a, b]、電池 [+, −]、NE555 [第 1 ~ 8 腳]、CH224K 模組 [VOUT, GND, PG]
   value?: number; // 電阻 Ω；可變電阻總阻值 Ω；電感 H
   pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
   capModel?: CapModel;
@@ -21,6 +23,9 @@ export interface BoardPart {
   ldrModel?: LdrModel;
   lux?: number; // 光敏電阻受光照度（lux）
   battModel?: BattModel;
+  pdVolt?: PdVolt; // CH224K：要求的電壓
+  charger?: ChargerId; // CH224K：USB-C 接的充電器
+  tripped?: boolean; // CH224K：充電器過流保護跳脫（拔掉 USB-C 線重插才恢復）
   rot?: number; // 電晶體本體朝向：0~3，每格 90°（預設 1）
   model?: DiodeModel;
   ledColor?: LedColor;
@@ -96,7 +101,11 @@ export const POT_END_R = 0.5; // 轉到底時滑動端與端腳之間仍有的�
 export const CAP_MODELS = {
   '100u50': { c: 100e-6, v: 50, name: '100 µF / 50 V', d: 8, h: 11.5, color: '#1d3f8a' },
   '47u25': { c: 47e-6, v: 25, name: '47 µF / 25 V', d: 6.3, h: 11, color: '#121418' },
+  // 陶瓷電容（沒有極性，3D 畫成扁圓片）：103 = 10 nF、104 = 100 nF（NE555 計時 / CTRL 腳去耦常用）
+  '104': { c: 100e-9, v: 50, name: '104 陶瓷 0.1 µF', d: 5, h: 5, color: '#d8a23a', ceramic: true },
+  '103': { c: 10e-9, v: 50, name: '103 陶瓷 0.01 µF', d: 4, h: 4, color: '#3a7ad8', ceramic: true },
 } as const;
+export const isCeramic = (m: CapModel) => 'ceramic' in CAP_MODELS[m];
 export type CapModel = keyof typeof CAP_MODELS;
 export const CAP_MODEL_IDS = Object.keys(CAP_MODELS) as CapModel[];
 export const CAP_REVERSE_MAX = 1; // 反接超過 1 V 就會損壞
@@ -208,6 +217,8 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   ctx: { rth: 25, tau: 20, burn: 180 }, // 電源變壓器：約 6 W 銅損以上會燒（二次側短路就會）
   ldr: { rth: 1500, tau: 3, burn: 260 }, // 光敏電阻：約 0.15 W 以上會燒
   batt: { rth: 25, tau: 15, burn: 120 }, // 電池：短路時內阻發熱，太燙會漏液 / 鼓包（當開路）
+  ne555: { rth: 110, tau: 6, burn: 200 }, // DIP-8：OUT 長時間推大電流會過熱（約 1.6 W 以上）
+  ch224: { rth: 1, tau: 1, burn: Infinity }, // 模組本身不發熱；過流由充電器保護
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -220,13 +231,15 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'atmega') return 'ATmega328P-PU';
   if (p.kind === 'ch340') return 'CH340G USB 轉序列';
   if (p.kind === 'pot') return `可變電阻 ${fmtOhm(p.value!)}`;
-  if (p.kind === 'cap') return `電解電容 ${CAP_MODELS[p.capModel ?? '100u50'].name}`;
+  if (p.kind === 'cap') return `${isCeramic(p.capModel ?? '100u50') ? '電容' : '電解電容'} ${CAP_MODELS[p.capModel ?? '100u50'].name}`;
   if (p.kind === 'ind') return `電感 ${fmtHenry(p.value!)}`;
   if (p.kind === 'bjt') return `電晶體 ${BJT_MODELS[p.bjtModel ?? '2N3904'].name}`;
   if (p.kind === 'xfmr') return `變壓器 ${XFMR_MODELS[p.xfmrModel ?? '2:1'].name}`;
   if (p.kind === 'ctx') return `中心抽頭變壓器 ${CTX_MODELS[p.ctxModel ?? '12'].name}`;
   if (p.kind === 'ldr') return `光敏電阻 ${LDR_MODELS[p.ldrModel ?? 'GL5528'].name}`;
   if (p.kind === 'batt') return `電池 ${BATT_MODELS[p.battModel ?? '9V'].name}`;
+  if (p.kind === 'ne555') return 'NE555 計時 IC';
+  if (p.kind === 'ch224') return `CH224K PD 誘騙模組（${p.pdVolt ?? 12} V）`;
   return '杜邦線';
 }
 

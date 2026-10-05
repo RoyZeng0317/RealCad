@@ -11,6 +11,7 @@ import { useFpga, exampleConf, MAX_FILE, type FpgaConf } from '../devboards/fpga
 import { SLOW_CLOCKS } from '../devboards/fpga/fpgaBoard.js';
 import type { FpgaFile } from '../devboards/fpga/fpgaBuild.js';
 import { isValidHole } from '../boardModel.js';
+import { PD_VOLTS, CHARGER_IDS, type PdVolt } from '../ch224.js';
 import { useChips } from '../chips/chipStore.js';
 import { LOAD_STEPS } from '../psu.js';
 import { TIME_DIVS, VOLT_DIVS, type Waveform } from '../waveform.js';
@@ -60,7 +61,7 @@ const bool = (v: unknown, dflt: boolean) => (typeof v === 'boolean' ? v : dflt);
 const str = (v: unknown, max: number, dflt = '') => (typeof v === 'string' ? v.slice(0, max) : dflt);
 const oneOf = <T extends string>(v: unknown, list: readonly T[], dflt: T): T => (list.includes(v as T) ? (v as T) : dflt);
 
-const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3, atmega: 28, ch340: 16, pot: 3, cap: 2, ind: 2, bjt: 3, xfmr: 4, ctx: 3, ldr: 2, batt: 2 };
+const PIN_COUNT: Record<PartKind, number> = { resistor: 2, diode: 2, led: 2, wire: 2, ldo: 3, atmega: 28, ch340: 16, pot: 3, cap: 2, ind: 2, bjt: 3, xfmr: 4, ctx: 3, ldr: 2, batt: 2, ne555: 8, ch224: 3 };
 
 function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[] {
   if (!Array.isArray(raw)) return [];
@@ -69,7 +70,7 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
   const used = new Set<string>();
   for (const r of raw.slice(0, 2000)) {
     const o = obj(r);
-    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire', 'atmega', 'ch340', 'pot', 'cap', 'ind', 'bjt', 'xfmr', 'ctx', 'ldr', 'batt'] as const, 'wire');
+    const kind = oneOf(o.kind, ['resistor', 'diode', 'led', 'ldo', 'wire', 'atmega', 'ch340', 'pot', 'cap', 'ind', 'bjt', 'xfmr', 'ctx', 'ldr', 'batt', 'ne555', 'ch224'] as const, 'wire');
     if (o.kind !== kind) continue;
     const pins = Array.isArray(o.pins) ? o.pins.map((x) => str(x, 40)) : [];
     if (pins.length !== PIN_COUNT[kind] || !pins.every(isValidHole)) continue;
@@ -88,6 +89,11 @@ function cleanParts(raw: unknown, present: Record<DevKind, boolean>): BoardPart[
     if (kind === 'bjt') { p.bjtModel = oneOf(o.bjtModel, BJT_MODEL_IDS, '2N3904'); p.rot = int(o.rot, 0, 3, 1); }
     if (kind === 'xfmr') p.xfmrModel = oneOf(o.xfmrModel, XFMR_MODEL_IDS, '2:1');
     if (kind === 'ldr') { p.ldrModel = oneOf(o.ldrModel, LDR_MODEL_IDS, 'GL5528'); p.lux = num(o.lux, LUX_MIN, LUX_MAX, 100); }
+    if (kind === 'ch224') {
+      p.pdVolt = (PD_VOLTS as readonly number[]).includes(o.pdVolt as number) ? (o.pdVolt as PdVolt) : 12;
+      p.charger = oneOf(o.charger, CHARGER_IDS, 'pd65');
+      p.plugged = bool(o.plugged, true);
+    }
     if (kind === 'batt') p.battModel = oneOf(o.battModel, BATT_MODEL_IDS, '9V');
     if (kind === 'ctx') { p.ctxModel = oneOf(o.ctxModel, CTX_MODEL_IDS, '12'); p.plugged = bool(o.plugged, true); }
     if (kind === 'atmega') { p.code = str(o.code, 100_000, ''); p.flash = str(o.flash, 100_000, ''); }

@@ -4,7 +4,7 @@ import { useBoard } from './boardStore.js';
 import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
-  POT_VALUES, POT_RATING, CAP_MODELS, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
+  POT_VALUES, POT_RATING, CAP_MODELS, isCeramic, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
   BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, CTX_MODELS, CTX_MODEL_IDS, CTX_IRATED, MAINS_VRMS, MAINS_F, ctxParams, LDR_MODELS, LDR_MODEL_IDS, LDR_PMAX, LUX_MIN, LUX_MAX, LUX_PRESETS, ldrOhm, BATT_MODELS, BATT_MODEL_IDS, bjtPinout, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
 } from './boardParts.js';
 import { elementWave } from './scopeLink.js';
@@ -118,7 +118,8 @@ export function AnalogCard({ part }: { part: BoardPart }) {
     const v = r?.v ?? 0;
     rows = [['兩端電壓（+ 對 −）', `${v.toFixed(3)} V`, v > m.v || v < -CAP_REVERSE_MAX ? '#ff4d3a' : undefined],
       ['電容量', `${m.c * 1e6} µF`], ['耐壓', `${m.v} V`], ['儲存能量', `${(0.5 * m.c * v * v * 1000).toFixed(2)} mJ`]];
-    [status, color] = v < -0.3 ? ['反接！電解電容有極性，+ 腳要接高電位', '#ff8a1f']
+    const cer = isCeramic(part.capModel ?? '100u50');
+    [status, color] = !cer && v < -0.3 ? ['反接！電解電容有極性，+ 腳要接高電位', '#ff8a1f']
       : v > m.v * 0.8 ? ['接近耐壓上限（建議工作電壓 ≤ 耐壓的 80%）', '#ffb020']
       : ['正常（直流時電容開路，量到的是充好的電壓）', '#3cff7a'];
     extra = (
@@ -128,7 +129,9 @@ export function AnalogCard({ part }: { part: BoardPart }) {
             <button key={id} style={chip(part.capModel === id)} onClick={() => upd({ capModel: id })}>{CAP_MODELS[id].name}</button>
           ))}
         </div>
-        <div style={help}>+ 腳 {holeName(part.pins[0])}・− 腳（白色條紋）{holeName(part.pins[1])}。接上函數產生器時會做暫態模擬，示波器可以看到充放電曲線。</div>
+        <div style={help}>{isCeramic(part.capModel ?? '100u50')
+          ? <>陶瓷電容沒有極性：{holeName(part.pins[0])} ↔ {holeName(part.pins[1])}。</>
+          : <>+ 腳 {holeName(part.pins[0])}・− 腳（白色條紋）{holeName(part.pins[1])}。</>}接上函數產生器時會做暫態模擬，示波器可以看到充放電曲線。</div>
       </>
     );
   } else if (part.kind === 'ind') {

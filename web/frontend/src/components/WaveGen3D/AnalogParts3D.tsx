@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { holePos } from './boardModel.js';
-import { CAP_MODELS, XFMR_MODELS, CTX_MODELS, CTX_IRATED, MAINS_VRMS, BATT_MODELS, LUX_MIN, LUX_MAX, bjtPinout, type BoardPart } from './boardParts.js';
+import { CAP_MODELS, isCeramic, XFMR_MODELS, CTX_MODELS, CTX_IRATED, MAINS_VRMS, BATT_MODELS, LUX_MIN, LUX_MAX, bjtPinout, type BoardPart } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { TOP_Y } from './breadboardGrid.js';
 import { Rod, Bent, LEAD, useHeatMaterial, usePartEvents, type Sel } from './BoardParts3D.js';
@@ -97,6 +97,45 @@ export function Pot3D({ part, selected }: { part: BoardPart; selected: Sel }) {
 
 // ---- 電解電容：圓柱本體、− 極那邊有白色條紋、頂部防爆紋；損壞時頂部鼓起 ----
 export function Cap3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  if (isCeramic(part.capModel ?? '100u50')) return <Ceramic3D part={part} selected={selected} />;
+  return <Electrolytic3D part={part} selected={selected} />;
+}
+
+// ---- 陶瓷電容：扁圓片立在兩隻腳上，印 103 / 104 ----
+function Ceramic3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  const id = part.capModel ?? '104';
+  const m = CAP_MODELS[id];
+  const r = (m.d / 2) * MM;
+  const g = useMemo(() => radialLeads(part, 0.02), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mat = useHeatMaterial(part, m.color, selected);
+  const tex = useMemo(() => createCanvasTexture(0.06, 0.06, (p) => {
+    p.ctx.fillStyle = m.color; p.ctx.fillRect(0, 0, p.s(0.06), p.s(0.06));
+    p.ctx.fillStyle = '#1a1a1a'; p.ctx.textAlign = 'center'; p.ctx.textBaseline = 'middle';
+    p.ctx.font = `800 ${p.s(0.024)}px ${FONT}`; p.ctx.fillText(id, p.x(0), p.y(0));
+  }, 2400), [id, m.color]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const y = 0.05 + r;
+  const yaw = Math.atan2(g.dir.x, g.dir.z) + Math.PI / 2; // 圓片平面跟兩隻腳同一個平面
+  const legs = g.leads.map((pts) => [...pts, pts[2].clone().setY(TOP_Y + y - r * 0.6)]);
+  return (
+    <group {...usePartEvents(part)}>
+      {legs.map((pts, i) => <Bent key={i} pts={pts} r={0.004} color={LEAD} />)}
+      <group position={[g.base.x, TOP_Y + y, g.base.z]} rotation={[0, yaw, 0]}>
+        <mesh rotation={[0, 0, 0]} castShadow material={mat}><cylinderGeometry args={[r, r, 0.022, 24]} /></mesh>
+        <mesh position={[0, 0, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[r, r, 0.024, 24]} />
+          <meshStandardMaterial color={m.color} roughness={0.5} />
+        </mesh>
+        <mesh position={[0, 0, 0.0125]}>
+          <planeGeometry args={[r * 1.3, r * 1.3]} />
+          <meshBasicMaterial map={part.burnt ? null : tex} toneMapped={false} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+function Electrolytic3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const m = CAP_MODELS[part.capModel ?? '100u50'];
   const r = (m.d / 2) * MM, h = m.h * MM;
   const g = useMemo(() => radialLeads(part, Math.min(r * 0.6, 0.03)), [part.pins, r]); // eslint-disable-line react-hooks/exhaustive-deps
