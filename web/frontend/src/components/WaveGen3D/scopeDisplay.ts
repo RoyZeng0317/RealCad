@@ -21,6 +21,24 @@ export interface ScopeFrame {
 }
 
 const TOP = 48, BOTTOM = 84;
+export const XY_COLOR = '#7dff7a';
+
+/** XY 殘影：之前畫過的曲線（存電壓，換 VOLTS/DIV 也能正確縮放）；清除用 clearXyPersist() */
+export const xyPersist: { curves: { x: number[]; y: number[] }[] } = { curves: [] };
+export const clearXyPersist = () => { xyPersist.curves = []; };
+const XY_MAX_CURVES = 16;
+/** 新曲線跟每一條已保留的曲線都差超過 0.25 格時才保留（轉旋鈕時得到間隔整齊的一族曲線） */
+export function rememberXy(x: number[], y: number[], vdx: number, vdy: number) {
+  const far = (c: { x: number[]; y: number[] }) => {
+    let m = 0;
+    for (let i = 0; i < x.length; i += 8) m = Math.max(m, Math.abs(c.x[i] - x[i]) / vdx, Math.abs(c.y[i] - y[i]) / vdy);
+    return m > 0.25;
+  };
+  if (xyPersist.curves.every(far)) {
+    xyPersist.curves.push({ x: [...x], y: [...y] });
+    if (xyPersist.curves.length > XY_MAX_CURVES) xyPersist.curves.shift();
+  }
+}
 export const CH1_COLOR = '#ffd21f';
 export const CH2_COLOR = '#2fd4ff';
 
@@ -96,6 +114,10 @@ export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f
     ctx.fillText(text, x + dir * 5, y + 1);
   };
 
+  if (f.scope.xy && f.ch2) {
+    drawXy(ctx, f, { gx, gy, gw, gh, dx, dy, cy });
+    return;
+  }
   if (f.ch2) trace(f.ch2, CH2_COLOR);
   trace(f.ch1, CH1_COLOR);
   marker(gx, clampY(vToY(f.ch1, 0)), 1, CH1_COLOR, '1');
@@ -189,4 +211,58 @@ export function drawScope(ctx: CanvasRenderingContext2D, W: number, H: number, f
       ['Vmin', formatSI(m2.vmin, 'V')],
     ]);
   }
+}
+
+/** XY 模式：水平 = CH1（0 V 在左緣，再加 CH1 位置）、垂直 = CH2（跟一般模式一樣）；殘影曲線用暗色 */
+function drawXy(ctx: CanvasRenderingContext2D, f: ScopeFrame, g: { gx: number; gy: number; gw: number; gh: number; dx: number; dy: number; cy: number }) {
+  const ch1 = f.ch1, ch2 = f.ch2!;
+  const X = (v: number) => g.gx + (v / ch1.voltDiv + ch1.position) * g.dx;
+  const Y = (v: number) => g.cy - (v / ch2.voltDiv + ch2.position) * g.dy;
+  const curve = (xs: number[], ys: number[], color: string, width: number, blur: number) => {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(g.gx, g.gy, g.gw, g.gh);
+    ctx.clip();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = blur;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    xs.forEach((v, i) => { if (i === 0) ctx.moveTo(X(v), Y(ys[i])); else ctx.lineTo(X(v), Y(ys[i])); });
+    ctx.stroke();
+    ctx.restore();
+  };
+  if (f.scope.persist) for (const c of xyPersist.curves) curve(c.x, c.y, 'rgba(125,255,122,0.45)', 1.8, 0);
+  curve(ch1.samples, ch2.samples, XY_COLOR, 2.8, 10);
+  // 兩軸的 0 V 標記
+  ctx.fillStyle = CH1_COLOR;
+  const x0 = Math.max(g.gx, Math.min(g.gx + g.gw, X(0)));
+  ctx.beginPath(); ctx.moveTo(x0 - 8, g.gy + g.gh); ctx.lineTo(x0 + 8, g.gy + g.gh); ctx.lineTo(x0, g.gy + g.gh - 12); ctx.fill();
+  ctx.fillStyle = CH2_COLOR;
+  const y0 = Math.max(g.gy + 9, Math.min(g.gy + g.gh - 9, Y(0)));
+  ctx.beginPath(); ctx.moveTo(g.gx, y0 - 8); ctx.lineTo(g.gx + 12, y0); ctx.lineTo(g.gx, y0 + 8); ctx.fill();
+
+  const H = ctx.canvas.height, W = ctx.canvas.width;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.font = `800 22px ${FONT}`;
+  ctx.fillStyle = XY_COLOR;
+  ctx.fillText('XY', 12, TOP / 2);
+  ctx.font = `800 19px ${MONO}`;
+  ctx.fillStyle = CH1_COLOR;
+  ctx.fillText(`X=CH1 ${formatSI(ch1.voltDiv, 'V')}/div`, 64, TOP / 2);
+  ctx.fillStyle = CH2_COLOR;
+  ctx.fillText(`Y=CH2 ${formatSI(ch2.voltDiv, 'V')}/div`, 330, TOP / 2);
+  if (f.scope.persist) {
+    ctx.fillStyle = '#9fb3c8';
+    ctx.textAlign = 'right';
+    ctx.fillText(`殘影 ${xyPersist.curves.length}`, W - 10, TOP / 2);
+  }
+  ctx.textAlign = 'left';
+  ctx.font = `700 17px ${MONO}`;
+  ctx.fillStyle = CH1_COLOR;
+  ctx.fillText(`CH1 ${formatSI(ch1.meas.vmin, 'V')} ~ ${formatSI(ch1.meas.vmax, 'V')}`, 14, H - BOTTOM + 24);
+  ctx.fillStyle = CH2_COLOR;
+  ctx.fillText(`CH2 ${formatSI(ch2.meas.vmin, 'V')} ~ ${formatSI(ch2.meas.vmax, 'V')}`, 14, H - BOTTOM + 60);
 }
