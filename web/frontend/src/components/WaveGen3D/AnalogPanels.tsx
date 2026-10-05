@@ -5,7 +5,7 @@ import { useBench } from './bench.js';
 import { holeName } from './boardModel.js';
 import {
   POT_VALUES, POT_RATING, CAP_MODELS, CAP_MODEL_IDS, CAP_REVERSE_MAX, IND_VALUES, IND_IMAX, indDcr,
-  BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, CTX_MODELS, CTX_MODEL_IDS, CTX_IRATED, MAINS_VRMS, MAINS_F, ctxParams, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
+  BJT_MODELS, BJT_MODEL_IDS, XFMR_MODELS, XFMR_MODEL_IDS, XFMR_IMAX, xfmrParams, CTX_MODELS, CTX_MODEL_IDS, CTX_IRATED, MAINS_VRMS, MAINS_F, ctxParams, LDR_MODELS, LDR_MODEL_IDS, LDR_PMAX, LUX_MIN, LUX_MAX, LUX_PRESETS, ldrOhm, BATT_MODELS, BATT_MODEL_IDS, bjtPinout, THERMAL, fmtOhm, fmtHenry, partLabel, type BoardPart,
 } from './boardParts.js';
 import { elementWave } from './scopeLink.js';
 import { Section, Slider, Stat, chip, row, help, selectStyle, T } from './panelUi.js';
@@ -58,6 +58,16 @@ export function AnalogParams() {
       {XFMR_MODEL_IDS.map((m) => <button key={m} style={chip(s.xfmrModel === m)} onClick={() => s.setParam({ xfmrModel: m })}>{XFMR_MODELS[m].name}</button>)}
     </div>
   );
+  if (s.tool === 'ldr') return (
+    <div style={row}>
+      {LDR_MODEL_IDS.map((m) => <button key={m} style={chip(s.ldrModel === m)} onClick={() => s.setParam({ ldrModel: m })}>{LDR_MODELS[m].name}</button>)}
+    </div>
+  );
+  if (s.tool === 'batt') return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+      {BATT_MODEL_IDS.map((m) => <button key={m} style={chip(s.battModel === m)} onClick={() => s.setParam({ battModel: m })}>{BATT_MODELS[m].name}</button>)}
+    </div>
+  );
   if (s.tool === 'ctx') return (
     <>
       <div style={row}>
@@ -69,7 +79,7 @@ export function AnalogParams() {
   return null;
 }
 
-export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt' || p.kind === 'xfmr' || p.kind === 'ctx';
+export const isAnalog = (p: BoardPart) => p.kind === 'pot' || p.kind === 'cap' || p.kind === 'ind' || p.kind === 'bjt' || p.kind === 'xfmr' || p.kind === 'ctx' || p.kind === 'ldr' || p.kind === 'batt';
 
 /** 一個週期的 RMS（暫態模擬的每個相位等時間間隔） */
 const rmsOf = (xs: number[]) => Math.sqrt(xs.reduce((a, x) => a + x * x, 0) / Math.max(1, xs.length));
@@ -154,7 +164,12 @@ export function AnalogCard({ part }: { part: BoardPart }) {
           {BJT_MODEL_IDS.map((id) => <option key={id} value={id}>{BJT_MODELS[id].name}</option>)}
         </select>
         <button style={chip(false)} onClick={() => upd({ rot: (((part.rot ?? 1) + 1) % 4) })}>↻ 本體旋轉 90°（只改外觀，接腳不變）</button>
-        <div style={help}>腳位（平面朝自己由左到右）：E {holeName(part.pins[0])}・B {holeName(part.pins[1])}・C {holeName(part.pins[2])}</div>
+        <div style={help}>
+          腳位（平面朝自己由左到右）：{bjtPinout(part.bjtModel ?? '2N3904') === 'CBE'
+            ? <>C {holeName(part.pins[2])}・B {holeName(part.pins[1])}・E {holeName(part.pins[0])}</>
+            : <>E {holeName(part.pins[0])}・B {holeName(part.pins[1])}・C {holeName(part.pins[2])}</>}。
+          BC547 的腳位是 C、B、E，跟 2N3904 / S9013 的 E、B、C 相反：在同樣的孔換型號，E、C 會對調（跟實際換零件一樣），電路可能要跟著改。
+        </div>
       </>
     );
   } else if (part.kind === 'xfmr') {
@@ -220,8 +235,45 @@ export function AnalogCard({ part }: { part: BoardPart }) {
       </>
     );
   }
+  else if (part.kind === 'ldr') {
+    const model = part.ldrModel ?? 'GL5528', lux = part.lux ?? 100;
+    const R = ldrOhm(model, lux), p = r?.p ?? 0;
+    rows = [['照度', `${lux >= 10 ? Math.round(lux) : lux.toFixed(1)} lux`], ['目前阻值', fmtOhm(R)],
+      ['兩端電壓', `${(r?.v ?? 0).toFixed(3)} V`], ['電流', mA(r?.i ?? 0)], ['功率', mW(p), p > LDR_PMAX ? '#ff4d3a' : undefined]];
+    if (p > LDR_PMAX) { status = `超過額定 ${LDR_PMAX * 1000} mW，發熱中`; color = '#ff8a1f'; }
+    else status = lux < 5 ? '暗：阻值很大（接近開路）' : lux > 1000 ? '很亮：阻值很小' : '正常';
+    const setLux = (x: number) => upd({ lux: Number(Math.max(LUX_MIN, Math.min(LUX_MAX, x)).toPrecision(3)) });
+    extra = (
+      <>
+        <Slider label="照度（對數刻度）" value={`${lux >= 10 ? Math.round(lux) : lux.toFixed(1)} lux`} min={Math.log10(LUX_MIN)} max={Math.log10(LUX_MAX)} step={0.01}
+          v={Math.log10(lux)} onChange={(x) => setLux(10 ** x)} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+          {LUX_PRESETS.map(([v, name]) => <button key={v} style={chip(Math.abs(lux - v) < v * 0.01)} onClick={() => setLux(v)}>{name}</button>)}
+        </div>
+        <div style={row}>
+          {LDR_MODEL_IDS.map((m) => <button key={m} style={chip(model === m)} onClick={() => upd({ ldrModel: m })}>{LDR_MODELS[m].name}</button>)}
+        </div>
+        <div style={help}>{holeName(part.pins[0])} ↔ {holeName(part.pins[1])}（沒有極性）。CdS 光敏電阻：10 lux 時約 {fmtOhm(LDR_MODELS[model].r10)}、全黑約 {fmtOhm(LDR_MODELS[model].dark)}。3D 畫面上對著它滾滾輪也能調亮暗。</div>
+      </>
+    );
+  } else if (part.kind === 'batt') {
+    const m = BATT_MODELS[part.battModel ?? '9V'];
+    const i = r?.i ?? 0, v = r?.v ?? m.v;
+    rows = [['端電壓', `${v.toFixed(3)} V`], ['電動勢（空載）', `${m.v} V`], ['輸出電流', mA(i)], ['內阻', fmtOhm(m.r)], ['內阻發熱', mW(r?.p ?? 0)]];
+    [status, color] = Math.abs(i) > m.v / m.r * 0.5 ? ['短路！電流很大、電池發燙中', '#ff4d3a']
+      : i < -1e-4 ? ['被反向充電（外部電壓比電池高）', '#ffb020']
+      : Math.abs(i) < 1e-6 ? ['沒有負載（開路）', '#8fb4d0'] : ['供電中', '#3cff7a'];
+    extra = (
+      <>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+          {BATT_MODEL_IDS.map((id) => <button key={id} style={chip(part.battModel === id)} onClick={() => upd({ battModel: id })}>{BATT_MODELS[id].name}</button>)}
+        </div>
+        <div style={help}>+ 極（紅線）{holeName(part.pins[0])}・− 極（黑線）{holeName(part.pins[1])}。電池跟電源供應器是分開的，電池的 − 極才是這組電路的地（要跟電源供應器共地時用杜邦線接到 GND）。</div>
+      </>
+    );
+  }
   if (part.burnt) {
-    [status, color] = [part.kind === 'cap' ? '損壞（過壓或反接，電容鼓起）—當開路' : '燒毀（開路）', '#ff4d3a'];
+    [status, color] = [part.kind === 'cap' ? '損壞（過壓或反接，電容鼓起）—當開路' : part.kind === 'batt' ? '過熱漏液、鼓包（當開路）' : '燒毀（開路）', '#ff4d3a'];
   }
 
   return (

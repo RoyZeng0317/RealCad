@@ -1,4 +1,4 @@
-// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體、EI 鐵芯變壓器、中心抽頭電源變壓器
+// 類比零件的 3D 模型：可變電阻（旋鈕可以用滑鼠轉）、電解電容、電感、TO-92 電晶體、EI 鐵芯變壓器、中心抽頭電源變壓器、光敏電阻、電池
 // 座標都是麵包板本地座標（跟 BoardParts3D 一樣放在 LabBreadboard 的 group 裡）
 import { useEffect, useMemo, useState } from 'react';
 import type { ThreeEvent } from '@react-three/fiber';
@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { holePos } from './boardModel.js';
-import { CAP_MODELS, XFMR_MODELS, CTX_MODELS, CTX_IRATED, MAINS_VRMS, type BoardPart } from './boardParts.js';
+import { CAP_MODELS, XFMR_MODELS, CTX_MODELS, CTX_IRATED, MAINS_VRMS, BATT_MODELS, LUX_MIN, LUX_MAX, bjtPinout, type BoardPart } from './boardParts.js';
 import { createCanvasTexture, FONT } from './panelTexture.js';
 import { TOP_Y } from './breadboardGrid.js';
 import { Rod, Bent, LEAD, useHeatMaterial, usePartEvents, type Sel } from './BoardParts3D.js';
@@ -184,10 +184,10 @@ export function Bjt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   // 平面朝前 / 後時孔在 r 方向上重疊，就照 E、B、C 由左到右；印字也照實際腳的順序印
   const order = useMemo(() => {
     const s = pins.map((p) => (p.x - c.x) * r.x + (p.z - c.z) * r.z);
-    if (Math.max(...s) - Math.min(...s) < 1e-6) return [0, 1, 2];
+    if (Math.max(...s) - Math.min(...s) < 1e-6) return bjtPinout(model) === 'CBE' ? [2, 1, 0] : [0, 1, 2]; // BC547：由左到右 C、B、E
     const sorted = [0, 1, 2].sort((a, b) => s[a] - s[b]);
     return [0, 1, 2].map((i) => sorted.indexOf(i)); // 第 i 隻腳在左→右的第幾個位置
-  }, [pins, c, part.rot]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pins, c, part.rot, model]); // eslint-disable-line react-hooks/exhaustive-deps
   const legs = useMemo(() => pins.map((p, i) => {
     const foot = c.clone().setY(bodyY).addScaledVector(r, (order[i] - 1) * 0.032).addScaledVector(n, -0.015);
     return [
@@ -360,6 +360,143 @@ export function Ctx3D({ part, selected }: { part: BoardPart; selected: Sel }) {
         <mesh position={[0, 0.012 + H + 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[W * 0.9, D * 0.6]} />
           <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#2a2420' : '#ffffff'} toneMapped={false} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ---- 光敏電阻：白色陶瓷圓片 + 橘色鋸齒 CdS 感光層，正面朝上；照度越高上方光暈越亮 ----
+//   在光敏電阻上滾滾輪：調整照度（每格 ×1.26，Shift 微調）
+function ldrFace() {
+  return createCanvasTexture(0.1, 0.1, (p) => {
+    const c = p.ctx, s = p.s(0.1);
+    c.fillStyle = '#f2ece0';
+    c.beginPath(); c.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#c4561c';
+    c.lineWidth = s * 0.06;
+    c.beginPath();
+    for (let k = 0; k <= 6; k++) {
+      const y = s * (0.2 + k * 0.1);
+      c.moveTo(s * 0.22, y); c.lineTo(s * 0.78, y);
+    }
+    c.stroke();
+    c.fillStyle = '#9aa0a8';
+    c.fillRect(s * 0.12, s * 0.15, s * 0.1, s * 0.7);
+    c.fillRect(s * 0.78, s * 0.15, s * 0.1, s * 0.7);
+  }, 2400);
+}
+
+export function Ldr3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  const g = useMemo(() => radialLeads(part, 0.02), [part.pins]); // eslint-disable-line react-hooks/exhaustive-deps
+  const edge = useHeatMaterial(part, '#e8e0d0', selected);
+  const tex = useMemo(() => ldrFace(), []);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const lux = part.lux ?? 100;
+  const glow = Math.max(0, Math.min(1, (Math.log10(lux) + 1) / 5)); // 0.1 lux → 0、10000 lux → 1
+  const y = 0.09, R = 0.045;
+  const onWheel = (e: ThreeEvent<WheelEvent>) => {
+    e.stopPropagation();
+    const cur = useBoard.getState().parts.find((p) => p.id === part.id)?.lux ?? 100;
+    const k = 10 ** ((e.nativeEvent.deltaY < 0 ? 1 : -1) * (e.nativeEvent.shiftKey ? 0.02 : 0.1));
+    useBoard.getState().updatePart(part.id, { lux: Number(Math.max(LUX_MIN, Math.min(LUX_MAX, cur * k)).toPrecision(3)) });
+  };
+  // 腳往上接到圓片底部
+  const legs = g.leads.map((pts) => [...pts, pts[2].clone().setY(TOP_Y + y)]);
+  return (
+    <group {...usePartEvents(part)} onWheel={onWheel}>
+      {legs.map((pts, i) => <Bent key={i} pts={pts} r={0.004} color={LEAD} />)}
+      <group position={[g.base.x, TOP_Y + y, g.base.z]}>
+        <mesh position={[0, 0.012, 0]} castShadow material={edge}><cylinderGeometry args={[R, R, 0.024, 28]} /></mesh>
+        <mesh position={[0, 0.0245, 0]} rotation={[-Math.PI / 2, 0, Math.atan2(g.dir.x, g.dir.z)]}>
+          <circleGeometry args={[R * 0.96, 28]} />
+          <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#2a2420' : '#ffffff'} toneMapped={false} />
+        </mesh>
+        {/* 照到的光：上方淡黃色光暈 */}
+        {!part.burnt && glow > 0.05 && (
+          <mesh position={[0, 0.06, 0]}>
+            <sphereGeometry args={[R * (0.8 + glow), 20, 12]} />
+            <meshBasicMaterial color="#fff2a8" transparent opacity={0.08 + 0.3 * glow} depthWrite={false} toneMapped={false} />
+          </mesh>
+        )}
+      </group>
+    </group>
+  );
+}
+
+// ---- 電池：本體放在兩隻腳旁邊（真實尺寸），紅線接 +、黑線接 − ----
+function battLabel(name: string, v: number, color: string) {
+  return createCanvasTexture(0.3, 0.12, (p) => {
+    p.ctx.fillStyle = color;
+    p.ctx.fillRect(0, 0, p.s(0.3), p.s(0.12));
+    p.ctx.fillStyle = '#ffffff';
+    p.ctx.textAlign = 'center';
+    p.ctx.textBaseline = 'middle';
+    p.ctx.font = `800 ${p.s(0.045)}px ${FONT}`;
+    p.ctx.fillText(`${v} V`, p.x(0.06), p.y(0));
+    p.ctx.font = `700 ${p.s(0.024)}px ${FONT}`;
+    p.ctx.fillText(name.replace(/ \d.*$/, ''), p.x(-0.075), p.y(0));
+    p.ctx.font = `800 ${p.s(0.04)}px ${FONT}`;
+    p.ctx.fillText('+', p.x(0.13), p.y(0));
+    p.ctx.fillText('−', p.x(-0.13), p.y(0));
+  }, 2400);
+}
+
+export function Batt3D({ part, selected }: { part: BoardPart; selected: Sel }) {
+  const id = part.battModel ?? '9V';
+  const m = BATT_MODELS[id];
+  const [w, h, l] = m.size.map((x) => x * MM); // 寬、高、長（長邊沿 + → − 方向）
+  const shell = useHeatMaterial(part, m.color, selected);
+  const g = useMemo(() => {
+    const [A, B] = part.pins.map(holePos);
+    const mid = A.clone().add(B).multiplyScalar(0.5);
+    let dir = new THREE.Vector3(B.x - A.x, 0, B.z - A.z);
+    dir = dir.lengthSq() < 1e-9 ? new THREE.Vector3(0, 0, 1) : dir.normalize();
+    let n = new THREE.Vector3(dir.z, 0, -dir.x);
+    // 本體擺到端子排外側（往遠離中間溝槽的方向），不要壓在零件上
+    const [t, s, r] = part.pins[0].split(':');
+    if (t === 't') {
+      const cx = (holePos(`t:${s}:${r}:4`).x + holePos(`t:${s}:${r}:5`).x) / 2;
+      if (Math.sign(n.x || 1) !== Math.sign((A.x - cx) || -1)) n = n.multiplyScalar(-1);
+    }
+    const body = mid.clone().addScaledVector(n, w / 2 + 0.16).setY(TOP_Y + h / 2);
+    const plus = body.clone().addScaledVector(dir, -l / 2 - 0.004), minus = body.clone().addScaledVector(dir, l / 2 + 0.004);
+    const lead = (hole: THREE.Vector3, end: THREE.Vector3) => [hole.clone().setY(TOP_Y - 0.02), hole.clone().setY(TOP_Y + 0.03),
+      new THREE.Vector3((hole.x + end.x) / 2, TOP_Y + h + 0.04, (hole.z + end.z) / 2), end.clone().setY(TOP_Y + h * 0.6)];
+    return { body, yaw: Math.atan2(dir.x, dir.z), leads: [lead(A, plus), lead(B, minus)] };
+  }, [part.pins, w, h, l]); // eslint-disable-line react-hooks/exhaustive-deps
+  const tex = useMemo(() => battLabel(m.name, m.v, m.color), [m.name, m.v, m.color]);
+  useEffect(() => () => tex.dispose(), [tex]);
+  const round = id === 'AA' || id === '18650';
+  const coin = id === 'CR2032';
+  return (
+    <group {...usePartEvents(part)}>
+      <Bent pts={g.leads[0]} r={0.008} color="#d42a2a" />
+      <Bent pts={g.leads[1]} r={0.008} color="#1b1d20" />
+      <group position={g.body} rotation={[0, g.yaw, 0]}>
+        {round ? (
+          <>
+            <mesh rotation={[Math.PI / 2, 0, 0]} castShadow material={shell}><cylinderGeometry args={[w / 2, w / 2, l, 24]} /></mesh>
+            {/* + 極凸點（在 −z 那端，對應 + 腳） */}
+            <mesh position={[0, 0, -l / 2 - 0.006]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[w / 6, w / 6, 0.012, 16]} /><meshStandardMaterial color="#c9ced4" metalness={0.8} roughness={0.3} /></mesh>
+          </>
+        ) : coin ? (
+          <>
+            {/* 鈕扣電池座（黑色）+ 銀色電池 */}
+            <mesh position={[0, -h / 2 + 0.01, 0]} castShadow><boxGeometry args={[w + 0.06, 0.02, l + 0.06]} /><meshStandardMaterial color="#1b1d20" /></mesh>
+            <mesh position={[0, 0.01, 0]} castShadow material={shell}><cylinderGeometry args={[w / 2, w / 2, h, 32]} /></mesh>
+          </>
+        ) : (
+          <>
+            <mesh castShadow material={shell}><boxGeometry args={[w, h, l]} /></mesh>
+            {id === '9V' && [-1, 1].map((k) => (
+              <mesh key={k} position={[k * w * 0.22, h / 2 + 0.012, -l / 2 + 0.05]}><cylinderGeometry args={[0.022, 0.022, 0.024, k > 0 ? 6 : 16]} /><meshStandardMaterial color="#c9ced4" metalness={0.8} roughness={0.3} /></mesh>
+            ))}
+          </>
+        )}
+        <mesh position={[0, (round ? w / 2 : coin ? h / 2 + 0.01 : h / 2) + 0.002, 0]} rotation={[-Math.PI / 2, 0, Math.PI / 2]}>
+          <planeGeometry args={[l * 0.85, Math.min(w * 0.85, l * 0.4)]} />
+          <meshBasicMaterial map={part.burnt ? null : tex} color={part.burnt ? '#3a2a1a' : '#ffffff'} toneMapped={false} />
         </mesh>
       </group>
     </group>

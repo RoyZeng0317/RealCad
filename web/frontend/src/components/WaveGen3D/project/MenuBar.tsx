@@ -6,7 +6,7 @@ import { useBoard } from '../boardStore.js';
 import { useWaveLab, type ViewPreset } from '../waveStore.js';
 import { useLabUi, type DockTab } from '../labUi.js';
 import { loadDemoCircuit, loadUnoBlink, loadEsp32Mistake, loadPi5Blink, loadFpgaCounter, loadRectifierDemo } from '../boardDemo.js';
-import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo, loadCurveDemo } from '../analogDemo.js';
+import { loadRcDemo, loadBjtDemo, loadXfmrDemo, loadCtxDemo, loadCurveDemo, loadBattLedDemo, loadNightLightDemo } from '../analogDemo.js';
 import { loadAtmegaDemo } from '../chips/chipDemo.js';
 import { T } from '../panelUi.js';
 
@@ -69,6 +69,8 @@ export function MenuBar() {
       { label: 'RC 充放電：1 kΩ + 100 µF（示波器看電容電壓）', onClick: () => { loadRcDemo(); ui.focus('scope'); } },
       { label: '可變電阻 + 2N3904 電晶體開關 LED', onClick: () => { loadBjtDemo(); ui.focus('breadboard'); } },
       { label: '2N3904 特性曲線（示波器 XY，轉旋鈕畫 IB 曲線族）', onClick: () => { loadCurveDemo(); ui.focus('scope'); } },
+      { label: '電池 LED 燈（9 V + 470 Ω + LED）', onClick: () => { loadBattLedDemo(); ui.focus('breadboard'); } },
+      { label: 'LDR 小夜燈：天黑自動亮（BC547 + 光敏電阻 + 9 V 電池）', onClick: () => { loadNightLightDemo(); ui.focus('breadboard'); } },
       { label: '2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）', onClick: () => { loadXfmrDemo(); ui.focus('scope'); } },
       { label: '12 V 中心抽頭變壓器全波整流（6-0-6 V）', onClick: () => { loadCtxDemo(); ui.focus('scope'); } },
       { label: 'Arduino Uno：LED 閃爍', onClick: () => { loadUnoBlink(); ui.focus('devboards'); } },

@@ -2,14 +2,15 @@
 // 類比零件：可變電阻（1k/10k/100k）、電解電容（100µF/50V、47µF/25V）、電感、電晶體 2N3904 / 2N3906
 // 變壓器（小型信號 / 隔離變壓器，4 腳跨在中間溝槽兩側：左排一次側、右排二次側）
 // 中心抽頭電源變壓器 6 V / 12 V / 24 V（一次側插市電 110 V，二次側 3 條線：兩端 + 中間 COM）
+// 光敏電阻 LDR（GL55xx，照度越亮阻值越小）、電池（9 V / AA / 2×AA / CR2032 / 18650）
 import type { HoleKey } from './boardModel.js';
 
-export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx';
+export type PartKind = 'resistor' | 'diode' | 'led' | 'ldo' | 'wire' | 'atmega' | 'ch340' | 'pot' | 'cap' | 'ind' | 'bjt' | 'xfmr' | 'ctx' | 'ldr' | 'batt';
 
 export interface BoardPart {
   id: string;
   kind: PartKind;
-  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]、中心抽頭變壓器 [A 端, COM, B 端]
+  pins: HoleKey[]; // 電阻 [a,b]、二極體 [陽極,陰極]、LDO [1 GND, 2 VOUT, 3 VIN]、跳線 [a,b]、可變電阻 [1, W, 3]、電解電容 [+, −]、電晶體 [E, B, C]、變壓器 [P1, P2, S1, S2]、中心抽頭變壓器 [A 端, COM, B 端]、光敏電阻 [a, b]、電池 [+, −]
   value?: number; // 電阻 Ω；可變電阻總阻值 Ω；電感 H
   pos?: number; // 可變電阻的旋鈕位置 0（腳 1 端）~ 1（腳 3 端）
   capModel?: CapModel;
@@ -17,6 +18,9 @@ export interface BoardPart {
   xfmrModel?: XfmrModel;
   ctxModel?: CtxModel;
   plugged?: boolean; // 中心抽頭變壓器：插頭有沒有插上市電（預設插上）
+  ldrModel?: LdrModel;
+  lux?: number; // 光敏電阻受光照度（lux）
+  battModel?: BattModel;
   rot?: number; // 電晶體本體朝向：0~3，每格 90°（預設 1）
   model?: DiodeModel;
   ledColor?: LedColor;
@@ -102,7 +106,8 @@ export const IND_VALUES = [100e-6, 1e-3, 10e-3];
 export const indDcr = (l: number) => Number((0.03 + 300 * l ** 0.8).toPrecision(2)); // 100 µH ≈ 0.2 Ω、1 mH ≈ 1.2 Ω、10 mH ≈ 7.6 Ω
 export const IND_IMAX = 0.5; // A
 
-// ---- 電晶體（TO-92，平面朝自己時腳位由左到右 E、B、C）----
+// ---- 電晶體（TO-92，平面朝自己時腳位由左到右：2N3904 / 2N3906 / S9013 / S9012 是 E、B、C；BC547 是 C、B、E）----
+// pins 永遠存成 [E, B, C]（電路意義）；放置時依 pinout 決定第一下點的孔是 E 還是 C
 // Ebers-Moll 參數（取自常見 SPICE 模型、BF 取典型 hFE）；pMax / icMax 為額定功率 / 集極電流
 // S9013 / S9012：常見的中功率對管（IC 500 mA），腳位一樣是 E、B、C
 export const BJT_MODELS = {
@@ -110,7 +115,12 @@ export const BJT_MODELS = {
   '2N3906': { pol: -1 as const, is: 1.41e-15, bf: 180, br: 4.98, name: '2N3906（PNP）', pMax: 0.625, icMax: 0.2 },
   S9013: { pol: 1 as const, is: 3.4e-14, bf: 144, br: 3.4, name: 'S9013（NPN）', pMax: 0.625, icMax: 0.5 },
   S9012: { pol: -1 as const, is: 3.0e-14, bf: 144, br: 4.0, name: 'S9012（PNP）', pMax: 0.625, icMax: 0.5 },
+  // BC547B（歐規小信號 NPN）：hFE 200–450、IC 100 mA、500 mW；腳位跟 2N3904 相反
+  BC547: { pol: 1 as const, is: 7.05e-15, bf: 290, br: 7.7, name: 'BC547（NPN）', pMax: 0.5, icMax: 0.1, pinout: 'CBE' as const },
 };
+export type BjtPinout = 'EBC' | 'CBE';
+/** 平面朝自己、由左到右的腳位排列 */
+export const bjtPinout = (m: BjtModel): BjtPinout => ('pinout' in BJT_MODELS[m] ? (BJT_MODELS[m] as { pinout: BjtPinout }).pinout : 'EBC');
 export type BjtModel = keyof typeof BJT_MODELS;
 export const BJT_MODEL_IDS = Object.keys(BJT_MODELS) as BjtModel[];
 export const BJT_PMAX = 0.625, BJT_ICMAX = 0.2; // W、A（2N3904 / 2N3906；各型號的額定值在 BJT_MODELS 的 pMax / icMax）
@@ -154,6 +164,34 @@ export function ctxParams(m: CtxModel) {
   return { vs, a, l1, lh: l1 * a * a, k: 0.998, rh: regR / 4, r1: regR / 2 / (4 * a * a) };
 }
 
+// ---- 光敏電阻（CdS，GL55xx 系列）：R = 1 / (1/R暗 + (lux/10)^γ / R10)；R10 = 10 lux 時的阻值 ----
+export const LDR_MODELS = {
+  GL5516: { r10: 7.5e3, gamma: 0.5, dark: 0.5e6, name: 'GL5516（5–10 kΩ）' },
+  GL5528: { r10: 15e3, gamma: 0.7, dark: 1e6, name: 'GL5528（10–20 kΩ）' },
+  GL5537: { r10: 25e3, gamma: 0.8, dark: 2e6, name: 'GL5537（20–30 kΩ）' },
+};
+export type LdrModel = keyof typeof LDR_MODELS;
+export const LDR_MODEL_IDS = Object.keys(LDR_MODELS) as LdrModel[];
+export const LDR_PMAX = 0.1; // W
+export const LUX_MIN = 0.1, LUX_MAX = 10000;
+export function ldrOhm(m: LdrModel, lux: number) {
+  const q = LDR_MODELS[m];
+  return 1 / (1 / q.dark + Math.pow(Math.max(0, lux) / 10, q.gamma) / q.r10);
+}
+/** 常見照度（給按鈕用） */
+export const LUX_PRESETS: [number, string][] = [[0.1, '全黑'], [1, '夜晚'], [10, '昏暗'], [100, '室內'], [500, '辦公室'], [10000, '陽光']];
+
+// ---- 電池（理想電壓源 + 內阻）：+ 腳紅線、− 腳黑線 ----
+export const BATT_MODELS = {
+  '9V': { v: 9, r: 1.5, name: '9 V 方型電池', color: '#2a2d33', size: [26.5, 17.5, 48.5] },
+  AA: { v: 1.5, r: 0.15, name: 'AA 1.5 V', color: '#c9a227', size: [14.5, 14.5, 50.5] },
+  '2AA': { v: 3, r: 0.3, name: '2 × AA 電池盒 3 V', color: '#1b1d20', size: [31, 16, 58] },
+  CR2032: { v: 3, r: 15, name: 'CR2032 鈕扣 3 V', color: '#c9ced4', size: [20, 3.2, 20] },
+  '18650': { v: 3.7, r: 0.05, name: '18650 鋰電 3.7 V', color: '#2a6fd4', size: [18.5, 18.5, 65] },
+};
+export type BattModel = keyof typeof BATT_MODELS;
+export const BATT_MODEL_IDS = Object.keys(BATT_MODELS) as BattModel[];
+
 // 熱模型參數：穩態溫升 = P × Rth，燒毀溫度
 export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: number; burn: number }> = {
   resistor: { rth: 280, tau: 4, burn: 330 }, // 1/4 W：約 1 W 以上會燒
@@ -168,6 +206,8 @@ export const THERMAL: Record<Exclude<PartKind, 'wire'>, { rth: number; tau: numb
   bjt: { rth: 200, tau: 3, burn: 200 }, // TO-92：約 0.9 W 以上會燒
   xfmr: { rth: 30, tau: 15, burn: 200 }, // 線圈銅損發熱：約 6 W 以上會燒
   ctx: { rth: 25, tau: 20, burn: 180 }, // 電源變壓器：約 6 W 銅損以上會燒（二次側短路就會）
+  ldr: { rth: 1500, tau: 3, burn: 260 }, // 光敏電阻：約 0.15 W 以上會燒
+  batt: { rth: 25, tau: 15, burn: 120 }, // 電池：短路時內阻發熱，太燙會漏液 / 鼓包（當開路）
 };
 export const LDO_TSD_ON = 150, LDO_TSD_OFF = 130; // 熱關斷 / 恢復溫度
 export const LDO_VIN_MAX = 15; // 超過就損壞
@@ -185,6 +225,8 @@ export function partLabel(p: BoardPart): string {
   if (p.kind === 'bjt') return `電晶體 ${BJT_MODELS[p.bjtModel ?? '2N3904'].name}`;
   if (p.kind === 'xfmr') return `變壓器 ${XFMR_MODELS[p.xfmrModel ?? '2:1'].name}`;
   if (p.kind === 'ctx') return `中心抽頭變壓器 ${CTX_MODELS[p.ctxModel ?? '12'].name}`;
+  if (p.kind === 'ldr') return `光敏電阻 ${LDR_MODELS[p.ldrModel ?? 'GL5528'].name}`;
+  if (p.kind === 'batt') return `電池 ${BATT_MODELS[p.battModel ?? '9V'].name}`;
   return '杜邦線';
 }
 

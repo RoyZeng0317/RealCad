@@ -7,7 +7,7 @@ import { waveMean } from './waveform.js';
 import { netOf, postKey, type HoleKey } from './boardModel.js';
 import { solveCircuit, type Element, type Solution } from './circuit.js';
 import {
-  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, xfmrParams, ctxParams, MAINS_VRMS, MAINS_F, type BoardPart,
+  DIODE_PIV, LDO_VIN_MAX, ledModel, POT_END_R, CAP_MODELS, CAP_REVERSE_MAX, BJT_MODELS, indDcr, xfmrParams, ctxParams, MAINS_VRMS, MAINS_F, ldrOhm, BATT_MODELS, type BoardPart,
 } from './boardParts.js';
 import type { PsuReading, PsuSettings } from './psu.js';
 import { useDev, type Issue } from './devboards/devStore.js';
@@ -111,6 +111,9 @@ export function benchElements(psu: PsuSettings, loadR: number, parts: BoardPart[
       const { l1, l2, k, r1, r2 } = xfmrParams(p.xfmrModel ?? '2:1');
       els.push({ kind: 'xfmr', id: p.id, p1: a, n1: b, p2: c, n2: net(p.pins[3]), l1, l2, k, r1, r2 });
     }
+    // 光敏電阻 = 依照度變化的電阻；電池 = 電壓源 + 內阻（+ 腳在 pins[0]）
+    if (p.kind === 'ldr') els.push({ kind: 'res', id: p.id, a, b, r: ldrOhm(p.ldrModel ?? 'GL5528', p.lux ?? 100) });
+    if (p.kind === 'batt') { const m = BATT_MODELS[p.battModel ?? '9V']; els.push({ kind: 'src', id: p.id, p: a, n: b, v: m.v, r: m.r }); }
     // 中心抽頭變壓器：一次側接在零件自己的市電插頭上（內部節點，不在麵包板上）；二次側兩個半繞組 A→COM、COM→B
     if (p.kind === 'ctx') {
       const q = ctxParams(p.ctxModel ?? '12');

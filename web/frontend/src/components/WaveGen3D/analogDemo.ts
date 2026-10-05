@@ -1,4 +1,4 @@
-// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流、電晶體特性曲線
+// 類比零件範例：RC 充放電（示波器看電容電壓）、可變電阻控制電晶體開關 LED、變壓器降壓、中心抽頭變壓器全波整流、電晶體特性曲線、電池 LED 燈、LDR 小夜燈
 import { useBoard } from './boardStore.js';
 import { useWaveLab } from './waveStore.js';
 import { usePsuLab } from './psuStore.js';
@@ -126,4 +126,46 @@ export function loadCurveDemo() {
   w.setGen({ frequency: 100, amplitude: 10, offset: 5, power: true, output: true });
   w.setScope({ timeDivIdx: TIME_DIVS.indexOf(2e-3), voltDivIdx: VOLT_DIVS.indexOf(1), position: 0, ch2On: true, ch2VoltDivIdx: VOLT_DIVS.indexOf(0.1), ch2Position: -4, trigSource: 'CH1', trigLevel: 5, coupling: 'DC', running: true, xy: true, persist: true });
   clearXyPersist();
+}
+
+/** 清掉儀器的線、關掉電源供應器與產生器輸出（電池電路不需要它們） */
+function benchOff() {
+  const b = useBoard.getState();
+  (['fg', 'ch1', 'ch2', 'sa', 'dm'] as const).forEach((k) => b.setLead(k, null));
+  usePsuLab.getState().setPsu({ output: false });
+  useWaveLab.getState().setGen({ output: false });
+}
+
+/** 9 V 電池 → 470 Ω 限流電阻 → 紅色 LED → 回到電池 −：I = (9 − 2) / 470 ≈ 15 mA */
+export function loadBattLedDemo() {
+  useBoard.getState().loadParts([
+    { id: 'bl-bt', kind: 'batt', pins: ['t:1:30:0', 't:1:34:0'], battModel: '9V', gen: 0 },
+    { id: 'bl-r1', kind: 'resistor', pins: ['t:1:30:3', 't:1:38:3'], value: 470, gen: 0 },
+    { id: 'bl-led', kind: 'led', pins: ['t:1:38:4', 't:1:42:4'], ledColor: 'red', gen: 0 },
+    { id: 'bl-w1', kind: 'wire', pins: ['t:1:42:2', 't:1:34:2'], color: '#1b1d20', gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'bl-bt', dmm: 't:1:38:0', dmmBlack: 't:1:34:1' });
+  benchOff();
+}
+
+/**
+ * LDR 小夜燈（天黑自動亮）：9 V 電池、BC547、GL5528 光敏電阻
+ *   47 kΩ（+ → 基極）與光敏電阻（基極 → 地）分壓：亮的時候 LDR 阻值小 → 基極電壓低 → BC547 截止、LED 熄
+ *   變暗時 LDR 阻值變大 → 基極電壓升到 0.6 V 以上 → BC547 導通 → LED（經 470 Ω）亮
+ */
+export function loadNightLightDemo() {
+  useBoard.getState().loadParts([
+    { id: 'nl-bt', kind: 'batt', pins: ['t:1:5:0', 't:1:8:0'], battModel: '9V', gen: 0 },
+    { id: 'nl-w1', kind: 'wire', pins: ['t:1:5:2', 'b:1:0:4'], color: '#d42a2a', gen: 0 },
+    { id: 'nl-w2', kind: 'wire', pins: ['t:1:8:2', 'b:1:1:7'], color: '#1b1d20', gen: 0 },
+    // BC547：平面朝自己由左到右 C、B、E → 第 21 列 C、第 22 列 B、第 23 列 E（pins 存 [E, B, C]）
+    { id: 'nl-q1', kind: 'bjt', pins: ['t:1:22:2', 't:1:21:2', 't:1:20:2'], bjtModel: 'BC547', rot: 1, gen: 0 },
+    { id: 'nl-r1', kind: 'resistor', pins: ['b:1:0:19', 't:1:21:0'], value: 47e3, gen: 0 },
+    { id: 'nl-ldr', kind: 'ldr', pins: ['t:1:21:4', 'b:1:1:25'], ldrModel: 'GL5528', lux: 300, gen: 0 },
+    { id: 'nl-w3', kind: 'wire', pins: ['t:1:22:0', 'b:1:1:22'], color: '#1b1d20', gen: 0 },
+    { id: 'nl-rc', kind: 'resistor', pins: ['b:1:0:12', 't:1:12:3'], value: 470, gen: 0 },
+    { id: 'nl-led', kind: 'led', pins: ['t:1:12:4', 't:1:20:4'], ledColor: 'yellow', gen: 0 },
+  ]);
+  useBoard.setState({ tool: 'select', selectedId: 'nl-ldr', dmm: 't:1:21:1', dmmBlack: 'b:1:1:31' });
+  benchOff();
 }
