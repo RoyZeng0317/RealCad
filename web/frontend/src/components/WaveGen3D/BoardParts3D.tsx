@@ -170,11 +170,13 @@ export function usePartEvents(part: BoardPart) {
  * 軸向兩腳零件（電阻、二極體）的擺法：兩孔距離夠就臥式（本體平躺在中間），
  * 太近就立式（本體立在第一腳上方、第二腳彎回來）
  */
-function axialLayout(a: HoleKey, b: HoleKey, bodyLen: number) {
+/** upright = 兩孔太近時改成立式（二極體）；電阻一律臥式：孔太近時本體還是平躺在上方，兩腳往下彎進孔 */
+function axialLayout(a: HoleKey, b: HoleKey, bodyLen: number, upright = true) {
   const A = holePos(a), B = holePos(b);
   const d = Math.hypot(B.x - A.x, B.z - A.z);
-  if (d >= bodyLen + 0.06) {
-    const h = 0.07;
+  if (!upright || d >= bodyLen + 0.06) {
+    // 兩孔比本體短時本體架高一點，讓往外斜的腳看得清楚
+    const h = d >= bodyLen + 0.06 ? 0.07 : 0.11;
     const mid = A.clone().add(B).multiplyScalar(0.5).setY(TOP_Y + h);
     const dir = B.clone().sub(A).setY(0).normalize();
     const s = mid.clone().addScaledVector(dir, -bodyLen / 2), e = mid.clone().addScaledVector(dir, bodyLen / 2);
@@ -199,7 +201,7 @@ function axialLayout(a: HoleKey, b: HoleKey, bodyLen: number) {
 
 export function Resistor3D({ part, selected }: { part: BoardPart; selected: Sel }) {
   const L = 0.24, R = 0.034;
-  const lay = useMemo(() => axialLayout(part.pins[0], part.pins[1], L), [part.pins]);
+  const lay = useMemo(() => axialLayout(part.pins[0], part.pins[1], L, false), [part.pins]); // 電阻只用臥式（橫躺）
   const mat = useHeatMaterial(part, '#d9c29a', selected);
   const bands = colorBands(part.value!);
   const at = (t: number) => lay.bodyA.clone().lerp(lay.bodyB, t);
