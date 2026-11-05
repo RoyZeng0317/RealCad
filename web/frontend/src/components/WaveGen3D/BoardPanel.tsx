@@ -91,7 +91,7 @@ function LibRow({ item }: { item: LibItem }) {
   const active = tool === item.tool;
   return (
     <button
-      onClick={() => { setTool(item.tool); if (item.tool !== 'select') useLabUi.getState().focus('breadboard'); }}
+      onClick={() => setTool(item.tool)} // 點零件只換工具，不改視角（保持使用者目前的鏡頭）
       style={{
         display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', cursor: 'pointer',
         background: active ? '#0b3550' : 'transparent', border: `1px solid ${active ? T.accent : 'transparent'}`,

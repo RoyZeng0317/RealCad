@@ -1,7 +1,6 @@
 // 函數產生器 / 示波器面板上的「接線」區塊：顯示 + 端、− 端各接在哪裡，可以兩端一起重接、只改一端、或 ± 對調，拔掉就改回原本接法
 import { useBoard, LEAD_NAME, type LeadKind } from './boardStore.js';
 import { holeName } from './boardModel.js';
-import { useLabUi } from './labUi.js';
 import { useBench } from './bench.js';
 import { getTransfers, probeConnected, transferOf } from './scopeLink.js';
 import { chip, row, help } from './panelUi.js';
@@ -22,7 +21,7 @@ export function LeadControl({ kind }: { kind: LeadKind }) {
   const placing = useBoard((s) => s.tool === kind);
   useBench(); // 電路改變時重新檢查探棒有沒有接到電路
   const s = useBoard.getState();
-  const start = (end?: 0 | 1) => { s.startLead(kind, end); useLabUi.getState().focus('breadboard'); };
+  const start = (end?: 0 | 1) => s.startLead(kind, end); // 不改視角（保持使用者目前的鏡頭）
   const tr = kind === 'ch1' || kind === 'ch2' ? getTransfers()[kind] : (kind === 'sa' || kind === 'dm') && lead ? transferOf(lead[0], lead[1]) : null;
   const tag = LEAD_TAG[kind];
   return (
