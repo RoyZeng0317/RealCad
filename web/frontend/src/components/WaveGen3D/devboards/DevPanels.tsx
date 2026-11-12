@@ -42,13 +42,13 @@ export function DevLibrary() {
             background: selected === k ? '#0b3550' : 'transparent', border: `1px solid ${selected === k ? T.accent : 'transparent'}`,
           }}>
             <span style={{ width: 28, textAlign: 'center', color: T.accent, fontWeight: 700 }}>{ICON[k]}</span>
-            <button onClick={() => { if (on) { select(k); useBoard.getState().selectPart(null); useLabUi.getState().focus(k === 'fpga' ? 'fpga' : 'devboards'); } }}
+            <button onClick={() => { if (on) { select(k); useBoard.getState().selectPart(null); useLabUi.getState().openDock(k === 'fpga' ? 'fpga' : 'devboards'); } }}
               style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: T.text, cursor: on ? 'pointer' : 'default', padding: 0, fontFamily: T.font }}>
               <div style={{ fontSize: 13, fontWeight: 600 }}>{d.name}</div>
               <div style={{ fontSize: 11, color: T.muted }}>{d.mcu}</div>
             </button>
             <button style={{ ...chip(on, '#5a2030'), flex: 'none', padding: '3px 8px', fontSize: 12 }}
-              onClick={() => { setPresent(k, !on); if (!on) useLabUi.getState().focus(k === 'fpga' ? 'fpga' : 'devboards'); }}>
+              onClick={() => { setPresent(k, !on); if (!on) useLabUi.getState().openDock(k === 'fpga' ? 'fpga' : 'devboards'); }}>
               {on ? '移除' : '加入'}
             </button>
           </div>

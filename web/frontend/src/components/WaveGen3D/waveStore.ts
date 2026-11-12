@@ -2,11 +2,11 @@
 import { create } from 'zustand';
 import {
   type GenSettings, type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT,
-  TIME_DIVS, VOLT_DIVS, H_DIVS,
+  TIME_DIVS, VOLT_DIVS, H_DIVS, ATTEN_STEPS, attGain,
 } from './waveform.js';
 import { getBench } from './bench.js';
 
-export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
+export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty' | 'atten';
 export type ViewPreset = 'overview' | 'generator' | 'scope' | 'spectrum' | 'dmm' | 'psu' | 'breadboard' | 'bbgrid' | 'bbgrid2' | 'devboards' | 'fpga';
 
 export interface ScopeSettings {
@@ -34,6 +34,7 @@ interface WaveLabState {
   viewNonce: number; // 每次按視角按鈕都 +1，即使是同一個視角也會重新飛過去
   dragging: boolean;
   knobHover: boolean;
+  viewLocked: boolean; // 鎖定視角：鎖定時任何按鈕 / 操作都不會移動鏡頭，只有使用者自己用滑鼠旋轉
 
   setGen: (patch: Partial<GenSettings>) => void;
   setWaveform: (w: Waveform) => void;
@@ -47,6 +48,7 @@ interface WaveLabState {
   setView: (v: ViewPreset) => void;
   setDragging: (v: boolean) => void;
   setKnobHover: (v: boolean) => void;
+  setViewLocked: (v: boolean) => void;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -59,13 +61,14 @@ export function clampGen(g: GenSettings): GenSettings {
   const maxOffset = OUTPUT_LIMIT - amplitude / 2;
   const offset = clamp(round(g.offset, 0.001), -maxOffset, maxOffset);
   const duty = clamp(Math.round(g.duty), 1, 99);
-  return { ...g, frequency, amplitude, offset, duty };
+  const atten = ATTEN_STEPS.includes(g.atten as 0) ? g.atten : 0;
+  return { ...g, frequency, amplitude, offset, duty, atten };
 }
 
 export const useWaveLab = create<WaveLabState>((set, get) => ({
   gen: {
     waveform: 'sine', frequency: 1000, amplitude: 4, offset: 0, duty: 25,
-    output: true, power: true,
+    output: true, power: true, atten: 0,
   },
   selected: 'frequency',
   scope: {
@@ -78,6 +81,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   viewNonce: 0,
   dragging: false,
   knobHover: false,
+  viewLocked: false,
 
   setGen: (patch) => set((s) => ({ gen: clampGen({ ...s.gen, ...patch }) })),
   setWaveform: (waveform) => set((s) => ({ gen: { ...s.gen, waveform } })),
@@ -92,6 +96,11 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
       case 'amplitude': g.amplitude += steps * (fine ? 0.01 : 0.1); break;
       case 'offset': g.offset += steps * (fine ? 0.01 : 0.1); break;
       case 'duty': g.duty += steps; break;
+      case 'atten': { // 旋鈕每轉一格切一檔：0 → 20 → 40 → 60 dB
+        const i = ATTEN_STEPS.indexOf(g.atten as 0);
+        g.atten = ATTEN_STEPS[clamp(i + Math.sign(steps), 0, ATTEN_STEPS.length - 1)];
+        break;
+      }
     }
     set({ gen: clampGen(g) });
   },
@@ -115,14 +124,14 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
     if (timeDivIdx < 0) timeDivIdx = TIME_DIVS.length - 1;
     const on = gen.power && gen.output;
     const ac = scope.coupling === 'AC';
-    const peak = on ? (ac ? 0 : Math.abs(gen.offset)) + gen.amplitude / 2 : 0.5;
+    const peak = on ? ((ac ? 0 : Math.abs(gen.offset)) + gen.amplitude / 2) * attGain(gen) : 0.5;
     let voltDivIdx = VOLT_DIVS.findIndex((v) => peak / v <= 3.5);
     if (voltDivIdx < 0) voltDivIdx = VOLT_DIVS.length - 1;
     // CH2：直流電壓從第 -3 格往上最多用到 +3.5 格（共 6.5 格）
     const v2 = Math.abs(getBench().psu.v);
     let ch2VoltDivIdx = VOLT_DIVS.findIndex((v) => Math.max(v2, 0.5) / v <= 6.5);
     if (ch2VoltDivIdx < 0) ch2VoltDivIdx = VOLT_DIVS.length - 1;
-    const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset : 0;
+    const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset * attGain(gen) : 0;
     set({
       scope: {
         ...scope, timeDivIdx, voltDivIdx, position: 0, ch2VoltDivIdx, ch2Position: -3,
@@ -134,4 +143,5 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   setView: (view) => set((s) => ({ view, viewNonce: s.viewNonce + 1 })),
   setDragging: (dragging) => set({ dragging }),
   setKnobHover: (knobHover) => set({ knobHover }),
+  setViewLocked: (viewLocked) => set({ viewLocked }),
 }));

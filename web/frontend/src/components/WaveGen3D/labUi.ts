@@ -18,6 +18,8 @@ interface LabUiState {
   addRecentColor: (c: string) => void;
   /** 點左側儀器：鏡頭飛過去、下方面板切到該儀器 */
   focus: (v: ViewPreset) => void;
+  /** 只切換下方面板分頁，不動鏡頭（載入範例、選零件、接線等自動動作用；鏡頭只在使用者主動按視角 / 儀器按鈕時才移動） */
+  openDock: (v: ViewPreset) => void;
 }
 
 const DOCK_OF: Partial<Record<ViewPreset, DockTab>> = { generator: 'generator', scope: 'scope', spectrum: 'spectrum', dmm: 'dmm', psu: 'psu', breadboard: 'nodes', bbgrid: 'nodes', bbgrid2: 'nodes', devboards: 'code', fpga: 'code' };
@@ -36,6 +38,9 @@ export const useLabUi = create<LabUiState>((set) => ({
   addRecentColor: (c) => set((s) => ({ recentColors: [c, ...s.recentColors.filter((x) => x !== c)].slice(0, 8) })),
   focus: (v) => {
     useWaveLab.getState().setView(v);
+    useLabUi.getState().openDock(v);
+  },
+  openDock: (v) => {
     const t = DOCK_OF[v];
     if (t) set({ dockTab: t });
     if (v === 'fpga' && useDev.getState().conf.fpga.present) useDev.getState().setCodeTab('fpga');

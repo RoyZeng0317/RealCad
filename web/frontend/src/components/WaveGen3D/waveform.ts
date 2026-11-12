@@ -10,7 +10,12 @@ export interface GenSettings {
   duty: number; // %，只有 pulse 使用
   output: boolean;
   power: boolean;
+  atten: number; // 輸出衰減 dB：0 / 20 / 40 / 60（整個輸出含偏移一起衰減）
 }
+
+export const ATTEN_STEPS = [0, 20, 40, 60] as const;
+/** 衰減器的電壓增益（0 dB = 1、20 dB = 0.1、40 dB = 0.01、60 dB = 0.001） */
+export const attGain = (s: { atten?: number }) => 10 ** (-(s.atten ?? 0) / 20);
 
 export const OUTPUT_LIMIT = 10; // 輸出電壓上限 ±10 V，超過會削峰
 export const FREQ_MIN = 0.1;
@@ -31,14 +36,14 @@ export function sampleWave(s: GenSettings, t: number): number {
     case 'pulse': v = p < s.duty / 100 ? 1 : -1; break;
     case 'noise': v = (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; break;
   }
-  const out = s.offset + (s.amplitude / 2) * v;
-  return Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, out));
+  const out = Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, s.offset + (s.amplitude / 2) * v));
+  return out * attGain(s);
 }
 
 /** 一個週期的平均值（直流成分）：三用電表等直流量測用 */
 export function waveMean(s: GenSettings): number {
   if (!s.power || !s.output) return 0;
-  if (s.waveform === 'noise') return Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, s.offset));
+  if (s.waveform === 'noise') return Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, s.offset)) * attGain(s);
   let sum = 0;
   const N = 200;
   for (let i = 0; i < N; i++) sum += sampleWave(s, (i + 0.5) / N / s.frequency);
@@ -49,7 +54,8 @@ export function waveMean(s: GenSettings): number {
 export function waveRange(s: GenSettings): [number, number] {
   if (!s.power || !s.output) return [0, 0];
   const lim = (v: number) => Math.max(-OUTPUT_LIMIT, Math.min(OUTPUT_LIMIT, v));
-  return [lim(s.offset - s.amplitude / 2), lim(s.offset + s.amplitude / 2)];
+  const k = attGain(s);
+  return [lim(s.offset - s.amplitude / 2) * k, lim(s.offset + s.amplitude / 2) * k];
 }
 
 /** 一般化的上升緣觸發：對任意訊號 v(t) 找穿越點（麵包板上量到的波形用） */

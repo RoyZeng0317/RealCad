@@ -22,7 +22,7 @@ export function LeadControl({ kind }: { kind: LeadKind }) {
   const placing = useBoard((s) => s.tool === kind);
   useBench(); // 電路改變時重新檢查探棒有沒有接到電路
   const s = useBoard.getState();
-  const start = (end?: 0 | 1) => { s.startLead(kind, end); useLabUi.getState().focus('breadboard'); };
+  const start = (end?: 0 | 1) => { s.startLead(kind, end); useLabUi.getState().openDock('breadboard'); };
   const tr = kind === 'ch1' || kind === 'ch2' ? getTransfers()[kind] : (kind === 'sa' || kind === 'dm') && lead ? transferOf(lead[0], lead[1]) : null;
   const tag = LEAD_TAG[kind];
   return (

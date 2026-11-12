@@ -34,7 +34,7 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8fb4d0';
   ctx.font = `600 20px ${FONT}`;
-  ctx.fillText('CH1  HighZ', 176, 33);
+  ctx.fillText(g.atten ? `CH1  ATT -${g.atten}dB` : 'CH1  HighZ', 176, 33);
 
   // 波形預覽（左側）
   const bx = 12, by = 66, bw = 220, bh = H - 78;
@@ -47,7 +47,7 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
   ctx.setLineDash([4, 4]);
   ctx.stroke();
   ctx.setLineDash([]);
-  const preview: GenSettings = { ...g, output: true, frequency: 1, amplitude: 1.8, offset: 0 };
+  const preview: GenSettings = { ...g, atten: 0, output: true, frequency: 1, amplitude: 1.8, offset: 0 };
   ctx.strokeStyle = '#4fd8ff';
   ctx.lineWidth = 3;
   ctx.shadowColor = '#4fd8ff';
@@ -67,8 +67,9 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
     ['amplitude', 'Ampl', `${g.amplitude.toFixed(3)} Vpp`, true],
     ['offset', 'Offset', `${g.offset >= 0 ? '+' : ''}${g.offset.toFixed(3)} Vdc`, true],
     ['duty', 'Duty', `${g.duty} %`, g.waveform === 'pulse'],
+    ['atten', 'Atten', g.atten ? `-${g.atten} dB` : '0 dB', true],
   ];
-  const rx = 248, rw = W - rx - 12, rh = (H - 78) / 4;
+  const rx = 248, rw = W - rx - 12, rh = (H - 78) / rows.length;
   rows.forEach(([key, name, value, enabled], i) => {
     const y = 66 + i * rh;
     const active = key === sel;
@@ -79,11 +80,11 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
     ctx.globalAlpha = enabled ? 1 : 0.35;
     ctx.textAlign = 'left';
     ctx.fillStyle = active ? '#ffffff' : '#8fb4d0';
-    ctx.font = `600 24px ${FONT}`;
+    ctx.font = `600 ${Math.min(24, rh * 0.62)}px ${FONT}`;
     ctx.fillText(name, rx + 12, y + rh / 2);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#ffffff';
-    ctx.font = `700 32px ${MONO}`;
+    ctx.font = `700 ${Math.min(32, rh * 0.8)}px ${MONO}`;
     ctx.fillText(value, rx + rw - 12, y + rh / 2);
     ctx.globalAlpha = 1;
   });
