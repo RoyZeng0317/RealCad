@@ -171,49 +171,49 @@ export function PartLibrary() {
         {TOOL_ITEMS.map((it) => <LibRow key={it.tool} item={it} />)}
       </Section>
       <Section title="範例">
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadDemoCircuit(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadDemoCircuit(); useLabUi.getState().openDock('breadboard'); }}>
           3.3 V 穩壓電路（1N4007 + LT1117）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadRectifierDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadRectifierDemo(); useLabUi.getState().openDock('scope'); }}>
           函數產生器 → 麵包板：半波整流
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadRcDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadRcDemo(); useLabUi.getState().openDock('scope'); }}>
           RC 充放電（1 kΩ + 100 µF，示波器看電容電壓）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadBjtDemo(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadBjtDemo(); useLabUi.getState().openDock('breadboard'); }}>
           可變電阻 + 2N3904 電晶體開關 LED
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadCurveDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadCurveDemo(); useLabUi.getState().openDock('scope'); }}>
           2N3904 特性曲線（示波器 XY，轉旋鈕畫 IB 曲線族）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadBattLedDemo(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadBattLedDemo(); useLabUi.getState().openDock('breadboard'); }}>
           電池 LED 燈（9 V + 470 Ω + LED）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadNightLightDemo(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNightLightDemo(); useLabUi.getState().openDock('breadboard'); }}>
           LDR 小夜燈：天黑自動亮（BC547 + 光敏電阻 + 9 V 電池）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555BlinkDemo(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555BlinkDemo(); useLabUi.getState().openDock('breadboard'); }}>
           NE555 LED 閃爍燈（CH224K PD 9 V 供電，約 1.5 Hz）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555ScopeDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadNe555ScopeDemo(); useLabUi.getState().openDock('scope'); }}>
           NE555 無穩態振盪（示波器看 OUT 與電容，約 690 Hz）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadXfmrDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadXfmrDemo(); useLabUi.getState().openDock('scope'); }}>
           2 : 1 變壓器降壓（CH1 一次側、CH2 二次側）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadCtxDemo(); useLabUi.getState().focus('scope'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadCtxDemo(); useLabUi.getState().openDock('scope'); }}>
           12 V 中心抽頭變壓器全波整流（6-0-6 V）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().focus('devboards'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadUnoBlink(); useLabUi.getState().openDock('devboards'); }}>
           Arduino Uno：LED 閃爍（Blink）
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadPi5Blink(); useLabUi.getState().focus('devboards'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadPi5Blink(); useLabUi.getState().openDock('devboards'); }}>
           Raspberry Pi 5：MicroPython LED 閃爍
         </button>
-        <button style={chip(false, '', '#12345a')} onClick={() => { loadAtmegaDemo(); useLabUi.getState().focus('breadboard'); }}>
+        <button style={chip(false, '', '#12345a')} onClick={() => { loadAtmegaDemo(); useLabUi.getState().openDock('breadboard'); }}>
           麵包板 Arduino：ATmega328P + CH340
         </button>
-        <button style={chip(false, '', '#4a1a1a')} onClick={() => { loadEsp32Mistake(); useLabUi.getState().focus('devboards'); }}>
+        <button style={chip(false, '', '#4a1a1a')} onClick={() => { loadEsp32Mistake(); useLabUi.getState().openDock('devboards'); }}>
           錯誤示範：5 V 接到 ESP32 GPIO
         </button>
         <button style={chip(false, '', '#3a1a2a')} onClick={() => { if (confirm('清空麵包板上所有零件？')) clearBoard(); }}>清空麵包板</button>
