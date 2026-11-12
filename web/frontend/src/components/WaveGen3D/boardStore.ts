@@ -1,7 +1,7 @@
 // 麵包板上的零件與操作狀態：工具、放置流程（兩點/一點）、選取、三用電表量測點、零件溫度
 import { create } from 'zustand';
 import { type HoleKey, netOf, isValidHole, holePos, holeKeyOf } from './boardModel.js';
-import { hitHole } from './breadboardGrid.js';
+import { hitHole, P as HOLE_PITCH } from './breadboardGrid.js';
 import { type BoardPart, type PartKind, type DiodeModel, type LedColor, type CapModel, type BjtModel, type XfmrModel, type CtxModel, type LdrModel, type BattModel, bjtPinout, WIRE_COLORS } from './boardParts.js';
 import { dipPins, ATMEGA_EXAMPLE } from './chips/chipDefs.js';
 import type { PdVolt, ChargerId } from './ch224.js';
@@ -67,6 +67,14 @@ interface BoardState {
 /** 拖曳中的零件：grab = 抓住的是第幾隻腳；pins = 預覽位置；valid = 放開時能不能放 */
 export interface DragState { id: string; grab: number; pins: HoleKey[]; valid: boolean; moved: boolean; reason: string }
 
+/** 電阻兩隻腳至少要相隔 4 個孔（本體平躺放得下）；太近的話本體只能立起來，電阻不允許立式 */
+export const RESISTOR_MIN_HOLES = 4;
+export const resistorTooShort = (a: HoleKey, b: HoleKey) => {
+  const A = holePos(a), B = holePos(b);
+  return Math.hypot(B.x - A.x, B.z - A.z) < RESISTOR_MIN_HOLES * HOLE_PITCH - 1e-3;
+};
+const RESISTOR_SHORT_MSG = `電阻太短放不下：兩隻腳至少要相隔 ${RESISTOR_MIN_HOLES} 個孔（電阻只能平躺，不能立式）`;
+
 /** 檢查零件能不能放在這些孔上，回傳錯誤訊息（空字串 = 可以） */
 export function placementError(parts: BoardPart[], part: BoardPart, pins: HoleKey[]): string {
   if (pins.some((h) => !isValidHole(h))) return '超出麵包板範圍';
@@ -75,6 +83,7 @@ export function placementError(parts: BoardPart[], part: BoardPart, pins: HoleKe
   if (part.kind === 'wire') return pins[0] === pins[1] ? '杜邦線兩端不能插同一個孔' : '';
   if (pins.some((h) => h.startsWith('p:') || h.startsWith('h:'))) return '零件腳只能插在麵包板的孔';
   if (pins.length === 2 && netOf(pins[0]) === netOf(pins[1])) return '兩隻腳會在同一組相通的孔裡（短路）';
+  if (part.kind === 'resistor' && pins.length === 2 && resistorTooShort(pins[0], pins[1])) return RESISTOR_SHORT_MSG;
   return '';
 }
 
@@ -306,6 +315,7 @@ export const useBoard = create<BoardState>((set, get) => ({
       set({ message: '兩隻腳插在同一組相通的孔裡會被短路，請換一個孔' });
       return;
     }
+    if (s.tool === 'resistor' && resistorTooShort(s.pending, k)) { set({ message: RESISTOR_SHORT_MSG }); return; }
     const pins = [s.pending, k];
     const part: BoardPart =
       s.tool === 'resistor' ? { id: newId('resistor'), kind: 'resistor', pins, value: s.resistorValue, gen: 0 }
