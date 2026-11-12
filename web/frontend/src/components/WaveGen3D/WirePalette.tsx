@@ -148,7 +148,9 @@ function Swatch({ c, active, onClick, small }: { c: string; active: boolean; onC
 }
 
 const win: CSSProperties = {
-  position: 'fixed', zIndex: 30, width: 268, // 比選單下拉（40）低：打開選單時選單在上面 background: T.panel, border: `1px solid ${T.accent}`, borderRadius: 10,
+  // zIndex 比選單下拉（40）低：打開選單時選單在上面；背景 #000、不透明度 60%（至少一半）
+  position: 'fixed', zIndex: 30, width: 268,
+  background: 'rgba(0,0,0,0.6)', border: `1px solid ${T.accent}`, borderRadius: 10,
   boxShadow: '0 10px 30px rgba(0,0,0,0.5)', fontFamily: T.font, color: T.text,
 };
 const head: CSSProperties = {
