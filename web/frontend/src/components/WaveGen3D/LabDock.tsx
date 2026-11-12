@@ -77,6 +77,8 @@ export function LabStatusBar() {
   const tool = useBoard((s) => s.tool);
   const dmm = useBoard((s) => s.dmm);
   const dmmBlack = useBoard((s) => s.dmmBlack);
+  const locked = useWaveLab((s) => s.viewLocked);
+  const setLocked = useWaveLab((s) => s.setViewLocked);
   const bench = useBench();
   const dmmV = dmmReading(dmm, dmmBlack);
   const items = [
@@ -90,6 +92,13 @@ export function LabStatusBar() {
     <div style={status}>
       {items.map((t) => <span key={t} style={{ flexShrink: 0 }}>{t}</span>)}
       <div style={{ flex: 1 }} />
+      <button onClick={() => setLocked(!locked)} aria-pressed={locked}
+        title={locked ? '視角已鎖定：按鈕與操作都不會移動鏡頭（點擊解除）' : '鎖定視角：鎖定後鏡頭只會被你用滑鼠旋轉，不會被任何按鈕移動'}
+        style={{
+          flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', padding: '0 8px', borderRadius: 4,
+          background: locked ? '#0b3550' : 'transparent', color: locked ? '#ffd24a' : 'inherit',
+          border: `1px solid ${locked ? '#ffd24a' : 'transparent'}`,
+        }}>{locked ? '🔒 視角已鎖定' : '🔓 視角切換'}</button>
       <span style={{ color: bench.sol.converged ? '#3cff7a' : '#ffb020', flexShrink: 0 }}>● {bench.sol.converged ? '電路已收斂' : '電路未收斂'}</span>
     </div>
   );

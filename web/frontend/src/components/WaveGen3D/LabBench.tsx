@@ -26,7 +26,7 @@ function CameraRig({ controls }: { controls: RefObject<OrbitImpl | null> }) {
   const flying = useRef(false);
   const { camera } = useThree();
 
-  useEffect(() => { flying.current = true; }, [view, nonce]);
+  useEffect(() => { flying.current = !useWaveLab.getState().viewLocked; }, [view, nonce]);
 
   useFrame((_, delta) => {
     const c = controls.current;

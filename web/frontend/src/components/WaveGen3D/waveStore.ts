@@ -34,6 +34,7 @@ interface WaveLabState {
   viewNonce: number; // 每次按視角按鈕都 +1，即使是同一個視角也會重新飛過去
   dragging: boolean;
   knobHover: boolean;
+  viewLocked: boolean; // 鎖定視角：鎖定時任何按鈕 / 操作都不會移動鏡頭，只有使用者自己用滑鼠旋轉
 
   setGen: (patch: Partial<GenSettings>) => void;
   setWaveform: (w: Waveform) => void;
@@ -47,6 +48,7 @@ interface WaveLabState {
   setView: (v: ViewPreset) => void;
   setDragging: (v: boolean) => void;
   setKnobHover: (v: boolean) => void;
+  setViewLocked: (v: boolean) => void;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -79,6 +81,7 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   viewNonce: 0,
   dragging: false,
   knobHover: false,
+  viewLocked: false,
 
   setGen: (patch) => set((s) => ({ gen: clampGen({ ...s.gen, ...patch }) })),
   setWaveform: (waveform) => set((s) => ({ gen: { ...s.gen, waveform } })),
@@ -140,4 +143,5 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
   setView: (view) => set((s) => ({ view, viewNonce: s.viewNonce + 1 })),
   setDragging: (dragging) => set({ dragging }),
   setKnobHover: (knobHover) => set({ knobHover }),
+  setViewLocked: (viewLocked) => set({ viewLocked }),
 }));
