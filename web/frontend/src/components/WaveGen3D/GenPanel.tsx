@@ -48,7 +48,7 @@ export function GeneratorControls() {
           <button style={chip(gen.power, '#b32d2d')} onClick={() => setGen({ power: !gen.power })}>電源 {gen.power ? 'ON' : 'OFF'}</button>
           <button style={chip(gen.output, '#1f8f3c')} onClick={() => setGen({ output: !gen.output })}>輸出 {gen.output ? 'ON' : 'OFF'}</button>
         </div>
-        <p style={help}>3D 面板上的 ADJUST 旋鈕：拖曳或滾輪調整目前選取的參數（FREQ / AMPL / OFFSET / DUTY），按住 Shift 微調。</p>
+        <p style={help}>3D 面板上的 ADJUST 旋鈕：拖曳或滾輪調整目前選取的參數（FREQ / AMPL / OFFSET / DUTY / ATTEN；ATTEN 每轉一格切換 0 / 20 / 40 / 60 dB），按住 Shift 微調。</p>
       </Section>
       <Section title="輸出接線">
         <LeadControl kind="fg" />

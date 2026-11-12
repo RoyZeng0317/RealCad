@@ -16,7 +16,7 @@ const WAVES: [Waveform, string][] = [
 ];
 const PARAMS: [GenParam, string, number, number][] = [
   ['frequency', 'FREQ', 0.2, 0.33], ['amplitude', 'AMPL', 0.5, 0.33],
-  ['offset', 'OFFSET', 0.2, 0.12], ['duty', 'DUTY', 0.5, 0.12],
+  ['offset', 'OFFSET', 0.2, 0.14], ['duty', 'DUTY', 0.5, 0.14], ['atten', 'ATTEN', 0.35, -0.04],
 ];
 const PW = W - 0.1, PH = H - 0.1; // 前面板（比外殼略小，形成邊框）
 
@@ -28,7 +28,7 @@ function drawPanel(p: Parameters<Parameters<typeof createCanvasTexture>[2]>[0]) 
   label(p, 'FG-2000  Function Generator', -1.12, 0.61, 0.055, '#9fb3c8', 'left');
   label(p, '0.1 Hz – 10 MHz', 1.58, 0.61, 0.06, '#f5c518', 'right', 700);
   sectionBox(p, -0.8, -0.37, 1.58, 0.3, 'WAVEFORM');
-  sectionBox(p, 0.35, 0.22, 0.7, 0.5, 'PARAMETER');
+  sectionBox(p, 0.35, 0.18, 0.7, 0.62, 'PARAMETER');
   label(p, 'ADJUST', 1.2, -0.17, 0.055, '#9fb3c8');
   label(p, '▲ drag / scroll ▼', 1.2, -0.25, 0.04, '#7c8a99');
   label(p, 'POWER', 0.2, -0.6, 0.05);
@@ -106,7 +106,7 @@ export function FunctionGenerator3D() {
           <Button3D
             key={p}
             position={[x, y, 0.002]}
-            size={[0.26, 0.14]}
+            size={[p === 'atten' ? 0.3 : 0.26, 0.14]}
             text={text}
             active={on && selected === p}
             onPress={() => setSelected(p)}

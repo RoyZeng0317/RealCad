@@ -67,8 +67,9 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
     ['amplitude', 'Ampl', `${g.amplitude.toFixed(3)} Vpp`, true],
     ['offset', 'Offset', `${g.offset >= 0 ? '+' : ''}${g.offset.toFixed(3)} Vdc`, true],
     ['duty', 'Duty', `${g.duty} %`, g.waveform === 'pulse'],
+    ['atten', 'Atten', g.atten ? `-${g.atten} dB` : '0 dB', true],
   ];
-  const rx = 248, rw = W - rx - 12, rh = (H - 78) / 4;
+  const rx = 248, rw = W - rx - 12, rh = (H - 78) / rows.length;
   rows.forEach(([key, name, value, enabled], i) => {
     const y = 66 + i * rh;
     const active = key === sel;
@@ -79,11 +80,11 @@ export function drawGenLcd(ctx: CanvasRenderingContext2D, W: number, H: number, 
     ctx.globalAlpha = enabled ? 1 : 0.35;
     ctx.textAlign = 'left';
     ctx.fillStyle = active ? '#ffffff' : '#8fb4d0';
-    ctx.font = `600 24px ${FONT}`;
+    ctx.font = `600 ${Math.min(24, rh * 0.62)}px ${FONT}`;
     ctx.fillText(name, rx + 12, y + rh / 2);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#ffffff';
-    ctx.font = `700 32px ${MONO}`;
+    ctx.font = `700 ${Math.min(32, rh * 0.8)}px ${MONO}`;
     ctx.fillText(value, rx + rw - 12, y + rh / 2);
     ctx.globalAlpha = 1;
   });

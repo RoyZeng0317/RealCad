@@ -6,7 +6,7 @@ import {
 } from './waveform.js';
 import { getBench } from './bench.js';
 
-export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty';
+export type GenParam = 'frequency' | 'amplitude' | 'offset' | 'duty' | 'atten';
 export type ViewPreset = 'overview' | 'generator' | 'scope' | 'spectrum' | 'dmm' | 'psu' | 'breadboard' | 'bbgrid' | 'bbgrid2' | 'devboards' | 'fpga';
 
 export interface ScopeSettings {
@@ -93,6 +93,11 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
       case 'amplitude': g.amplitude += steps * (fine ? 0.01 : 0.1); break;
       case 'offset': g.offset += steps * (fine ? 0.01 : 0.1); break;
       case 'duty': g.duty += steps; break;
+      case 'atten': { // 旋鈕每轉一格切一檔：0 → 20 → 40 → 60 dB
+        const i = ATTEN_STEPS.indexOf(g.atten as 0);
+        g.atten = ATTEN_STEPS[clamp(i + Math.sign(steps), 0, ATTEN_STEPS.length - 1)];
+        break;
+      }
     }
     set({ gen: clampGen(g) });
   },
