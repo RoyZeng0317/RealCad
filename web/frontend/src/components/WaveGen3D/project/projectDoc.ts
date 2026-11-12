@@ -145,6 +145,7 @@ export function applyDoc(raw: unknown): string {
     frequency: num(g.frequency, 0.1, 10e6, 1000), amplitude: num(g.amplitude, 0.002, 20, 4),
     offset: num(g.offset, -10, 10, 0), duty: num(g.duty, 1, 99, 25),
     output: bool(g.output, true), power: bool(g.power, true),
+    atten: [0, 20, 40, 60].includes(Number(g.atten)) ? Number(g.atten) : 0,
   });
   w.setWaveform(oneOf(g.waveform, ['sine', 'square', 'triangle', 'ramp', 'pulse', 'noise'] as Waveform[], 'sine'));
   const s = obj(d.scope);

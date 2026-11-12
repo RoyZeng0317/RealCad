@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import {
   type GenSettings, type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT,
-  TIME_DIVS, VOLT_DIVS, H_DIVS,
+  TIME_DIVS, VOLT_DIVS, H_DIVS, ATTEN_STEPS, attGain,
 } from './waveform.js';
 import { getBench } from './bench.js';
 
@@ -59,13 +59,14 @@ export function clampGen(g: GenSettings): GenSettings {
   const maxOffset = OUTPUT_LIMIT - amplitude / 2;
   const offset = clamp(round(g.offset, 0.001), -maxOffset, maxOffset);
   const duty = clamp(Math.round(g.duty), 1, 99);
-  return { ...g, frequency, amplitude, offset, duty };
+  const atten = ATTEN_STEPS.includes(g.atten as 0) ? g.atten : 0;
+  return { ...g, frequency, amplitude, offset, duty, atten };
 }
 
 export const useWaveLab = create<WaveLabState>((set, get) => ({
   gen: {
     waveform: 'sine', frequency: 1000, amplitude: 4, offset: 0, duty: 25,
-    output: true, power: true,
+    output: true, power: true, atten: 0,
   },
   selected: 'frequency',
   scope: {
@@ -115,14 +116,14 @@ export const useWaveLab = create<WaveLabState>((set, get) => ({
     if (timeDivIdx < 0) timeDivIdx = TIME_DIVS.length - 1;
     const on = gen.power && gen.output;
     const ac = scope.coupling === 'AC';
-    const peak = on ? (ac ? 0 : Math.abs(gen.offset)) + gen.amplitude / 2 : 0.5;
+    const peak = on ? ((ac ? 0 : Math.abs(gen.offset)) + gen.amplitude / 2) * attGain(gen) : 0.5;
     let voltDivIdx = VOLT_DIVS.findIndex((v) => peak / v <= 3.5);
     if (voltDivIdx < 0) voltDivIdx = VOLT_DIVS.length - 1;
     // CH2：直流電壓從第 -3 格往上最多用到 +3.5 格（共 6.5 格）
     const v2 = Math.abs(getBench().psu.v);
     let ch2VoltDivIdx = VOLT_DIVS.findIndex((v) => Math.max(v2, 0.5) / v <= 6.5);
     if (ch2VoltDivIdx < 0) ch2VoltDivIdx = VOLT_DIVS.length - 1;
-    const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset : 0;
+    const trigLevel = scope.trigSource === 'CH2' ? Number((v2 / 2).toPrecision(3)) : on && !ac ? gen.offset * attGain(gen) : 0;
     set({
       scope: {
         ...scope, timeDivIdx, voltDivIdx, position: 0, ch2VoltDivIdx, ch2Position: -3,

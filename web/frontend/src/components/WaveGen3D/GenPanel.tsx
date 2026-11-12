@@ -1,6 +1,6 @@
 // 下方面板「函數波產生器」分頁：波形、參數、輸出三張卡片（與 3D 面板上的按鍵/旋鈕共用狀態）
 import { useWaveLab } from './waveStore.js';
-import { type Waveform, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT, formatSI } from './waveform.js';
+import { type Waveform, ATTEN_STEPS, attGain, FREQ_MIN, FREQ_MAX, OUTPUT_LIMIT, formatSI } from './waveform.js';
 import { Section, Slider, chip, row, grid3, help } from './panelUi.js';
 import { LeadControl } from './LeadControls.js';
 
@@ -31,6 +31,13 @@ export function GeneratorControls() {
         <Slider label="直流偏移" value={`${gen.offset.toFixed(2)} V`}
           min={-OUTPUT_LIMIT} max={OUTPUT_LIMIT} step={0.01} v={gen.offset}
           onChange={(x) => setGen({ offset: x })} />
+        <div style={{ ...row, alignItems: 'center' }}>
+          <span style={help}>輸出衰減</span>
+          {ATTEN_STEPS.map((d) => (
+            <button key={d} style={chip(gen.atten === d)} onClick={() => setGen({ atten: d })}>{d} dB</button>
+          ))}
+        </div>
+        <p style={help}>衰減器把整個輸出（含直流偏移）一起縮小：0 dB ×1、20 dB ×0.1、40 dB ×0.01、60 dB ×0.001。實際輸出 ≈ {(gen.amplitude * attGain(gen)).toPrecision(3)} Vpp。</p>
         {gen.waveform === 'pulse' && (
           <Slider label="工作週期" value={`${gen.duty} %`} min={1} max={99} step={1} v={gen.duty}
             onChange={(x) => setGen({ duty: x })} />

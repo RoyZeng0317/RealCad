@@ -6,7 +6,7 @@ import { useWaveLab } from './waveStore.js';
 import { useSa } from './saStore.js';
 import { getDcBench, fgDc } from './bench.js';
 import { transferOf, probeValue, probeAt, mainsLive, signalPeriod } from './scopeLink.js';
-import { sampleWave } from './waveform.js';
+import { sampleWave, attGain } from './waveform.js';
 import { harmonicsOf, peaksInView, harmonicDb, effectiveRbw, type Harmonic } from './spectrum.js';
 import type { HoleKey } from './boardModel.js';
 
@@ -48,9 +48,9 @@ export function getSaInput(): SaInput {
     harmonics = [{ k: 0, f: 0, vpk: tr ? probeAt(tr, 0) : 0 }];
   } else if (gen.waveform === 'noise' && !mains) {
     // 雜訊不是週期訊號：直流成分 = 偏移，其餘是平坦的白雜訊（產生器頻寬 10 MHz）
-    const sigma = (gen.amplitude / 2) * (0.5 / 1.5) * gain;
-    const slope = tr ? (probeValue(tr, gen.offset + 0.01) - probeValue(tr, gen.offset - 0.01)) / 0.02 : 1;
-    harmonics = [{ k: 0, f: 0, vpk: tr ? probeValue(tr, gen.offset) : gen.offset * gain }];
+    const sigma = (gen.amplitude / 2) * (0.5 / 1.5) * gain * attGain(gen);
+    const slope = tr ? (probeValue(tr, gen.offset * attGain(gen) + 0.01) - probeValue(tr, gen.offset * attGain(gen) - 0.01)) / 0.02 : 1;
+    harmonics = [{ k: 0, f: 0, vpk: tr ? probeValue(tr, gen.offset * attGain(gen)) : gen.offset * attGain(gen) * gain }];
     noiseV2PerHz = (sigma * slope) ** 2 / 10e6;
   } else {
     harmonics = harmonicsOf(v, f0);
